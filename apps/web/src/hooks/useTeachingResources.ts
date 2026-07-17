@@ -10,6 +10,7 @@ import { parseDocxFiles } from '@/lib/parse-docx'
 import { authBridge } from '@/lib/authBridge'
 import { isApiConfigured } from '@/api/weeklyPlan'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
+import type { FocusDomain } from '@/pages/resources/DomainSelector'
 
 export type ResourcesSection = 'generate' | 'manage'
 
@@ -22,6 +23,7 @@ export function useTeachingResources() {
   const [listHint, setListHint] = useState('')
   const [themeName, setThemeName] = useState('')
   const [className, setClassName] = useState<ClassType | ''>('')
+  const [focusDomains, setFocusDomains] = useState<FocusDomain[]>([])
   const [notes, setNotes] = useState('')
   const [isGeneratingPlans, setIsGeneratingPlans] = useState(false)
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
@@ -62,12 +64,15 @@ export function useTeachingResources() {
 
   const generateTeachingPlansFromTheme = useCallback(async () => {
     if (!themeName.trim()) throw new Error('请先填写主题名称')
+    if (!className) throw new Error('请先选择班级')
+    if (focusDomains.length === 0) throw new Error('请至少选择一个重点领域')
     setIsGeneratingPlans(true)
     try {
       const generated = await generateTeachingPlans({
         themeName: themeName.trim(),
         className: className || undefined,
-        count: 5,
+        focusDomains,
+        count: focusDomains.length,
       })
       setGeneratedPlans(generated)
       setUploadSelection(generated)
@@ -75,7 +80,7 @@ export function useTeachingResources() {
     } finally {
       setIsGeneratingPlans(false)
     }
-  }, [themeName, className])
+  }, [themeName, className, focusDomains])
 
   const prepareGeneratedUpload = useCallback((plans: TeachingPlan[]) => {
     const auth = authBridge.getAuthInfo()
@@ -195,6 +200,8 @@ export function useTeachingResources() {
     setThemeName,
     className,
     setClassName,
+    focusDomains,
+    setFocusDomains,
     notes,
     setNotes,
     isGeneratingPlans,

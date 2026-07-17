@@ -163,13 +163,38 @@ export function buildTeachingPlanSystemPrompt(): string {
 export function buildTeachingPlanUserMessage(params: {
   themeName: string
   className?: string
+  focusDomain?: string
+  focusDomains?: string[]
   count?: number
 }): string {
-  const count = params.count && params.count > 0 ? params.count : 5
+  const domains =
+    params.focusDomains && params.focusDomains.length > 0
+      ? params.focusDomains
+      : params.focusDomain
+        ? [params.focusDomain]
+        : []
+  const count =
+    domains.length > 0
+      ? domains.length
+      : params.count && params.count > 0
+        ? params.count
+        : 5
+
   const parts = [`请围绕主题「${params.themeName}」生成 ${count} 份幼儿园教案。`]
   if (params.className) {
     parts.push(`适用班级：${params.className}`)
   }
-  parts.push('教案之间应覆盖不同领域或不同活动类型，避免重复。请输出完整 JSON。')
+  if (domains.length === 1) {
+    parts.push(
+      `重点领域：${domains[0]}。请生成 1 份以「${domains[0]}」领域为核心的教案（可适当融合其他领域，但核心目标与活动设计须突出该领域）。`
+    )
+  } else if (domains.length > 1) {
+    parts.push(
+      `重点领域（多选）：${domains.join('、')}。请严格生成 ${domains.length} 份教案，且第 i 份教案必须以第 i 个领域为核心（顺序：${domains.map((d, i) => `${i + 1}.${d}`).join('；')}）。每份教案的 domain 字段须包含对应重点领域。`
+    )
+  } else {
+    parts.push('教案之间应覆盖不同领域或不同活动类型，避免重复。')
+  }
+  parts.push('请输出完整 JSON。')
   return parts.join('\n')
 }

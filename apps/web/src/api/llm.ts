@@ -273,9 +273,16 @@ async function agentGenerateWeeklyPlan(params: {
   try {
     return await tryOnce()
   } catch (err) {
-    if (err instanceof Error && err.message.includes('请先登录')) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (
+      msg.includes('请先登录') ||
+      msg.includes('智能体请求失败') ||
+      msg.includes('网络') ||
+      /401|403|404|502|503/.test(msg)
+    ) {
       throw err
     }
+    // 仅格式问题重试一次
     return await tryOnce(
       '上次输出格式不符合要求。请严格只输出 JSON，确保 dailyPlans 含周一到周五共 5 项，字段齐全。'
     )
@@ -297,29 +304,17 @@ export async function generateWeeklyPlan(
     selectedPlans: params.selectedPlans,
   }
 
-  // 优先走平台周计划智能体（agent_id 默认 14332）+ 当前知识库
+  // 周计划固定走智能体 14332（与教案 14317 分离），失败时直接抛错，禁止静默降级到 Mock
   try {
     return await agentGenerateWeeklyPlan(payload)
   } catch (err) {
-    if (err instanceof Error && err.message.includes('请先登录')) {
-      throw err
-    }
-    console.warn('[LLM] 平台周计划智能体生成失败，尝试降级:', err)
+    const agentId = getWeeklyPlanAgentId()
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error(`[LLM] 周计划智能体 ${agentId} 失败:`, err)
+    throw new Error(
+      `周计划智能体（ID ${agentId}）生成失败：${detail}。请确认已登录，且智能体 ${agentId} 可用。`
+    )
   }
-
-  if (isBackendApiEnabled()) {
-    try {
-      const response = await request.post<{ success: boolean; result: WeeklyPlan }>(
-        '/api/v1/ai/weekly-plan/generate',
-        payload
-      )
-      return response.result
-    } catch (err) {
-      console.warn('[LLM] 后端周计划生成失败:', err)
-    }
-  }
-
-  return browserGenerateWeeklyPlan(payload)
 }
 
 export async function modifyWeeklyPlan(
@@ -336,20 +331,31 @@ export async function modifyWeeklyPlan(
   return browserModifyWeeklyPlan(params)
 }
 
-function mockTeachingPlans(themeName: string, className?: string, count = 5): TeachingPlan[] {
+function mockTeachingPlans(
+  themeName: string,
+  className?: string,
+  focusDomains?: string[],
+  count = 5
+): TeachingPlan[] {
   const grade = className || '通用'
-  const n = Math.min(Math.max(count, 3), 5)
-  const domains = ['科学', '语言', '艺术', '健康', '社会']
+  const domains =
+    focusDomains && focusDomains.length > 0
+      ? focusDomains
+      : ['科学', '语言', '艺术', '健康', '社会'].slice(0, count)
+  const n = domains.length
   const now = Date.now()
-  return Array.from({ length: n }, (_, i) => ({
-    id: `ai_${now}_${i}`,
-    title: `${themeName}·教案${i + 1}`,
-    domain: domains[i % domains.length],
-    gradeLevel: grade,
-    objectives: `1. 围绕「${themeName}」开展探究。\n2. 愿意表达与分享。\n3. 初步形成相关经验。`,
-    content: `【活动准备】与「${themeName}」相关材料。\n【活动过程】导入→探索→分享→小结。\n【活动延伸】区域持续投放。`,
-    source: 'ai' as const,
-  }))
+  return Array.from({ length: n }, (_, i) => {
+    const domain = domains[i]
+    return {
+      id: `ai_${now}_${i}`,
+      title: `${themeName}·${domain}`,
+      domain,
+      gradeLevel: grade,
+      objectives: `1. 围绕「${themeName}」开展${domain}领域活动。\n2. 愿意表达与分享。\n3. 初步形成相关经验。`,
+      content: `【活动准备】与「${themeName}」相关材料。\n【活动过程】导入→探索→分享→小结。\n【活动延伸】区域持续投放。`,
+      source: 'ai' as const,
+    }
+  })
 }
 
 function normalizeTeachingPlans(raw: unknown, themeName: string): TeachingPlan[] {
@@ -387,14 +393,24 @@ function normalizeTeachingPlans(raw: unknown, themeName: string): TeachingPlan[]
 async function browserGenerateTeachingPlans(params: {
   themeName: string
   className?: string
+  focusDomains?: string[]
   count?: number
 }): Promise<TeachingPlan[]> {
+  const count =
+    params.focusDomains && params.focusDomains.length > 0
+      ? params.focusDomains.length
+      : params.count ?? 5
+
   if (!isApiConfigured()) {
-    return mockTeachingPlans(params.themeName, params.className, params.count)
+    return mockTeachingPlans(params.themeName, params.className, params.focusDomains, count)
   }
 
   const systemPrompt = buildTeachingPlanSystemPrompt()
-  const userMessage = buildTeachingPlanUserMessage(params)
+  const userMessage = buildTeachingPlanUserMessage({
+    ...params,
+    count,
+  })
+
 
   const tryOnce = async (extra?: string) => {
     const content = await browserChatCompletion(
@@ -418,10 +434,18 @@ async function browserGenerateTeachingPlans(params: {
 async function agentGenerateTeachingPlans(params: {
   themeName: string
   className?: string
+  focusDomains?: string[]
   count?: number
 }): Promise<TeachingPlan[]> {
+  const count =
+    params.focusDomains && params.focusDomains.length > 0
+      ? params.focusDomains.length
+      : params.count ?? 5
   const systemPrompt = buildTeachingPlanSystemPrompt()
-  const userMessage = buildTeachingPlanUserMessage(params)
+  const userMessage = buildTeachingPlanUserMessage({
+    ...params,
+    count,
+  })
   const basePrompt = `${systemPrompt}\n\n${userMessage}\n\n请只输出 JSON，不要其它说明。`
 
   const tryOnce = async (extra?: string) => {
@@ -448,6 +472,7 @@ async function agentGenerateTeachingPlans(params: {
 export async function generateTeachingPlans(params: {
   themeName: string
   className?: string
+  focusDomains?: string[]
   count?: number
 }): Promise<TeachingPlan[]> {
   const themeName = params.themeName.trim()
@@ -455,12 +480,18 @@ export async function generateTeachingPlans(params: {
     throw new Error('请先填写主题名称')
   }
 
+  const focusDomains = (params.focusDomains || [])
+    .map((d) => d.trim())
+    .filter(Boolean)
+  const count = focusDomains.length > 0 ? focusDomains.length : params.count ?? 5
+
   // 优先走平台智能体（agent_id 默认 14317）
   try {
     return await agentGenerateTeachingPlans({
       themeName,
       className: params.className,
-      count: params.count ?? 5,
+      focusDomains,
+      count,
     })
   } catch (err) {
     // 未登录：直接提示，不降级 DeepSeek，避免误用
@@ -477,7 +508,8 @@ export async function generateTeachingPlans(params: {
         {
           themeName,
           className: params.className,
-          count: params.count ?? 5,
+          focusDomains,
+          count,
         }
       )
       return normalizeTeachingPlans(response.result, themeName)
@@ -489,6 +521,7 @@ export async function generateTeachingPlans(params: {
   return browserGenerateTeachingPlans({
     themeName,
     className: params.className,
-    count: params.count ?? 5,
+    focusDomains,
+    count,
   })
 }

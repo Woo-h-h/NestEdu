@@ -91,7 +91,7 @@ export default function CreatePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">新建周计划</h1>
         <p className="mt-2 text-sm text-gray-500">
-          勾选教案 → 调用智能体（ID {weeklyAgentId}）结合知识库生成周计划 → 编辑导出
+          勾选教案 → 调用周计划智能体（ID {weeklyAgentId}，与教案智能体 14317 不同）结合知识库生成 → 编辑导出
         </p>
       </div>
 

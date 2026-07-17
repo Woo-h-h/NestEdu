@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTeachingResources } from '@/hooks/useTeachingResources'
 import FileUploadCard from '@/pages/weekly-plan/components/FileUploadCard'
 import ClassSelector from '@/pages/weekly-plan/components/ClassSelector'
+import DomainSelector from '@/pages/resources/DomainSelector'
 import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
@@ -38,6 +39,14 @@ export default function ResourcesPage() {
   }
 
   const handleGenerate = async () => {
+    if (!res.className) {
+      toast.error('请先选择班级')
+      return
+    }
+    if (res.focusDomains.length === 0) {
+      toast.error('请至少选择一个重点领域')
+      return
+    }
     if (!res.themeName.trim()) {
       toast.error('请先填写主题名称')
       return
@@ -150,38 +159,47 @@ export default function ResourcesPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ClassSelector value={res.className} onChange={res.setClassName} />
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <label className="block text-sm text-gray-600 mb-1">
-                主题名称 <span className="text-red-400">*</span>
-              </label>
-              <input
-                value={res.themeName}
-                onChange={(e) => res.setThemeName(e.target.value)}
-                placeholder="如：好宝宝爱图书"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
-              />
-              <label className="block text-sm text-gray-600 mb-1 mt-3">补充说明</label>
-              <textarea
-                value={res.notes}
-                onChange={(e) => res.setNotes(e.target.value)}
-                rows={2}
-                placeholder="可选"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
-              />
-            </div>
+          <ClassSelector value={res.className} onChange={res.setClassName} />
+          <DomainSelector value={res.focusDomains} onChange={res.setFocusDomains} />
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <label className="block text-sm text-gray-600 mb-1">
+              主题名称 <span className="text-red-400">*</span>
+            </label>
+            <input
+              value={res.themeName}
+              onChange={(e) => res.setThemeName(e.target.value)}
+              placeholder="如：好宝宝爱图书"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+            />
+            <label className="block text-sm text-gray-600 mb-1 mt-3">补充说明</label>
+            <textarea
+              value={res.notes}
+              onChange={(e) => res.setNotes(e.target.value)}
+              rows={2}
+              placeholder="可选"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
+            />
           </div>
 
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={res.isGeneratingPlans || !res.themeName.trim()}
+              disabled={
+                res.isGeneratingPlans ||
+                !res.themeName.trim() ||
+                !res.className ||
+                res.focusDomains.length === 0
+              }
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
             >
               <Wand2 size={16} />
-              {res.isGeneratingPlans ? '正在生成...' : '根据主题生成教案'}
+              {res.isGeneratingPlans
+                ? '正在生成...'
+                : res.focusDomains.length > 0
+                  ? `根据主题生成教案（${res.focusDomains.length}）`
+                  : '根据主题生成教案'}
             </button>
             <button
               type="button"
