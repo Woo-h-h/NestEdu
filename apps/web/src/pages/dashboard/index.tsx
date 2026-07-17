@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, CalendarDays, Clock, Plus } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, FolderOpen, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export default function DashboardPage() {
@@ -56,7 +56,7 @@ export default function DashboardPage() {
             <div>
               <h3 className="font-semibold text-gray-900">周计划生成</h3>
               <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-                勾选教案后一键生成周计划，支持编辑、AI 改稿与导出；可查看历史记录。
+                勾选教案后一键生成周计划，支持编辑、AI 改稿与导出；可选上传到周计划知识库。
               </p>
             </div>
           </div>
@@ -71,11 +71,11 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/weekly-plan/history')}
+              onClick={() => navigate('/weekly-plan/manage')}
               className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors inline-flex items-center gap-1"
             >
-              <Clock size={16} />
-              历史记录
+              <FolderOpen size={16} />
+              周计划管理
             </button>
           </div>
         </div>

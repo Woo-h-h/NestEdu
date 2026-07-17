@@ -9,8 +9,11 @@ export interface FetchKnowledgePlansOptions {
   keyword?: string
   knowledgeId?: string
   categoryId?: string
+  categoryKey?: string
   page?: number
   limit?: number
+  /** 平台失败时是否回退本地预设教案；周计划分类应传 false */
+  fallbackPreset?: boolean
 }
 
 /**
@@ -30,27 +33,53 @@ const MAX_UPLOAD_TEXT_CHARS = 2 * 1024 * 1024
 
 /** 对应 https://www.zcat.cn/teach/knowledge/detail/10298 */
 const PRODUCT_DEFAULT_KNOWLEDGE_ID = '10298'
+/** 教案分类（课程资源库） */
 const PRODUCT_DEFAULT_CATEGORY_ID = '20806'
 const PRODUCT_DEFAULT_CATEGORY_KEY = 'custom_1784259353619'
+/** 周计划分类 https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20807&category_key=custom_1784275664825 */
+const PRODUCT_WEEKLY_CATEGORY_ID = '20807'
+const PRODUCT_WEEKLY_CATEGORY_KEY = 'custom_1784275664825'
 
-function getDefaultKnowledgeId(): string {
+export function getDefaultKnowledgeId(): string {
   return (
     (import.meta.env.VITE_DEFAULT_KNOWLEDGE_ID || '').trim() || PRODUCT_DEFAULT_KNOWLEDGE_ID
   )
 }
 
-function getDefaultCategoryId(): string {
+export function getDefaultCategoryId(): string {
   return (
     (import.meta.env.VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID || '').trim() ||
     PRODUCT_DEFAULT_CATEGORY_ID
   )
 }
 
-function getDefaultCategoryKey(): string {
+export function getDefaultCategoryKey(): string {
   return (
     (import.meta.env.VITE_DEFAULT_KNOWLEDGE_CATEGORY_KEY || '').trim() ||
     PRODUCT_DEFAULT_CATEGORY_KEY
   )
+}
+
+export function getWeeklyPlanCategoryId(): string {
+  return (
+    (import.meta.env.VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID || '').trim() ||
+    PRODUCT_WEEKLY_CATEGORY_ID
+  )
+}
+
+export function getWeeklyPlanCategoryKey(): string {
+  return (
+    (import.meta.env.VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_KEY || '').trim() ||
+    PRODUCT_WEEKLY_CATEGORY_KEY
+  )
+}
+
+export function weeklyPlanKnowledgeScope() {
+  return {
+    knowledgeId: getDefaultKnowledgeId(),
+    categoryId: getWeeklyPlanCategoryId(),
+    categoryKey: getWeeklyPlanCategoryKey(),
+  }
 }
 
 function parseIdValue(id: string): string | number {
@@ -186,7 +215,8 @@ export async function fetchKnowledgePlans(
 ): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string }> {
   const knowledgeId = (options.knowledgeId || getDefaultKnowledgeId()).trim()
   const categoryId = (options.categoryId || getDefaultCategoryId()).trim()
-  const categoryKey = getDefaultCategoryKey()
+  const categoryKey = (options.categoryKey || getDefaultCategoryKey()).trim()
+  const fallbackPreset = options.fallbackPreset !== false
 
   try {
     let envelope: ApiEnvelope
@@ -196,6 +226,7 @@ export async function fetchKnowledgePlans(
         params: {
           knowledgeId,
           categoryId: categoryId || undefined,
+          categoryKey: categoryKey || undefined,
           keyword: options.keyword?.trim() || undefined,
           page: options.page ?? 1,
           limit: options.limit ?? 50,
@@ -228,8 +259,12 @@ export async function fetchKnowledgePlans(
       return {
         plans: [],
         source: 'empty',
-        error: '请先登录平台后加载知识库 10298',
+        error: '请先登录平台后加载知识库',
       }
+    }
+
+    if (!fallbackPreset) {
+      return { plans: [], source: 'empty', error: platformMsg }
     }
 
     return {
@@ -289,6 +324,7 @@ export async function uploadKnowledgeDocument(params: {
   content: string
   knowledgeId?: string
   categoryId?: string
+  categoryKey?: string
 }): Promise<TeachingPlan> {
   const title = params.title.trim()
   const content = params.content.trim()
@@ -303,6 +339,7 @@ export async function uploadKnowledgeDocument(params: {
 
   const knowledgeId = (params.knowledgeId || getDefaultKnowledgeId()).trim()
   const categoryId = (params.categoryId || getDefaultCategoryId()).trim()
+  const categoryKey = (params.categoryKey || getDefaultCategoryKey()).trim()
 
   let envelope: ApiEnvelope
   if (USE_BFF) {
@@ -311,6 +348,7 @@ export async function uploadKnowledgeDocument(params: {
       title,
       content,
       categoryId: categoryId || undefined,
+      categoryKey: categoryKey || undefined,
     })
   } else {
     const body: Record<string, unknown> = {
@@ -321,7 +359,6 @@ export async function uploadKnowledgeDocument(params: {
       content,
     }
     if (categoryId) body.category_id = parseIdValue(categoryId)
-    const categoryKey = getDefaultCategoryKey()
     if (categoryKey) body.category_key = categoryKey
     envelope = await request.post<ApiEnvelope>(PLATFORM_UPLOAD_PATH, body)
   }

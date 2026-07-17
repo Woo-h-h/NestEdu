@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_KNOWLEDGE_ID?: string
   readonly VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID?: string
   readonly VITE_DEFAULT_KNOWLEDGE_CATEGORY_KEY?: string
+  readonly VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID?: string
+  readonly VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_KEY?: string
   readonly VITE_PLATFORM_API_BASE_URL?: string
   readonly VITE_PLATFORM_REFERER?: string
   readonly VITE_TEACHING_AGENT_ID?: string

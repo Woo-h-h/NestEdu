@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   Plus,
-  Clock,
+  FolderOpen,
   BookOpen,
   Home,
   ChevronLeft,
@@ -24,7 +24,7 @@ const menuItems: MenuItem[] = [
     icon: CalendarDays,
     children: [
       { path: '/weekly-plan/create', title: '新建周计划', icon: Plus },
-      { path: '/weekly-plan/history', title: '历史记录', icon: Clock },
+      { path: '/weekly-plan/manage', title: '周计划管理', icon: FolderOpen },
     ],
   },
 ]

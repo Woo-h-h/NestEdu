@@ -57,6 +57,7 @@ func (h *knowledgeHandler) listPlans(c *gin.Context) {
 		Keyword:     strings.TrimSpace(c.Query("keyword")),
 		KnowledgeID: strings.TrimSpace(c.Query("knowledgeId")),
 		CategoryID:  strings.TrimSpace(c.Query("categoryId")),
+		CategoryKey: strings.TrimSpace(c.Query("categoryKey")),
 		Page:        parseIntDefault(c.Query("page"), 1),
 		Limit:       parseIntDefault(c.Query("limit"), 50),
 	})

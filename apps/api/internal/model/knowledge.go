@@ -15,6 +15,7 @@ type ListKnowledgePlansParams struct {
 	Keyword     string
 	KnowledgeID string
 	CategoryID  string
+	CategoryKey string
 	Page        int
 	Limit       int
 }

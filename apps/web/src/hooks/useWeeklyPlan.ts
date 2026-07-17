@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import type { WeeklyPlan, ChatMessage, TeachingPlan, ClassType } from '@/types/weeklyPlan'
 import {
   createWeeklyPlan,
-  saveWeeklyPlan,
   aiModifyPlan,
   isApiConfigured,
 } from '@/api/weeklyPlan'
@@ -162,12 +161,6 @@ export function useWeeklyPlan() {
     [currentPlan, chatHistory]
   )
 
-  const savePlan = useCallback(async () => {
-    if (!currentPlan) return
-    await saveWeeklyPlan(currentPlan)
-    setIsModified(false)
-  }, [currentPlan])
-
   const resetAll = useCallback(() => {
     setCurrentPlan(null)
     setIsModified(false)
@@ -194,7 +187,6 @@ export function useWeeklyPlan() {
     apiConfigured: isApiConfigured(),
     generatePlan,
     sendAiInstruction,
-    savePlan,
     resetAll,
   }
 }

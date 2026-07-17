@@ -2,14 +2,15 @@ import { useState } from 'react'
 import type { WeeklyPlan, DayPlan, ChatMessage } from '@/types/weeklyPlan'
 import AiChatPanel from './AiChatPanel'
 import ExportToolbar from './ExportToolbar'
-import { Save, MessageSquare, X } from 'lucide-react'
+import { MessageSquare, X, CloudUpload } from 'lucide-react'
 
 interface Props {
   plan: WeeklyPlan
   chatHistory: ChatMessage[]
   isAiModifying: boolean
+  isUploading?: boolean
   onPlanUpdate: (p: WeeklyPlan) => void
-  onSave: () => void
+  onUploadToKnowledge: () => void
   onSendInstruction: (instruction: string) => Promise<void>
 }
 
@@ -17,8 +18,9 @@ export default function PlanEditor({
   plan,
   chatHistory,
   isAiModifying,
+  isUploading = false,
   onPlanUpdate,
-  onSave,
+  onUploadToKnowledge,
   onSendInstruction,
 }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
@@ -80,10 +82,11 @@ export default function PlanEditor({
           </button>
           <ExportToolbar plan={plan} />
           <button
-            onClick={onSave}
-            className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-1.5"
+            onClick={onUploadToKnowledge}
+            disabled={isUploading}
+            className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 flex items-center gap-1.5"
           >
-            <Save size={14} /> 保存
+            <CloudUpload size={14} /> {isUploading ? '上传中...' : '上传到知识库'}
           </button>
         </div>
       </div>

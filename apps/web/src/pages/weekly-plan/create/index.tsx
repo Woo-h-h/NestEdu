@@ -5,17 +5,23 @@ import { useWeeklyPlan } from '@/hooks/useWeeklyPlan'
 import PlanSelector from '../components/PlanSelector'
 import PlanEditor from '../components/PlanEditor'
 import { ArrowLeft, Sparkles, RefreshCw } from 'lucide-react'
-import { isBackendApiEnabled } from '@/api/llm'
 import { getWeeklyPlanAgentId } from '@/api/agent'
+import {
+  uploadKnowledgeDocument,
+  getWeeklyPlanCategoryId,
+  weeklyPlanKnowledgeScope,
+} from '@/api/knowledge'
+import { serializeWeeklyPlanText, weeklyPlanUploadTitle } from '@/lib/weeklyPlanText'
 import { authBridge } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
 export default function CreatePage() {
   const wp = useWeeklyPlan()
-  const showBrowserKeyHint = !isBackendApiEnabled() && !wp.apiConfigured
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const isLoggedIn = Boolean(authInfo?.token)
   const weeklyAgentId = getWeeklyPlanAgentId()
+  const [isUploading, setIsUploading] = useState(false)
+  const scope = weeklyPlanKnowledgeScope()
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
@@ -52,12 +58,32 @@ export default function CreatePage() {
     }
   }
 
-  const handleSave = async () => {
+  const handleUploadToKnowledge = async () => {
+    if (!wp.currentPlan) return
+    if (!isLoggedIn) {
+      toast.error('请先登录平台后再上传')
+      return
+    }
+    const ok = window.confirm(
+      `是否将当前周计划上传到知识库 ${scope.knowledgeId}（分类 ${getWeeklyPlanCategoryId()}）？\n可随时取消，不影响本地编辑与导出。`
+    )
+    if (!ok) return
+
+    setIsUploading(true)
     try {
-      await wp.savePlan()
-      toast.success('周计划已保存！')
+      await uploadKnowledgeDocument({
+        title: weeklyPlanUploadTitle(wp.currentPlan),
+        content: serializeWeeklyPlanText(wp.currentPlan),
+        knowledgeId: scope.knowledgeId,
+        categoryId: scope.categoryId,
+        categoryKey: scope.categoryKey,
+      })
+      wp.setIsModified(false)
+      toast.success('已上传到周计划知识库')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '保存失败')
+      toast.error(err instanceof Error ? err.message : '上传失败')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -74,11 +100,12 @@ export default function CreatePage() {
           plan={wp.currentPlan}
           chatHistory={wp.chatHistory}
           isAiModifying={wp.isAiModifying}
+          isUploading={isUploading}
           onPlanUpdate={(p) => {
             wp.setCurrentPlan(p)
             wp.setIsModified(true)
           }}
-          onSave={handleSave}
+          onUploadToKnowledge={() => void handleUploadToKnowledge()}
           onSendInstruction={wp.sendAiInstruction}
         />
       </div>
@@ -92,19 +119,14 @@ export default function CreatePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">新建周计划</h1>
         <p className="mt-2 text-sm text-gray-500">
-          勾选教案 → 调用周计划智能体（ID {weeklyAgentId}，与教案智能体 14317 不同）结合知识库生成 → 编辑导出
+          勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
+          {getWeeklyPlanCategoryId()}）
         </p>
       </div>
 
       {!isLoggedIn && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-          生成周计划需登录平台，以便调用智能体并读取知识库 10298。
-        </div>
-      )}
-
-      {showBrowserKeyHint && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
-          周计划仅走平台智能体，不再降级 Mock。请先登录。
+          生成与上传需登录平台，以便调用智能体并写入知识库。
         </div>
       )}
 

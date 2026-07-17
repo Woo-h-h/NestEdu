@@ -24,6 +24,7 @@ type UploadDocumentInput struct {
 	Title       string `json:"title"`
 	Content     string `json:"content"`
 	CategoryID  string `json:"categoryId"`
+	CategoryKey string `json:"categoryKey"`
 }
 
 type KnowledgeService struct {
@@ -49,7 +50,7 @@ func (s *KnowledgeService) ListPlans(
 		return model.ListKnowledgePlansResult{}, fmt.Errorf("knowledgeId is required")
 	}
 
-	items, total, err := s.listDocuments(ctx, headers, params.Keyword, knowledgeID, params.CategoryID, page, limit)
+	items, total, err := s.listDocuments(ctx, headers, params.Keyword, knowledgeID, params.CategoryID, params.CategoryKey, page, limit)
 	if err != nil {
 		return model.ListKnowledgePlansResult{}, err
 	}
@@ -124,6 +125,9 @@ func (s *KnowledgeService) UploadDocument(
 	if cat := strings.TrimSpace(input.CategoryID); cat != "" {
 		body["category_id"] = parseIDValue(cat)
 	}
+	if key := strings.TrimSpace(input.CategoryKey); key != "" {
+		body["category_key"] = key
+	}
 
 	var envelope struct {
 		Success      bool            `json:"success"`
@@ -195,6 +199,7 @@ func (s *KnowledgeService) listDocuments(
 	keyword string,
 	knowledgeID string,
 	categoryID string,
+	categoryKey string,
 	page int,
 	limit int,
 ) ([]model.TeachingPlan, int, error) {
@@ -216,6 +221,9 @@ func (s *KnowledgeService) listDocuments(
 	}
 	if cat := strings.TrimSpace(categoryID); cat != "" {
 		body["category_id"] = parseIDValue(cat)
+	}
+	if key := strings.TrimSpace(categoryKey); key != "" {
+		body["category_key"] = key
 	}
 
 	listPath := strings.TrimSpace(s.cfg.ListPath)
