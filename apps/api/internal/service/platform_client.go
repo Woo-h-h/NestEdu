@@ -34,7 +34,7 @@ func NewPlatformClient(cfg PlatformClientConfig) *PlatformClient {
 			Referer: strings.TrimSpace(cfg.Referer),
 			MVP:     strings.TrimSpace(cfg.MVP),
 		},
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: &http.Client{Timeout: 120 * time.Second},
 	}
 }
 

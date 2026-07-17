@@ -94,7 +94,7 @@ func TestWeeklyPlanRoutesCreateListDelete(t *testing.T) {
 	}
 }
 
-func TestAIWeeklyPlanGenerateMock(t *testing.T) {
+func TestAIWeeklyPlanGenerateRequiresAuth(t *testing.T) {
 	server := newWeeklyPlanTestRouter(t)
 	defer server.Close()
 
@@ -107,21 +107,11 @@ func TestAIWeeklyPlanGenerateMock(t *testing.T) {
 		t.Fatalf("generate weekly plan: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected generate status 200, got %d", resp.StatusCode)
+	// 未登录时不得再返回本地 mock，应失败
+	if resp.StatusCode == http.StatusOK {
+		t.Fatalf("expected generate to fail without auth/agent, got 200 (mock leak?)")
 	}
-
-	var body struct {
-		Success bool `json:"success"`
-		Result  struct {
-			ThemeName  string `json:"themeName"`
-			DailyPlans []any  `json:"dailyPlans"`
-		} `json:"result"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("decode generate response: %v", err)
-	}
-	if !body.Success || body.Result.ThemeName != "亲亲自然" || len(body.Result.DailyPlans) != 5 {
-		t.Fatalf("unexpected generate response: %+v", body)
+	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("expected 401 or 502, got %d", resp.StatusCode)
 	}
 }

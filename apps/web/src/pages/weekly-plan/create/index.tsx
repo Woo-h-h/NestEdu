@@ -37,6 +37,7 @@ export default function CreatePage() {
     }
     try {
       await wp.generatePlan()
+      toast.success(`周计划已由智能体 ${weeklyAgentId} 生成`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '生成失败')
     }
@@ -103,8 +104,7 @@ export default function CreatePage() {
 
       {showBrowserKeyHint && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
-          智能体不可用时将尝试降级。可配置 DeepSeek：根目录{' '}
-          <code className="bg-blue-100 px-1 rounded">.env</code> 中的 VITE_DEEPSEEK_API_KEY
+          周计划仅走平台智能体，不再降级 Mock。请先登录。
         </div>
       )}
 

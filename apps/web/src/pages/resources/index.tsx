@@ -53,7 +53,9 @@ export default function ResourcesPage() {
     }
     try {
       const plans = await res.generateTeachingPlansFromTheme()
-      toast.success(`已生成 ${plans.length} 份教案，勾选后可确认上传到知识库`)
+      toast.success(
+        `已由智能体 ${getTeachingAgentId()} 生成 ${plans.length} 份教案，勾选后可确认上传到知识库`
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '生成教案失败')
     }

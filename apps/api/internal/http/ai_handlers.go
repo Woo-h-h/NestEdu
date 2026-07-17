@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/your-org/mvp-template/apps/api/internal/service"
@@ -31,9 +32,14 @@ func (h *aiHandler) generateTeachingPlans(c *gin.Context) {
 		return
 	}
 
-	plans, err := h.llm.GenerateTeachingPlans(c.Request.Context(), input)
+	plans, err := h.llm.GenerateTeachingPlans(c.Request.Context(), forwardPlatformHeaders(c), input)
 	if err != nil {
-		jsonErr(c, http.StatusInternalServerError, err)
+		msg := err.Error()
+		if strings.Contains(msg, "登录") || strings.Contains(msg, "token") || strings.Contains(msg, "401") {
+			jsonErr(c, http.StatusUnauthorized, err)
+			return
+		}
+		jsonErr(c, http.StatusBadGateway, err)
 		return
 	}
 	jsonResult(c, http.StatusOK, plans)
@@ -46,9 +52,14 @@ func (h *aiHandler) generateWeeklyPlan(c *gin.Context) {
 		return
 	}
 
-	plan, err := h.llm.GenerateWeeklyPlan(c.Request.Context(), input)
+	plan, err := h.llm.GenerateWeeklyPlan(c.Request.Context(), forwardPlatformHeaders(c), input)
 	if err != nil {
-		jsonErr(c, http.StatusInternalServerError, err)
+		msg := err.Error()
+		if strings.Contains(msg, "登录") || strings.Contains(msg, "token") || strings.Contains(msg, "401") {
+			jsonErr(c, http.StatusUnauthorized, err)
+			return
+		}
+		jsonErr(c, http.StatusBadGateway, err)
 		return
 	}
 	jsonResult(c, http.StatusOK, plan)
@@ -61,9 +72,14 @@ func (h *aiHandler) modifyWeeklyPlan(c *gin.Context) {
 		return
 	}
 
-	result, err := h.llm.ModifyWeeklyPlan(c.Request.Context(), input)
+	result, err := h.llm.ModifyWeeklyPlan(c.Request.Context(), forwardPlatformHeaders(c), input)
 	if err != nil {
-		jsonErr(c, http.StatusInternalServerError, err)
+		msg := err.Error()
+		if strings.Contains(msg, "登录") || strings.Contains(msg, "token") || strings.Contains(msg, "401") {
+			jsonErr(c, http.StatusUnauthorized, err)
+			return
+		}
+		jsonErr(c, http.StatusBadGateway, err)
 		return
 	}
 	jsonResult(c, http.StatusOK, result)

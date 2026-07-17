@@ -25,10 +25,10 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	weeklyPlanService := service.NewWeeklyPlanService(weeklyPlanStore)
 	weeklyPlanHandler := newWeeklyPlanHandler(weeklyPlanService)
 
-	llmService := service.NewLLMService(cfg.LLM)
+	platformClient := service.NewPlatformClient(cfg.Platform)
+	llmService := service.NewLLMService(cfg.LLM, platformClient)
 	aiHandler := newAIHandler(llmService)
 
-	platformClient := service.NewPlatformClient(cfg.Platform)
 	knowledgeService := service.NewKnowledgeService(platformClient, cfg.Knowledge)
 	knowledgeHandler := newKnowledgeHandler(knowledgeService)
 

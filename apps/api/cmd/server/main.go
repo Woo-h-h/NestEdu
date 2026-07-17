@@ -39,9 +39,11 @@ func main() {
 		WebStaticDir: cfg.WebStaticDir,
 		WebBasePath:  cfg.WebBasePath,
 		LLM: service.LLMConfig{
-			APIKey:  cfg.LLM.APIKey,
-			BaseURL: cfg.LLM.BaseURL,
-			Model:   cfg.LLM.Model,
+			APIKey:          cfg.LLM.APIKey,
+			BaseURL:         cfg.LLM.BaseURL,
+			Model:           cfg.LLM.Model,
+			WeeklyAgentID:   14332,
+			TeachingAgentID: 14317,
 		},
 		Platform: service.PlatformClientConfig{
 			BaseURL: cfg.Platform.BaseURL,

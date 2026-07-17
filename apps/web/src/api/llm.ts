@@ -15,9 +15,7 @@ import {
   buildTeachingPlanUserMessage,
 } from '@/lib/prompts'
 import { extractJson, isValidTeachingPlans, isValidWeeklyPlan } from '@/lib/weeklyPlanValidators'
-import { mockGenerateWeeklyPlan, mockAiModify } from '@/mock/weeklyPlan'
 import { searchKnowledge } from '@/api/knowledge'
-import { request } from '@/api/client'
 import { generateAgentText, getTeachingAgentId, getWeeklyPlanAgentId } from '@/api/agent'
 
 export function isBackendApiEnabled(): boolean {
@@ -26,148 +24,25 @@ export function isBackendApiEnabled(): boolean {
   return true
 }
 
-function getBrowserLlmConfig() {
-  return {
-    apiKey: import.meta.env.VITE_DEEPSEEK_API_KEY || '',
-    baseUrl: import.meta.env.VITE_DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-    model: import.meta.env.VITE_DEEPSEEK_MODEL || 'deepseek-chat',
-  }
-}
-
 export function isApiConfigured(): boolean {
-  if (isBackendApiEnabled()) {
-    return true
-  }
-  const key = getBrowserLlmConfig().apiKey
-  return !!key && key !== 'sk-your-key-here'
+  // 生成路径走平台智能体，不依赖 DeepSeek；未登录时由 generateAgentText 抛错
+  return true
 }
 
-interface ChatMessagePayload {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
-
-async function browserChatCompletion(
-  messages: ChatMessagePayload[],
-  options?: { temperature?: number }
-): Promise<string> {
-  const { apiKey, baseUrl, model } = getBrowserLlmConfig()
-
-  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: 4096,
-      response_format: { type: 'json_object' },
-    }),
-  })
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '')
-    throw new Error(`API 请求失败 (${response.status}): ${errBody.slice(0, 200)}`)
-  }
-
-  const data = await response.json()
-  const content = data.choices?.[0]?.message?.content
-
-  if (!content) {
-    throw new Error('API 返回内容为空')
-  }
-
-  return content
-}
-
-async function browserGenerateWeeklyPlan(params: {
-  fileContents: { name: string; content: string }[]
-  themeName: string
-  className: ClassType
-  weekNumber: number
-  notes?: string
-  selectedPlans?: TeachingPlan[]
-}): Promise<WeeklyPlan> {
-  if (!isApiConfigured()) {
-    console.warn('[LLM] 未配置 API Key，使用 Mock 数据')
-    return mockGenerateWeeklyPlan(
-      params.themeName,
-      params.className,
-      params.weekNumber,
-      params.fileContents.map((f) => f.name)
-    )
-  }
-
-  let knowledgeContext: string | undefined
-  try {
-    knowledgeContext = await loadKnowledgeContextForWeeklyPlan(
-      params.themeName,
-      params.selectedPlans
-    )
-  } catch (err) {
-    console.warn('[LLM] 知识库查询失败，继续生成:', err)
-  }
-
-  const systemPrompt = buildGenerateSystemPrompt(knowledgeContext)
-  const userMessage = buildGenerateUserMessage(params)
-
-  const content = await browserChatCompletion([
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userMessage },
-  ])
-
-  const json = extractJson(content)
-  const result = JSON.parse(json)
-
-  if (isValidWeeklyPlan(result)) {
-    return assembleWeeklyPlan(result, params)
-  }
-
-  const retryContent = await browserChatCompletion(
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
-      {
-        role: 'user',
-        content:
-          '你上一次的返回格式不正确。请严格只输出 JSON，确保 dailyPlans 是有5个元素（周一到周五）的数组。',
-      },
-    ],
-    { temperature: 0.3 }
-  )
-
-  const retryJson = extractJson(retryContent)
-  const retryResult = JSON.parse(retryJson)
-
-  if (isValidWeeklyPlan(retryResult)) {
-    return assembleWeeklyPlan(retryResult, params)
-  }
-
-  throw new Error('LLM 返回格式两次均不合法，请重试')
-}
-
-async function browserModifyWeeklyPlan(params: {
+async function agentModifyWeeklyPlan(params: {
   currentPlan: WeeklyPlan
   instruction: string
   chatHistory: ChatMessage[]
 }): Promise<{ message: string; updatedPlan: WeeklyPlan }> {
-  if (!isApiConfigured()) {
-    return mockAiModify(params.instruction, params.currentPlan, params.chatHistory)
-  }
-
   const systemPrompt = buildModifySystemPrompt(params.currentPlan)
   const userMessage = buildModifyUserMessage(params.instruction, params.chatHistory)
+  const prompt = `${systemPrompt}\n\n${userMessage}\n\n请只输出 JSON，不要其它说明。`
 
-  const content = await browserChatCompletion([
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userMessage },
-  ])
-
-  const json = extractJson(content)
-  const result = JSON.parse(json)
+  const content = await generateAgentText(prompt, {
+    agentId: getWeeklyPlanAgentId(),
+    timeoutMs: 90000,
+  })
+  const result = JSON.parse(extractJson(content))
 
   if (
     typeof result.message === 'string' &&
@@ -188,7 +63,20 @@ async function browserModifyWeeklyPlan(params: {
     }
   }
 
-  throw new Error('LLM 修改返回格式不合法')
+  throw new Error('周计划修改返回格式不合法')
+}
+
+export async function modifyWeeklyPlan(
+  params: AiModifyRequest
+): Promise<{ message: string; updatedPlan: WeeklyPlan }> {
+  try {
+    return await agentModifyWeeklyPlan(params)
+  } catch (err) {
+    const agentId = getWeeklyPlanAgentId()
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error(`[LLM] 周计划修改智能体 ${agentId} 失败:`, err)
+    throw new Error(`周计划智能体（ID ${agentId}）修改失败：${detail}`)
+  }
 }
 
 function assembleWeeklyPlan(
@@ -197,10 +85,11 @@ function assembleWeeklyPlan(
     themeName: string
     className: ClassType
     weekNumber: number
-  }
+  },
+  agentId = getWeeklyPlanAgentId()
 ): WeeklyPlan {
   return {
-    id: `plan_${Date.now()}`,
+    id: `plan_a${agentId}_${Date.now()}`,
     themeName: params.themeName,
     className: params.className,
     weekNumber: params.weekNumber,
@@ -317,47 +206,6 @@ export async function generateWeeklyPlan(
   }
 }
 
-export async function modifyWeeklyPlan(
-  params: AiModifyRequest
-): Promise<{ message: string; updatedPlan: WeeklyPlan }> {
-  if (isBackendApiEnabled()) {
-    const response = await request.post<{
-      success: boolean
-      result: { message: string; updatedPlan: WeeklyPlan }
-    }>('/api/v1/ai/weekly-plan/modify', params)
-    return response.result
-  }
-
-  return browserModifyWeeklyPlan(params)
-}
-
-function mockTeachingPlans(
-  themeName: string,
-  className?: string,
-  focusDomains?: string[],
-  count = 5
-): TeachingPlan[] {
-  const grade = className || '通用'
-  const domains =
-    focusDomains && focusDomains.length > 0
-      ? focusDomains
-      : ['科学', '语言', '艺术', '健康', '社会'].slice(0, count)
-  const n = domains.length
-  const now = Date.now()
-  return Array.from({ length: n }, (_, i) => {
-    const domain = domains[i]
-    return {
-      id: `ai_${now}_${i}`,
-      title: `${themeName}·${domain}`,
-      domain,
-      gradeLevel: grade,
-      objectives: `1. 围绕「${themeName}」开展${domain}领域活动。\n2. 愿意表达与分享。\n3. 初步形成相关经验。`,
-      content: `【活动准备】与「${themeName}」相关材料。\n【活动过程】导入→探索→分享→小结。\n【活动延伸】区域持续投放。`,
-      source: 'ai' as const,
-    }
-  })
-}
-
 function normalizeTeachingPlans(raw: unknown, themeName: string): TeachingPlan[] {
   let list: unknown[] = []
   if (Array.isArray(raw)) {
@@ -388,47 +236,6 @@ function normalizeTeachingPlans(raw: unknown, themeName: string): TeachingPlan[]
     throw new Error(`主题「${themeName}」教案生成结果格式不合法`)
   }
   return plans
-}
-
-async function browserGenerateTeachingPlans(params: {
-  themeName: string
-  className?: string
-  focusDomains?: string[]
-  count?: number
-}): Promise<TeachingPlan[]> {
-  const count =
-    params.focusDomains && params.focusDomains.length > 0
-      ? params.focusDomains.length
-      : params.count ?? 5
-
-  if (!isApiConfigured()) {
-    return mockTeachingPlans(params.themeName, params.className, params.focusDomains, count)
-  }
-
-  const systemPrompt = buildTeachingPlanSystemPrompt()
-  const userMessage = buildTeachingPlanUserMessage({
-    ...params,
-    count,
-  })
-
-
-  const tryOnce = async (extra?: string) => {
-    const content = await browserChatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: extra ? `${userMessage}\n\n${extra}` : userMessage },
-      ],
-      { temperature: 0.7 }
-    )
-    const parsed = JSON.parse(extractJson(content))
-    return normalizeTeachingPlans(parsed, params.themeName)
-  }
-
-  try {
-    return await tryOnce()
-  } catch {
-    return await tryOnce('上次输出格式不符合要求，请严格按 JSON 的 plans 数组重新输出。')
-  }
 }
 
 async function agentGenerateTeachingPlans(params: {
@@ -485,7 +292,7 @@ export async function generateTeachingPlans(params: {
     .filter(Boolean)
   const count = focusDomains.length > 0 ? focusDomains.length : params.count ?? 5
 
-  // 优先走平台智能体（agent_id 默认 14317）
+  // 教案固定走智能体 14317，失败直接抛错，禁止降级到后端/浏览器 Mock
   try {
     return await agentGenerateTeachingPlans({
       themeName,
@@ -494,34 +301,11 @@ export async function generateTeachingPlans(params: {
       count,
     })
   } catch (err) {
-    // 未登录：直接提示，不降级 DeepSeek，避免误用
-    if (err instanceof Error && err.message.includes('请先登录')) {
-      throw err
-    }
-    console.warn('[LLM] 平台智能体教案生成失败，尝试本地/浏览器降级:', err)
+    const agentId = getTeachingAgentId()
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error(`[LLM] 教案智能体 ${agentId} 失败:`, err)
+    throw new Error(
+      `教案智能体（ID ${agentId}）生成失败：${detail}。请确认已登录，且智能体 ${agentId} 可用。`
+    )
   }
-
-  if (isBackendApiEnabled()) {
-    try {
-      const response = await request.post<{ success: boolean; result: TeachingPlan[] }>(
-        '/api/v1/ai/teaching-plans/generate',
-        {
-          themeName,
-          className: params.className,
-          focusDomains,
-          count,
-        }
-      )
-      return normalizeTeachingPlans(response.result, themeName)
-    } catch (err) {
-      console.warn('[LLM] 后端教案生成失败:', err)
-    }
-  }
-
-  return browserGenerateTeachingPlans({
-    themeName,
-    className: params.className,
-    focusDomains,
-    count,
-  })
 }

@@ -15,21 +15,24 @@ import (
 )
 
 type LLMConfig struct {
-	APIKey  string
-	BaseURL string
-	Model   string
+	APIKey          string
+	BaseURL         string
+	Model           string
+	WeeklyAgentID   int
+	TeachingAgentID int
 }
 
 type LLMService struct {
-	cfg LLMConfig
+	cfg      LLMConfig
+	platform *PlatformClient
 }
 
 type GenerateWeeklyPlanInput struct {
-	FileContents  []FileContentInput `json:"fileContents"`
-	ThemeName     string             `json:"themeName"`
-	ClassName     string             `json:"className"`
-	WeekNumber    int                `json:"weekNumber"`
-	Notes         string             `json:"notes"`
+	FileContents  []FileContentInput  `json:"fileContents"`
+	ThemeName     string              `json:"themeName"`
+	ClassName     string              `json:"className"`
+	WeekNumber    int                 `json:"weekNumber"`
+	Notes         string              `json:"notes"`
 	SelectedPlans []TeachingPlanInput `json:"selectedPlans"`
 }
 
@@ -70,8 +73,14 @@ type GenerateTeachingPlansInput struct {
 	Count     int    `json:"count"`
 }
 
-func NewLLMService(cfg LLMConfig) *LLMService {
-	return &LLMService{cfg: cfg}
+func NewLLMService(cfg LLMConfig, platform *PlatformClient) *LLMService {
+	if cfg.WeeklyAgentID <= 0 {
+		cfg.WeeklyAgentID = 14332
+	}
+	if cfg.TeachingAgentID <= 0 {
+		cfg.TeachingAgentID = 14317
+	}
+	return &LLMService{cfg: cfg, platform: platform}
 }
 
 func (s *LLMService) IsConfigured() bool {
@@ -79,9 +88,26 @@ func (s *LLMService) IsConfigured() bool {
 	return key != "" && key != "sk-your-key-here"
 }
 
-func (s *LLMService) GenerateWeeklyPlan(ctx context.Context, input GenerateWeeklyPlanInput) (model.WeeklyPlanPayload, error) {
+func (s *LLMService) GenerateWeeklyPlan(
+	ctx context.Context,
+	headers ForwardHeaders,
+	input GenerateWeeklyPlanInput,
+) (model.WeeklyPlanPayload, error) {
+	// 优先走平台周计划智能体 14332（禁止再返回本地 mock）
+	if s.platform != nil {
+		plan, err := s.generateWeeklyViaPlatformAgent(ctx, headers, input)
+		if err == nil {
+			return plan, nil
+		}
+		// 有登录头时不再降级 DeepSeek/mock，直接返回智能体错误
+		if strings.TrimSpace(headers["Authorization"]) != "" {
+			return model.WeeklyPlanPayload{}, fmt.Errorf("周计划智能体 %d 失败: %w", s.cfg.WeeklyAgentID, err)
+		}
+		return model.WeeklyPlanPayload{}, fmt.Errorf("请先登录平台后生成周计划（智能体 %d）: %w", s.cfg.WeeklyAgentID, err)
+	}
+
 	if !s.IsConfigured() {
-		return mockGenerateWeeklyPlan(input.ThemeName, input.ClassName, input.WeekNumber), nil
+		return model.WeeklyPlanPayload{}, errors.New("未配置 DeepSeek，且平台智能体客户端不可用")
 	}
 
 	systemPrompt := buildGenerateSystemPrompt("")
@@ -117,7 +143,96 @@ func (s *LLMService) GenerateWeeklyPlan(ctx context.Context, input GenerateWeekl
 	return wrapGeneratedPlan(input, retryResult), nil
 }
 
-func (s *LLMService) GenerateTeachingPlans(ctx context.Context, input GenerateTeachingPlansInput) ([]model.TeachingPlan, error) {
+func (s *LLMService) generateWeeklyViaPlatformAgent(
+	ctx context.Context,
+	headers ForwardHeaders,
+	input GenerateWeeklyPlanInput,
+) (model.WeeklyPlanPayload, error) {
+	systemPrompt := buildGenerateSystemPrompt("")
+	userMessage := buildGenerateUserMessage(input)
+	prompt := systemPrompt + "\n\n" + userMessage + "\n\n请只输出 JSON，不要其它说明。"
+
+	text, err := s.callPlatformAgent(ctx, headers, s.cfg.WeeklyAgentID, prompt)
+	if err != nil {
+		return model.WeeklyPlanPayload{}, err
+	}
+	result, err := parseWeeklyPlanLLMResult(text)
+	if err != nil {
+		retryPrompt := prompt + "\n\n上次输出格式不符合要求。请严格只输出 JSON，确保 dailyPlans 含周一到周五共 5 项。"
+		retryText, retryErr := s.callPlatformAgent(ctx, headers, s.cfg.WeeklyAgentID, retryPrompt)
+		if retryErr != nil {
+			return model.WeeklyPlanPayload{}, retryErr
+		}
+		result, err = parseWeeklyPlanLLMResult(retryText)
+		if err != nil {
+			return model.WeeklyPlanPayload{}, err
+		}
+	}
+	plan := wrapGeneratedPlan(input, result)
+	plan.ID = fmt.Sprintf("plan_a%d_%d", s.cfg.WeeklyAgentID, time.Now().UnixMilli())
+	return plan, nil
+}
+
+func (s *LLMService) callPlatformAgent(
+	ctx context.Context,
+	headers ForwardHeaders,
+	agentID int,
+	text string,
+) (string, error) {
+	if agentID <= 0 {
+		return "", errors.New("invalid agent id")
+	}
+	var envelope struct {
+		Success      bool            `json:"success"`
+		Result       json.RawMessage `json:"result"`
+		ErrorMessage string          `json:"errorMessage"`
+	}
+	body := map[string]any{
+		"agent_id": agentID,
+		"agentId":  agentID,
+		"text":     text,
+	}
+	if err := s.platform.PostJSON(ctx, "/v1/text/generate", body, headers, &envelope); err != nil {
+		return "", err
+	}
+	if envelope.Success == false {
+		msg := strings.TrimSpace(envelope.ErrorMessage)
+		if msg == "" {
+			msg = "platform agent generate failed"
+		}
+		return "", fmt.Errorf("%s", msg)
+	}
+	out := extractAgentText(envelope.Result)
+	if out == "" {
+		return "", errors.New("platform agent returned empty text")
+	}
+	return out, nil
+}
+
+func extractAgentText(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		return strings.TrimSpace(asString)
+	}
+	var asObj map[string]any
+	if err := json.Unmarshal(raw, &asObj); err == nil {
+		for _, key := range []string{"text", "content", "output", "answer", "message"} {
+			if v, ok := asObj[key].(string); ok && strings.TrimSpace(v) != "" {
+				return strings.TrimSpace(v)
+			}
+		}
+	}
+	return ""
+}
+
+func (s *LLMService) GenerateTeachingPlans(
+	ctx context.Context,
+	headers ForwardHeaders,
+	input GenerateTeachingPlansInput,
+) ([]model.TeachingPlan, error) {
 	themeName := strings.TrimSpace(input.ThemeName)
 	if themeName == "" {
 		return nil, errors.New("themeName is required")
@@ -130,8 +245,38 @@ func (s *LLMService) GenerateTeachingPlans(ctx context.Context, input GenerateTe
 		count = 8
 	}
 
+	if s.platform != nil {
+		systemPrompt := buildTeachingPlanSystemPrompt()
+		userMessage := buildTeachingPlanUserMessage(themeName, input.ClassName, count)
+		prompt := systemPrompt + "\n\n" + userMessage + "\n\n请只输出 JSON，不要其它说明。"
+		text, err := s.callPlatformAgent(ctx, headers, s.cfg.TeachingAgentID, prompt)
+		if err != nil {
+			if strings.TrimSpace(headers["Authorization"]) != "" {
+				return nil, fmt.Errorf("教案智能体 %d 失败: %w", s.cfg.TeachingAgentID, err)
+			}
+			return nil, fmt.Errorf("请先登录平台后生成教案（智能体 %d）: %w", s.cfg.TeachingAgentID, err)
+		}
+		plans, parseErr := parseTeachingPlansLLMResult(text, themeName, count)
+		if parseErr != nil {
+			retryText, retryErr := s.callPlatformAgent(
+				ctx,
+				headers,
+				s.cfg.TeachingAgentID,
+				prompt+"\n\n上次输出格式不符合要求，请严格按 JSON 的 plans 数组重新输出。",
+			)
+			if retryErr != nil {
+				return nil, retryErr
+			}
+			plans, parseErr = parseTeachingPlansLLMResult(retryText, themeName, count)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+		}
+		return plans, nil
+	}
+
 	if !s.IsConfigured() {
-		return mockGenerateTeachingPlans(themeName, input.ClassName, count), nil
+		return nil, errors.New("未配置 DeepSeek，且平台智能体客户端不可用")
 	}
 
 	systemPrompt := buildTeachingPlanSystemPrompt()
@@ -164,13 +309,29 @@ func (s *LLMService) GenerateTeachingPlans(ctx context.Context, input GenerateTe
 	return retryPlans, nil
 }
 
-func (s *LLMService) ModifyWeeklyPlan(ctx context.Context, input ModifyWeeklyPlanInput) (ModifyWeeklyPlanResult, error) {
-	if !s.IsConfigured() {
-		return mockModifyWeeklyPlan(input.Instruction, input.CurrentPlan), nil
-	}
-
+func (s *LLMService) ModifyWeeklyPlan(
+	ctx context.Context,
+	headers ForwardHeaders,
+	input ModifyWeeklyPlanInput,
+) (ModifyWeeklyPlanResult, error) {
 	systemPrompt := buildModifySystemPrompt(input.CurrentPlan)
 	userMessage := buildModifyUserMessage(input.Instruction)
+	prompt := systemPrompt + "\n\n" + userMessage + "\n\n请只输出 JSON，不要其它说明。"
+
+	if s.platform != nil {
+		text, err := s.callPlatformAgent(ctx, headers, s.cfg.WeeklyAgentID, prompt)
+		if err != nil {
+			if strings.TrimSpace(headers["Authorization"]) != "" {
+				return ModifyWeeklyPlanResult{}, fmt.Errorf("周计划智能体 %d 修改失败: %w", s.cfg.WeeklyAgentID, err)
+			}
+			return ModifyWeeklyPlanResult{}, fmt.Errorf("请先登录平台后修改周计划（智能体 %d）: %w", s.cfg.WeeklyAgentID, err)
+		}
+		return parseModifyWeeklyPlanResult(text, input.CurrentPlan)
+	}
+
+	if !s.IsConfigured() {
+		return ModifyWeeklyPlanResult{}, errors.New("未配置 DeepSeek，且平台智能体客户端不可用")
+	}
 
 	content, err := s.chatCompletion(ctx, []chatMessage{
 		{Role: "system", Content: systemPrompt},
@@ -180,10 +341,14 @@ func (s *LLMService) ModifyWeeklyPlan(ctx context.Context, input ModifyWeeklyPla
 		return ModifyWeeklyPlanResult{}, err
 	}
 
+	return parseModifyWeeklyPlanResult(content, input.CurrentPlan)
+}
+
+func parseModifyWeeklyPlanResult(content string, current model.WeeklyPlanPayload) (ModifyWeeklyPlanResult, error) {
 	jsonText := extractJSON(content)
 	var parsed struct {
-		Message     string                  `json:"message"`
-		UpdatedPlan weeklyPlanLLMResult     `json:"updatedPlan"`
+		Message     string              `json:"message"`
+		UpdatedPlan weeklyPlanLLMResult `json:"updatedPlan"`
 	}
 	if err := json.Unmarshal([]byte(jsonText), &parsed); err != nil {
 		return ModifyWeeklyPlanResult{}, fmt.Errorf("decode modify result: %w", err)
@@ -192,7 +357,7 @@ func (s *LLMService) ModifyWeeklyPlan(ctx context.Context, input ModifyWeeklyPla
 		return ModifyWeeklyPlanResult{}, errors.New("LLM 修改返回格式不合法")
 	}
 
-	updated := input.CurrentPlan
+	updated := current
 	updated.WeeklyFocus = parsed.UpdatedPlan.WeeklyFocus
 	updated.DailyPlans = parsed.UpdatedPlan.DailyPlans
 	updated.Suggestions = parsed.UpdatedPlan.Suggestions
