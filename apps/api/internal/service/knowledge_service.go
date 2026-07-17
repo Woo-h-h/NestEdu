@@ -15,6 +15,7 @@ type KnowledgeConfig struct {
 	ListPath   string
 	DetailPath string
 	UploadPath string
+	DeletePath string
 	DefaultID  string
 }
 
@@ -48,7 +49,7 @@ func (s *KnowledgeService) ListPlans(
 		return model.ListKnowledgePlansResult{}, fmt.Errorf("knowledgeId is required")
 	}
 
-	items, total, err := s.listDocuments(ctx, headers, params.Keyword, knowledgeID, page, limit)
+	items, total, err := s.listDocuments(ctx, headers, params.Keyword, knowledgeID, params.CategoryID, page, limit)
 	if err != nil {
 		return model.ListKnowledgePlansResult{}, err
 	}
@@ -193,6 +194,7 @@ func (s *KnowledgeService) listDocuments(
 	headers ForwardHeaders,
 	keyword string,
 	knowledgeID string,
+	categoryID string,
 	page int,
 	limit int,
 ) ([]model.TeachingPlan, int, error) {
@@ -211,6 +213,9 @@ func (s *KnowledgeService) listDocuments(
 	if keyword != "" {
 		body["keyword"] = keyword
 		body["q"] = keyword
+	}
+	if cat := strings.TrimSpace(categoryID); cat != "" {
+		body["category_id"] = parseIDValue(cat)
 	}
 
 	listPath := strings.TrimSpace(s.cfg.ListPath)
@@ -265,6 +270,39 @@ func (s *KnowledgeService) getDocument(ctx context.Context, headers ForwardHeade
 		return model.TeachingPlan{}, fmt.Errorf("empty platform document detail")
 	}
 	return plans[0], nil
+}
+
+func (s *KnowledgeService) DeleteDocument(
+	ctx context.Context,
+	headers ForwardHeaders,
+	id string,
+) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("document id is required")
+	}
+
+	deletePath := strings.TrimSpace(s.cfg.DeletePath)
+	if deletePath == "" {
+		deletePath = "/api/knowledge/document/delete"
+	}
+
+	var envelope struct {
+		Success      bool   `json:"success"`
+		ErrorMessage string `json:"errorMessage"`
+	}
+	body := map[string]any{"id": parseIDValue(id)}
+	if err := s.platform.DeleteJSON(ctx, deletePath, body, headers, &envelope); err != nil {
+		return err
+	}
+	if envelope.Success == false {
+		msg := strings.TrimSpace(envelope.ErrorMessage)
+		if msg == "" {
+			msg = "platform document delete failed"
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
 }
 
 func mapPlatformPlans(raw json.RawMessage, knowledgeID string) ([]model.TeachingPlan, error) {

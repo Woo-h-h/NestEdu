@@ -5,10 +5,22 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
+
+var (
+	platformProxyMu      sync.RWMutex
+	platformProxyHandler gin.HandlerFunc
+)
+
+func getPlatformProxyHandler() gin.HandlerFunc {
+	platformProxyMu.RLock()
+	defer platformProxyMu.RUnlock()
+	return platformProxyHandler
+}
 
 // registerPlatformProxy 将平台直连路径反代到 api.zcat.cn。
 // 生产环境前后端同域时，前端仍请求 /api/knowledge、/v1，由本服务转发。
@@ -32,7 +44,6 @@ func registerPlatformProxy(r *gin.Engine, cfg service.PlatformClientConfig) {
 		if referer := strings.TrimSpace(cfg.Referer); referer != "" {
 			req.Header.Set("Referer", referer)
 		}
-		// 避免把本地 Host 传给平台
 		req.Header.Del("X-Forwarded-Host")
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
@@ -46,10 +57,19 @@ func registerPlatformProxy(r *gin.Engine, cfg service.PlatformClientConfig) {
 		c.Abort()
 	}
 
-	r.Any("/api/knowledge", handler)
-	r.Any("/api/knowledge/*filepath", handler)
-	r.Any("/v1", handler)
-	r.Any("/v1/*filepath", handler)
+	platformProxyMu.Lock()
+	platformProxyHandler = handler
+	platformProxyMu.Unlock()
+
+	// 用中间件前缀匹配，避免 Gin 通配路由在部分路径下未命中
+	r.Use(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/knowledge") || path == "/v1" || strings.HasPrefix(path, "/v1/") {
+			handler(c)
+			return
+		}
+		c.Next()
+	})
 }
 
 func escapeJSON(s string) string {

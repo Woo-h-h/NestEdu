@@ -35,6 +35,7 @@ type PlatformConfig struct {
 	KnowledgeListPath   string
 	KnowledgeDetailPath string
 	KnowledgeUploadPath string
+	KnowledgeDeletePath string
 	DefaultKnowledgeID  string
 }
 
@@ -83,6 +84,7 @@ func Load() (Config, error) {
 			KnowledgeListPath:   getEnv("KNOWLEDGE_LIST_PATH", "/api/knowledge/document/list"),
 			KnowledgeDetailPath: getEnv("KNOWLEDGE_DETAIL_PATH", "/api/knowledge/document/detail"),
 			KnowledgeUploadPath: getEnv("KNOWLEDGE_UPLOAD_PATH", "/api/knowledge/document/text"),
+			KnowledgeDeletePath: getEnv("KNOWLEDGE_DELETE_PATH", "/api/knowledge/document/delete"),
 			DefaultKnowledgeID:  getEnv("DEFAULT_KNOWLEDGE_ID", "10298"),
 		},
 		WebStaticDir: strings.TrimSpace(os.Getenv("WEB_STATIC_DIR")),

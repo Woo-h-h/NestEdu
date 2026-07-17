@@ -42,11 +42,19 @@ func registerWebStatic(r *gin.Engine, dir, basePath string) {
 	}
 
 	r.NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+		path := c.Request.URL.Path
+		// 兜底：未匹配到显式反代路由时，仍转发平台路径，避免「api route not found」
+		if strings.HasPrefix(path, "/api/knowledge") || path == "/v1" || strings.HasPrefix(path, "/v1/") {
+			if proxy := getPlatformProxyHandler(); proxy != nil {
+				proxy(c)
+				return
+			}
+		}
+		if strings.HasPrefix(path, "/api") {
 			jsonErr(c, http.StatusNotFound, errors.New("api route not found"))
 			return
 		}
-		if basePath != "" && !isUnderBasePath(c.Request.URL.Path, basePath) {
+		if basePath != "" && !isUnderBasePath(path, basePath) {
 			jsonErr(c, http.StatusNotFound, errors.New("route not found"))
 			return
 		}

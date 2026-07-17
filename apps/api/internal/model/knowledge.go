@@ -14,6 +14,7 @@ type TeachingPlan struct {
 type ListKnowledgePlansParams struct {
 	Keyword     string
 	KnowledgeID string
+	CategoryID  string
 	Page        int
 	Limit       int
 }

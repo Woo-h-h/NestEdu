@@ -23,6 +23,7 @@ func (h *knowledgeHandler) registerRoutes(api *gin.RouterGroup) {
 	group.GET("/plans", h.listPlans)
 	group.GET("/plans/:id", h.getPlan)
 	group.POST("/documents", h.uploadDocument)
+	group.DELETE("/documents/:id", h.deleteDocument)
 }
 
 func (h *knowledgeHandler) uploadDocument(c *gin.Context) {
@@ -55,12 +56,18 @@ func (h *knowledgeHandler) listPlans(c *gin.Context) {
 	result, err := h.service.ListPlans(c.Request.Context(), forwardPlatformHeaders(c), model.ListKnowledgePlansParams{
 		Keyword:     strings.TrimSpace(c.Query("keyword")),
 		KnowledgeID: strings.TrimSpace(c.Query("knowledgeId")),
+		CategoryID:  strings.TrimSpace(c.Query("categoryId")),
 		Page:        parseIntDefault(c.Query("page"), 1),
 		Limit:       parseIntDefault(c.Query("limit"), 50),
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "knowledgeId is required") {
 			jsonErr(c, http.StatusBadRequest, err)
+			return
+		}
+		msg := err.Error()
+		if strings.Contains(msg, "token") || strings.Contains(msg, "401") || strings.Contains(msg, "cookie") {
+			jsonErr(c, http.StatusUnauthorized, fmt.Errorf("请先登录平台后加载知识库"))
 			return
 		}
 		jsonErr(c, http.StatusBadGateway, err)
@@ -85,6 +92,24 @@ func (h *knowledgeHandler) getPlan(c *gin.Context) {
 		return
 	}
 	jsonResult(c, http.StatusOK, plan)
+}
+
+func (h *knowledgeHandler) deleteDocument(c *gin.Context) {
+	headers := forwardPlatformHeaders(c)
+	if strings.TrimSpace(headers["Authorization"]) == "" {
+		jsonErr(c, http.StatusUnauthorized, fmt.Errorf("请先登录平台后再删除"))
+		return
+	}
+	if err := h.service.DeleteDocument(c.Request.Context(), headers, c.Param("id")); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "required") {
+			jsonErr(c, http.StatusBadRequest, err)
+			return
+		}
+		jsonErr(c, http.StatusBadGateway, err)
+		return
+	}
+	jsonResult(c, http.StatusOK, gin.H{"deleted": true})
 }
 
 func forwardPlatformHeaders(c *gin.Context) service.ForwardHeaders {

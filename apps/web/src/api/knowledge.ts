@@ -13,9 +13,19 @@ export interface FetchKnowledgePlansOptions {
   limit?: number
 }
 
-const LIST_PATH = '/api/knowledge/document/list'
-const DETAIL_PATH = '/api/knowledge/document/detail'
-const UPLOAD_PATH = '/api/knowledge/document/text'
+/**
+ * 生产：走 Go BFF `/api/v1/knowledge/*`（同域，由后端转发平台）
+ * 本地：走 Vite 代理 `/api/knowledge/*` → api.zcat.cn（可不启 Go）
+ */
+const USE_BFF = import.meta.env.PROD
+
+const BFF_LIST_PATH = '/api/v1/knowledge/plans'
+const BFF_UPLOAD_PATH = '/api/v1/knowledge/documents'
+const PLATFORM_LIST_PATH = '/api/knowledge/document/list'
+const PLATFORM_DETAIL_PATH = '/api/knowledge/document/detail'
+const PLATFORM_UPLOAD_PATH = '/api/knowledge/document/text'
+const PLATFORM_DELETE_PATH = '/api/knowledge/document/delete'
+
 const MAX_UPLOAD_TEXT_CHARS = 2 * 1024 * 1024
 
 /** 对应 https://www.zcat.cn/teach/knowledge/detail/10298 */
@@ -61,6 +71,19 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : text.slice(0, max)
 }
 
+function mapTeachingPlan(plan: Partial<TeachingPlan> & Record<string, unknown>): TeachingPlan {
+  return {
+    id: String(plan.id || ''),
+    title: String(plan.title || ''),
+    domain: String(plan.domain || '综合'),
+    gradeLevel: String(plan.gradeLevel || '通用'),
+    objectives: String(plan.objectives || ''),
+    content: String(plan.content || ''),
+    source: (plan.source as TeachingPlan['source']) || 'platform',
+    knowledgeId: plan.knowledgeId ? String(plan.knowledgeId) : undefined,
+  }
+}
+
 function mapPlanMaps(items: Record<string, unknown>[], knowledgeId: string): TeachingPlan[] {
   const plans: TeachingPlan[] = []
   for (const item of items) {
@@ -86,8 +109,11 @@ function mapPlanMaps(items: Record<string, unknown>[], knowledgeId: string): Tea
     plans.push({
       id,
       title,
-      domain: pickString(item, ['domain', 'subject', 'category_name', 'display_name', 'knowledge_tag']) || '综合',
-      gradeLevel: pickString(item, ['gradeLevel', 'grade_level', 'grade', 'class_name']) || '通用',
+      domain:
+        pickString(item, ['domain', 'subject', 'category_name', 'display_name', 'knowledge_tag']) ||
+        '综合',
+      gradeLevel:
+        pickString(item, ['gradeLevel', 'grade_level', 'grade', 'class_name']) || '通用',
       objectives,
       content,
       source: 'platform',
@@ -100,13 +126,16 @@ function mapPlanMaps(items: Record<string, unknown>[], knowledgeId: string): Tea
 
 function mapPlatformResult(raw: unknown, knowledgeId: string): TeachingPlan[] {
   if (raw == null) return []
-
   if (Array.isArray(raw)) {
+    // BFF 已映射为 TeachingPlan[]
+    if (raw[0] && typeof raw[0] === 'object' && 'gradeLevel' in (raw[0] as object)) {
+      return (raw as Record<string, unknown>[]).map((item) =>
+        mapTeachingPlan(item as Partial<TeachingPlan> & Record<string, unknown>)
+      )
+    }
     return mapPlanMaps(raw as Record<string, unknown>[], knowledgeId)
   }
-
   if (typeof raw !== 'object') return []
-
   const obj = raw as Record<string, unknown>
   const list =
     (Array.isArray(obj.list) && obj.list) ||
@@ -116,39 +145,21 @@ function mapPlatformResult(raw: unknown, knowledgeId: string): TeachingPlan[] {
     (Array.isArray(obj.records) && obj.records) ||
     (Array.isArray(obj.rows) && obj.rows) ||
     null
-
-  if (list) {
-    return mapPlanMaps(list as Record<string, unknown>[], knowledgeId)
-  }
-
-  if (Object.keys(obj).length > 0) {
-    return mapPlanMaps([obj], knowledgeId)
-  }
+  if (list) return mapPlanMaps(list as Record<string, unknown>[], knowledgeId)
+  if (Object.keys(obj).length > 0) return mapPlanMaps([obj], knowledgeId)
   return []
 }
 
-function mapTeachingPlan(plan: TeachingPlan): TeachingPlan {
-  return {
-    id: plan.id,
-    title: plan.title,
-    domain: plan.domain,
-    gradeLevel: plan.gradeLevel,
-    objectives: plan.objectives,
-    content: plan.content,
-    source: plan.source || 'platform',
-    knowledgeId: plan.knowledgeId,
-  }
-}
-
-interface PlatformEnvelope {
+interface ApiEnvelope {
   success?: boolean
   result?: unknown
   total?: number
+  source?: string
   errorMessage?: string
   error_message?: string
 }
 
-function assertPlatformSuccess(envelope: PlatformEnvelope, fallbackMsg: string) {
+function assertSuccess(envelope: ApiEnvelope, fallbackMsg: string) {
   if (envelope.success === false) {
     const msg =
       (envelope.errorMessage || envelope.error_message || '').trim() || fallbackMsg
@@ -156,7 +167,20 @@ function assertPlatformSuccess(envelope: PlatformEnvelope, fallbackMsg: string) 
   }
 }
 
-/** 直连平台知识库文档列表（经 Vite 代理到 api.zcat.cn） */
+function extractErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const data = (err as { response?: { data?: ApiEnvelope } }).response?.data
+    const msg = (data?.errorMessage || data?.error_message || '').trim()
+    if (msg) return msg
+  }
+  if (err instanceof Error) return err.message
+  return String(err)
+}
+
+function isAuthError(message: string): boolean {
+  return /401|token|未授权|登录|cookie/i.test(message)
+}
+
 export async function fetchKnowledgePlans(
   options: FetchKnowledgePlansOptions = {}
 ): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string }> {
@@ -165,43 +189,42 @@ export async function fetchKnowledgePlans(
   const categoryKey = getDefaultCategoryKey()
 
   try {
-    const body: Record<string, unknown> = {
-      knowledge_id: parseIdValue(knowledgeId),
-      current: options.page ?? 1,
-      pageSize: options.limit ?? 50,
-    }
-    if (categoryId) {
-      body.category_id = parseIdValue(categoryId)
-    }
-    if (categoryKey) {
-      body.category_key = categoryKey
-    }
-    if (options.keyword?.trim()) {
-      body.keyword = options.keyword.trim()
-      body.q = options.keyword.trim()
+    let envelope: ApiEnvelope
+
+    if (USE_BFF) {
+      envelope = await request.get<ApiEnvelope>(BFF_LIST_PATH, {
+        params: {
+          knowledgeId,
+          categoryId: categoryId || undefined,
+          keyword: options.keyword?.trim() || undefined,
+          page: options.page ?? 1,
+          limit: options.limit ?? 50,
+        },
+      })
+    } else {
+      const body: Record<string, unknown> = {
+        knowledge_id: parseIdValue(knowledgeId),
+        current: options.page ?? 1,
+        pageSize: options.limit ?? 50,
+      }
+      if (categoryId) body.category_id = parseIdValue(categoryId)
+      if (categoryKey) body.category_key = categoryKey
+      if (options.keyword?.trim()) {
+        body.keyword = options.keyword.trim()
+        body.q = options.keyword.trim()
+      }
+      envelope = await request.post<ApiEnvelope>(PLATFORM_LIST_PATH, body)
     }
 
-    const envelope = await request.post<PlatformEnvelope>(LIST_PATH, body)
-    assertPlatformSuccess(envelope, '平台文档列表失败')
-
-    const plans = mapPlatformResult(envelope.result, knowledgeId).map(mapTeachingPlan)
-    if (plans.length > 0) {
-      return { plans, source: 'platform' }
-    }
+    assertSuccess(envelope, '知识库列表失败')
+    const plans = mapPlatformResult(envelope.result, knowledgeId)
+    if (plans.length > 0) return { plans, source: 'platform' }
     return { plans: [], source: 'empty' }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    const axiosData = (err as { response?: { data?: PlatformEnvelope } })?.response?.data
-    const platformMsg =
-      (axiosData?.errorMessage || axiosData?.error_message || '').trim() || message
-    const needLogin =
-      /401|token|未授权|登录|cookie/i.test(platformMsg) ||
-      /401|token|未授权|登录|cookie/i.test(message)
+    const platformMsg = extractErrorMessage(err)
+    console.warn('[Knowledge] 知识库查询失败:', err)
 
-    console.warn('[Knowledge] 平台知识库查询失败:', err)
-
-    // 未登录时不回退预设，避免把本地教案误当成平台知识库
-    if (needLogin) {
+    if (isAuthError(platformMsg)) {
       return {
         plans: [],
         source: 'empty',
@@ -221,12 +244,27 @@ export async function fetchKnowledgePlanById(id: string): Promise<TeachingPlan |
   if (!id.trim()) return null
 
   try {
-    const envelope = await request.get<PlatformEnvelope>(DETAIL_PATH, {
-      params: { document_id: id },
-    })
-    assertPlatformSuccess(envelope, '平台文档详情失败')
-    const plans = mapPlatformResult(envelope.result, '').map(mapTeachingPlan)
-    if (plans[0]) return plans[0]
+    if (USE_BFF) {
+      const envelope = await request.get<ApiEnvelope>(
+        `${BFF_LIST_PATH}/${encodeURIComponent(id.trim())}`
+      )
+      assertSuccess(envelope, '教案详情失败')
+      const plans = mapPlatformResult(
+        envelope.result ? [envelope.result as Record<string, unknown>] : [],
+        ''
+      )
+      if (plans[0]) return plans[0]
+      if (envelope.result && typeof envelope.result === 'object') {
+        return mapTeachingPlan(envelope.result as Partial<TeachingPlan> & Record<string, unknown>)
+      }
+    } else {
+      const envelope = await request.get<ApiEnvelope>(PLATFORM_DETAIL_PATH, {
+        params: { document_id: id },
+      })
+      assertSuccess(envelope, '教案详情失败')
+      const plans = mapPlatformResult(envelope.result, '')
+      if (plans[0]) return plans[0]
+    }
   } catch (err) {
     console.warn('[Knowledge] 教案详情获取失败:', err)
   }
@@ -239,11 +277,7 @@ export async function searchKnowledge(
   themeName: string
 ): Promise<{ plans: TeachingPlan[]; summary: string; source: KnowledgeSource }> {
   const { plans, source } = await fetchKnowledgePlans({ keyword: themeName })
-
-  if (plans.length === 0) {
-    return { plans: [], summary: '', source: 'empty' }
-  }
-
+  if (plans.length === 0) return { plans: [], summary: '', source: 'empty' }
   const summary = plans
     .map((plan) => `【${plan.id}】${plan.title}${plan.content ? `\n${plan.content}` : ''}`)
     .join('\n\n')
@@ -265,55 +299,48 @@ export async function uploadKnowledgeDocument(params: {
   }
 
   const auth = authBridge.getAuthInfo()
-  if (!auth?.token) {
-    throw new Error('请先登录平台后再上传')
-  }
+  if (!auth?.token) throw new Error('请先登录平台后再上传')
 
   const knowledgeId = (params.knowledgeId || getDefaultKnowledgeId()).trim()
-  if (!knowledgeId) {
-    throw new Error('未配置知识库 ID（VITE_DEFAULT_KNOWLEDGE_ID）')
-  }
-
   const categoryId = (params.categoryId || getDefaultCategoryId()).trim()
-  const body: Record<string, unknown> = {
-    knowledge_id: parseIdValue(knowledgeId),
-    name: title,
-    title,
-    text: content,
-    content,
-  }
-  if (categoryId) {
-    body.category_id = parseIdValue(categoryId)
-  }
-  const categoryKey = getDefaultCategoryKey()
-  if (categoryKey) {
-    body.category_key = categoryKey
+
+  let envelope: ApiEnvelope
+  if (USE_BFF) {
+    envelope = await request.post<ApiEnvelope>(BFF_UPLOAD_PATH, {
+      knowledgeId,
+      title,
+      content,
+      categoryId: categoryId || undefined,
+    })
+  } else {
+    const body: Record<string, unknown> = {
+      knowledge_id: parseIdValue(knowledgeId),
+      name: title,
+      title,
+      text: content,
+      content,
+    }
+    if (categoryId) body.category_id = parseIdValue(categoryId)
+    const categoryKey = getDefaultCategoryKey()
+    if (categoryKey) body.category_key = categoryKey
+    envelope = await request.post<ApiEnvelope>(PLATFORM_UPLOAD_PATH, body)
   }
 
-  const envelope = await request.post<PlatformEnvelope>(UPLOAD_PATH, body)
-  assertPlatformSuccess(envelope, '上传知识库失败')
-
+  assertSuccess(envelope, '上传知识库失败')
   const plans = mapPlatformResult(envelope.result, knowledgeId)
   if (plans[0]) {
-    return mapTeachingPlan({
+    return {
       ...plans[0],
       title: plans[0].title || title,
       content: plans[0].content || content,
       objectives: plans[0].objectives || truncate(content, 100),
       source: 'platform',
       knowledgeId,
-    })
-  }
-
-  const raw = envelope.result
-  let docId = ''
-  if (typeof raw === 'string') docId = raw
-  else if (raw && typeof raw === 'object') {
-    docId = pickString(raw as Record<string, unknown>, ['document_id', 'id', 'doc_id'])
+    }
   }
 
   return {
-    id: docId || `upload_${Date.now()}`,
+    id: `upload_${Date.now()}`,
     title,
     domain: '综合',
     gradeLevel: '通用',
@@ -324,22 +351,22 @@ export async function uploadKnowledgeDocument(params: {
   }
 }
 
-const DELETE_PATH = '/api/knowledge/document/delete'
-
-/** 删除平台知识库文档（需登录） */
 export async function deleteKnowledgeDocument(id: string): Promise<void> {
   const documentId = id.trim()
-  if (!documentId) {
-    throw new Error('文档 ID 不能为空')
-  }
+  if (!documentId) throw new Error('文档 ID 不能为空')
 
   const auth = authBridge.getAuthInfo()
-  if (!auth?.token) {
-    throw new Error('请先登录平台后再删除')
-  }
+  if (!auth?.token) throw new Error('请先登录平台后再删除')
 
-  const envelope = await request.delete<PlatformEnvelope>(DELETE_PATH, {
-    data: { id: parseIdValue(documentId) },
-  })
-  assertPlatformSuccess(envelope ?? { success: true }, '删除知识库文档失败')
+  let envelope: ApiEnvelope
+  if (USE_BFF) {
+    envelope = await request.delete<ApiEnvelope>(
+      `${BFF_UPLOAD_PATH}/${encodeURIComponent(documentId)}`
+    )
+  } else {
+    envelope = await request.delete<ApiEnvelope>(PLATFORM_DELETE_PATH, {
+      data: { id: parseIdValue(documentId) },
+    })
+  }
+  assertSuccess(envelope ?? { success: true }, '删除知识库文档失败')
 }

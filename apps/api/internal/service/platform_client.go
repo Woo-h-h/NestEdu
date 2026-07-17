@@ -79,6 +79,26 @@ func (c *PlatformClient) PostJSON(
 	return c.doJSON(req, target)
 }
 
+func (c *PlatformClient) DeleteJSON(
+	ctx context.Context,
+	path string,
+	body any,
+	headers ForwardHeaders,
+	target any,
+) error {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.cfg.BaseURL+ensurePath(path), bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.applyHeaders(req, headers)
+	return c.doJSON(req, target)
+}
+
 func (c *PlatformClient) applyHeaders(req *http.Request, headers ForwardHeaders) {
 	for key, value := range headers {
 		if strings.TrimSpace(value) != "" {

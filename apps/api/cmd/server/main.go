@@ -52,6 +52,7 @@ func main() {
 			ListPath:   cfg.Platform.KnowledgeListPath,
 			DetailPath: cfg.Platform.KnowledgeDetailPath,
 			UploadPath: cfg.Platform.KnowledgeUploadPath,
+			DeletePath: cfg.Platform.KnowledgeDeletePath,
 			DefaultID:  cfg.Platform.DefaultKnowledgeID,
 		},
 	})
