@@ -1,0 +1,2 @@
+// Deprecated template placeholder.
+export {};
