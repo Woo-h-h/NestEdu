@@ -78,16 +78,18 @@ export function useWeeklyPlan() {
   const loadPlatformPlans = useCallback(async () => {
     setIsLoadingPlatform(true)
     try {
-      const { plans, source } = await fetchKnowledgePlans({ limit: 50 })
+      const { plans, source, error } = await fetchKnowledgePlans({ limit: 50 })
       setCandidatePlans((prev) => {
         const keepAi = prev.filter((p) => p.source === 'ai')
         return mergePlans(keepAi, plans)
       })
       setPoolSourceHint(
         source === 'platform'
-          ? '平台知识库'
+          ? '平台知识库 · 10298'
           : source === 'preset'
-            ? '本地预设'
+            ? error
+              ? `本地预设（平台失败：${error}）`
+              : '本地预设'
             : '暂无数据'
       )
       return plans

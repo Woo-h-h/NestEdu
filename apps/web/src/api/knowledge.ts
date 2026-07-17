@@ -8,6 +8,7 @@ export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 export interface FetchKnowledgePlansOptions {
   keyword?: string
   knowledgeId?: string
+  categoryId?: string
   page?: number
   limit?: number
 }
@@ -17,8 +18,29 @@ const DETAIL_PATH = '/api/knowledge/document/detail'
 const UPLOAD_PATH = '/api/knowledge/document/text'
 const MAX_UPLOAD_TEXT_CHARS = 2 * 1024 * 1024
 
+/** 对应 https://www.zcat.cn/teach/knowledge/detail/10298 */
+const PRODUCT_DEFAULT_KNOWLEDGE_ID = '10298'
+const PRODUCT_DEFAULT_CATEGORY_ID = '20806'
+const PRODUCT_DEFAULT_CATEGORY_KEY = 'custom_1784259353619'
+
 function getDefaultKnowledgeId(): string {
-  return (import.meta.env.VITE_DEFAULT_KNOWLEDGE_ID || '').trim()
+  return (
+    (import.meta.env.VITE_DEFAULT_KNOWLEDGE_ID || '').trim() || PRODUCT_DEFAULT_KNOWLEDGE_ID
+  )
+}
+
+function getDefaultCategoryId(): string {
+  return (
+    (import.meta.env.VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID || '').trim() ||
+    PRODUCT_DEFAULT_CATEGORY_ID
+  )
+}
+
+function getDefaultCategoryKey(): string {
+  return (
+    (import.meta.env.VITE_DEFAULT_KNOWLEDGE_CATEGORY_KEY || '').trim() ||
+    PRODUCT_DEFAULT_CATEGORY_KEY
+  )
 }
 
 function parseIdValue(id: string): string | number {
@@ -135,20 +157,22 @@ function assertPlatformSuccess(envelope: PlatformEnvelope, fallbackMsg: string) 
 /** 直连平台知识库文档列表（经 Vite 代理到 api.zcat.cn） */
 export async function fetchKnowledgePlans(
   options: FetchKnowledgePlansOptions = {}
-): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource }> {
+): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string }> {
   const knowledgeId = (options.knowledgeId || getDefaultKnowledgeId()).trim()
-  if (!knowledgeId) {
-    return {
-      plans: presetTeachingPlans.map((plan) => ({ ...plan, source: 'preset' as const })),
-      source: 'preset',
-    }
-  }
+  const categoryId = (options.categoryId || getDefaultCategoryId()).trim()
+  const categoryKey = getDefaultCategoryKey()
 
   try {
     const body: Record<string, unknown> = {
       knowledge_id: parseIdValue(knowledgeId),
       current: options.page ?? 1,
       pageSize: options.limit ?? 50,
+    }
+    if (categoryId) {
+      body.category_id = parseIdValue(categoryId)
+    }
+    if (categoryKey) {
+      body.category_key = categoryKey
     }
     if (options.keyword?.trim()) {
       body.keyword = options.keyword.trim()
@@ -162,13 +186,22 @@ export async function fetchKnowledgePlans(
     if (plans.length > 0) {
       return { plans, source: 'platform' }
     }
+    return { plans: [], source: 'empty' }
   } catch (err) {
-    console.warn('[Knowledge] 平台知识库查询失败，使用本地预设:', err)
-  }
+    const message = err instanceof Error ? err.message : String(err)
+    const axiosData = (err as { response?: { data?: PlatformEnvelope } })?.response?.data
+    const platformMsg =
+      (axiosData?.errorMessage || axiosData?.error_message || '').trim() || message
+    const needLogin =
+      /401|token|未授权|登录|cookie/i.test(platformMsg) ||
+      /401|token|未授权|登录|cookie/i.test(message)
 
-  return {
-    plans: presetTeachingPlans.map((plan) => ({ ...plan, source: 'preset' as const })),
-    source: 'preset',
+    console.warn('[Knowledge] 平台知识库查询失败，使用本地预设:', err)
+    return {
+      plans: presetTeachingPlans.map((plan) => ({ ...plan, source: 'preset' as const })),
+      source: 'preset',
+      error: needLogin ? '请先登录平台后加载知识库 10298' : platformMsg,
+    }
   }
 }
 
@@ -229,6 +262,7 @@ export async function uploadKnowledgeDocument(params: {
     throw new Error('未配置知识库 ID（VITE_DEFAULT_KNOWLEDGE_ID）')
   }
 
+  const categoryId = (params.categoryId || getDefaultCategoryId()).trim()
   const body: Record<string, unknown> = {
     knowledge_id: parseIdValue(knowledgeId),
     name: title,
@@ -236,8 +270,12 @@ export async function uploadKnowledgeDocument(params: {
     text: content,
     content,
   }
-  if (params.categoryId?.trim()) {
-    body.category_id = parseIdValue(params.categoryId.trim())
+  if (categoryId) {
+    body.category_id = parseIdValue(categoryId)
+  }
+  const categoryKey = getDefaultCategoryKey()
+  if (categoryKey) {
+    body.category_key = categoryKey
   }
 
   const envelope = await request.post<PlatformEnvelope>(UPLOAD_PATH, body)

@@ -145,11 +145,11 @@
 
 前端经 Vite 代理（或生产同域反代）直连平台：
 
-- 列表：`POST /api/knowledge/document/list`（body: `knowledge_id`, `current`, `pageSize`）
+- 列表：`POST /api/knowledge/document/list`（body: `knowledge_id`, `category_id?`, `category_key?`, `current`, `pageSize`）
 - 详情：`GET /api/knowledge/document/detail?document_id=`
-- 上传：`POST /api/knowledge/document/text`（body: `knowledge_id`, `title`/`name`, `text`/`content`）
+- 上传：`POST /api/knowledge/document/text`（body: `knowledge_id`, `category_id?`, `title`/`name`, `text`/`content`）
 
-默认知识库 ID：`VITE_DEFAULT_KNOWLEDGE_ID`（如 `10298`）。鉴权头由 auth-bridge 注入。失败时前端回退本地预设教案。
+默认知识库：[`teach/knowledge/detail/10298`](https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20806&category_key=custom_1784259353619)（`VITE_DEFAULT_KNOWLEDGE_ID=10298`，分类 `20806`）。鉴权头由 auth-bridge 注入。失败时前端回退本地预设教案。
 
 本地开发代理：`VITE_PLATFORM_API_BASE_URL`（默认 `https://api.zcat.cn`）。
 
@@ -159,7 +159,9 @@
 
 | 变量 | 说明 |
 |------|------|
-| `VITE_DEFAULT_KNOWLEDGE_ID` | 默认知识库 ID |
+| `VITE_DEFAULT_KNOWLEDGE_ID` | 默认知识库 ID（默认 `10298`） |
+| `VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID` | 默认分类 ID（默认 `20806`） |
+| `VITE_DEFAULT_KNOWLEDGE_CATEGORY_KEY` | 默认分类 key |
 | `VITE_PLATFORM_API_BASE_URL` | 平台 API，默认 `https://api.zcat.cn` |
 | `VITE_PLATFORM_REFERER` | 代理出站 Referer |
 | `VITE_USE_BACKEND_API` | 仅影响周计划 CRUD / LLM；知识库始终走平台直连 |

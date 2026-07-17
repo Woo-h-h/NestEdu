@@ -31,14 +31,18 @@ export function useTeachingResources() {
   const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
     try {
-      const { plans: next, source } = await fetchKnowledgePlans({
+      const { plans: next, source, error } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
         limit: 50,
       })
       setPlatformPlans(next)
-      setListHint(
-        source === 'platform' ? '平台知识库' : source === 'preset' ? '本地预设' : '暂无数据'
-      )
+      if (source === 'platform') {
+        setListHint('平台知识库 · 10298')
+      } else if (source === 'preset') {
+        setListHint(error ? `本地预设（平台失败：${error}）` : '本地预设')
+      } else {
+        setListHint('暂无数据')
+      }
       return next
     } finally {
       setIsLoadingPlatform(false)
