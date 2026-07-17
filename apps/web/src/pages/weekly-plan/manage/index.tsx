@@ -88,23 +88,25 @@ export default function WeeklyPlanManagePage() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">周计划管理</h1>
-        <p className="mt-2 text-sm text-gray-500">
+    <div className="page-enter mx-auto max-w-6xl">
+      <div className="mb-7">
+        <h1 className="font-display text-2xl font-bold tracking-wide text-nest-ink md:text-[1.75rem]">
+          周计划管理
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
           管理知识库 {kb.scope.knowledgeId} 下分类 {kb.scope.categoryId}{' '}
           的周计划：上传、查看、导出（「班级第N周计划.docx」）、删除
         </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <div className="surface-panel space-y-5 p-6">
         {!isLoggedIn && (
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
             <span>当前未登录，无法上传或读取周计划知识库，请先登录。</span>
             <button
               type="button"
               onClick={() => void handleLogin()}
-              className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700"
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm text-white hover:bg-amber-700"
             >
               登录平台
             </button>
@@ -118,12 +120,12 @@ export default function WeeklyPlanManagePage() {
             title="上传文件到周计划知识库"
             hint="将 docx 文件拖拽到此处，或点击选择文件；确认后才会真正入库"
           />
-          <div className="flex flex-wrap gap-3 justify-end">
+          <div className="flex flex-wrap justify-end gap-3">
             <button
               type="button"
               onClick={() => void handleRefresh()}
               disabled={kb.isLoadingPlatform || !isLoggedIn}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+              className="btn-secondary"
             >
               <RefreshCw size={16} className={kb.isLoadingPlatform ? 'animate-spin' : ''} />
               {kb.isLoadingPlatform ? '加载中...' : '刷新列表'}
@@ -137,7 +139,7 @@ export default function WeeklyPlanManagePage() {
                 kb.uploadFiles.length === 0 ||
                 !isLoggedIn
               }
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+              className="btn-accent"
             >
               <CloudUpload size={16} />
               {kb.isPreparingUpload ? '解析中...' : '确认上传'}

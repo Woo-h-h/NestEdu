@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Leaf,
 } from 'lucide-react'
 import UserBadge from '@/components/layout/UserBadge'
 
@@ -51,44 +52,79 @@ export default function AppLayout() {
   const breadcrumbs = resolveBreadcrumbs(location.pathname)
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen overflow-hidden">
       <aside
-        className={`flex flex-col bg-slate-800 transition-all duration-300 ${collapsed ? 'w-16' : 'w-56'}`}
+        className={`relative flex flex-col text-white transition-all duration-300 ${
+          collapsed ? 'w-[4.5rem]' : 'w-60'
+        }`}
+        style={{
+          background:
+            'linear-gradient(165deg, #163d32 0%, #1b4d3e 42%, #245a48 100%)',
+        }}
       >
-        <div className="px-4 py-4 border-b border-slate-700 text-center">
-          <span className="text-white font-bold whitespace-nowrap text-lg">
-            {collapsed ? '华科附幼' : '华科附幼智能教案助手'}
-          </span>
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 20%, rgba(74,155,127,0.35), transparent 45%), radial-gradient(circle at 80% 80%, rgba(244,240,232,0.08), transparent 40%)',
+          }}
+        />
+
+        <div className="relative z-10 border-b border-white/10 px-3 py-5">
+          <div className={`flex items-center gap-2.5 ${collapsed ? 'justify-center' : 'px-1'}`}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+              <Leaf size={18} className="text-emerald-200" />
+            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <div className="font-display text-[15px] font-bold leading-tight tracking-wide">
+                  华科附幼
+                </div>
+                <div className="truncate text-[11px] text-emerald-100/70">智能教案助手</div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <nav className="flex-1 py-2">
+        <nav className="relative z-10 flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
           {menuItems.map((item) => {
             const Icon = item.icon
             if ('children' in item) {
               const isActive = item.children.some((c) => location.pathname === c.path)
               const parentPath = item.children[0]?.path
               return (
-                <div key={item.title}>
-                  <div
+                <div key={item.title} className="mb-1">
+                  <button
+                    type="button"
                     onClick={() => parentPath && navigate(parentPath)}
-                    className={`flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors ${isActive ? 'bg-slate-700 text-blue-400' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                    title={item.title}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
+                      isActive
+                        ? 'bg-white/15 text-white shadow-sm'
+                        : 'text-emerald-50/75 hover:bg-white/8 hover:text-white'
+                    } ${collapsed ? 'justify-center' : ''}`}
                   >
-                    <Icon size={18} />
-                    {!collapsed && <span>{item.title}</span>}
-                  </div>
+                    <Icon size={18} className="shrink-0" />
+                    {!collapsed && <span className="font-medium">{item.title}</span>}
+                  </button>
                   {!collapsed &&
                     item.children.map((child) => {
                       const ChildIcon = child.icon
                       const childActive = location.pathname === child.path
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={child.path}
                           onClick={() => navigate(child.path)}
-                          className={`flex items-center gap-3 pl-10 pr-4 py-2 text-sm cursor-pointer transition-colors ${childActive ? 'text-blue-400 bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'}`}
+                          className={`mt-0.5 flex w-full items-center gap-2.5 rounded-lg py-2 pl-10 pr-3 text-[13px] transition-all ${
+                            childActive
+                              ? 'bg-emerald-400/20 font-medium text-emerald-50'
+                              : 'text-emerald-100/55 hover:bg-white/6 hover:text-emerald-50'
+                          }`}
                         >
-                          <ChildIcon size={15} />
+                          <ChildIcon size={14} className="shrink-0" />
                           <span>{child.title}</span>
-                        </div>
+                        </button>
                       )
                     })}
                 </div>
@@ -97,44 +133,49 @@ export default function AppLayout() {
 
             const active = location.pathname === item.path
             return (
-              <div
+              <button
+                type="button"
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                title={item.title}
+                className={`mb-0.5 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
                   active
-                    ? 'bg-slate-700 text-blue-400'
-                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
+                    ? 'bg-white/15 text-white shadow-sm'
+                    : 'text-emerald-50/75 hover:bg-white/8 hover:text-white'
+                } ${collapsed ? 'justify-center' : ''}`}
               >
-                <Icon size={18} />
-                {!collapsed && <span>{item.title}</span>}
-              </div>
+                <Icon size={18} className="shrink-0" />
+                {!collapsed && <span className="font-medium">{item.title}</span>}
+              </button>
             )
           })}
         </nav>
 
-        <div
+        <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className="flex justify-center py-3 border-t border-slate-700 text-slate-400 hover:text-white cursor-pointer transition-colors"
+          className="relative z-10 flex justify-center border-t border-white/10 py-3 text-emerald-100/50 transition-colors hover:text-white"
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </div>
+        </button>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center h-14 px-6 bg-white shadow-sm z-10 gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 shrink-0">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="z-10 flex h-14 items-center gap-4 border-b border-nest-leaf/10 bg-white/70 px-6 backdrop-blur-md">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm text-nest-muted">
             {breadcrumbs.map((b, i) => (
-              <span key={`${b}-${i}`}>
-                {i > 0 && <span className="mx-1">/</span>}
-                {b}
+              <span key={`${b}-${i}`} className="flex items-center gap-1.5 truncate">
+                {i > 0 && <span className="text-nest-leaf/30">/</span>}
+                <span className={i === breadcrumbs.length - 1 ? 'font-medium text-nest-ink' : ''}>
+                  {b}
+                </span>
               </span>
             ))}
           </div>
           <UserBadge />
         </header>
 
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 md:p-8">
           <Outlet />
         </main>
       </div>

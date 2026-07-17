@@ -1,10 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   margin: 0;
@@ -12,83 +13,64 @@ html, body, #root {
 }
 
 @theme {
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
-
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
-
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
-
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
-
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+
+  --color-nest-pine: #1b4d3e;
+  --color-nest-leaf: #2f6f5e;
+  --color-nest-moss: #4a9b7f;
+  --color-nest-mist: #e8f2ee;
+  --color-nest-sand: #f4f0e8;
+  --color-nest-ink: #1c2b26;
+  --color-nest-muted: #5c6f68;
 }
 
+/* 华科附幼：松绿 + 雾绿底，避免默认紫系 / 灰蓝后台感 */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 140 20% 97%;
+  --foreground: 160 22% 14%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 160 22% 14%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --radius: 0.5rem;
-}
-
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 212.7 26.8% 83.9%;
+  --popover-foreground: 160 22% 14%;
+  --primary: 162 48% 28%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 145 22% 92%;
+  --secondary-foreground: 162 40% 22%;
+  --muted: 145 16% 94%;
+  --muted-foreground: 160 10% 40%;
+  --accent: 145 28% 90%;
+  --accent-foreground: 162 40% 22%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 150 16% 88%;
+  --input: 150 16% 88%;
+  --ring: 162 48% 28%;
+  --radius: 0.75rem;
 }
 
 @layer base {
@@ -96,9 +78,89 @@ html, body, #root {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(74, 155, 127, 0.14), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(244, 240, 232, 0.9), transparent 50%),
+      linear-gradient(180deg, #f7faf8 0%, #eef5f1 100%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
   }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .page-enter {
+    animation: nest-fade-up 0.45s ease-out both;
+  }
+
+  .surface-panel {
+    @apply rounded-2xl border border-white/80 bg-white/85 backdrop-blur-sm;
+    box-shadow:
+      0 1px 2px rgba(27, 77, 62, 0.04),
+      0 8px 24px rgba(27, 77, 62, 0.05);
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-nest-leaf px-4 py-2.5 text-sm font-medium text-white transition-all duration-200;
+    @apply hover:bg-nest-pine hover:shadow-md hover:shadow-nest-leaf/20 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-nest-leaf/20 bg-white px-4 py-2.5 text-sm font-medium text-nest-pine transition-all duration-200;
+    @apply hover:border-nest-leaf/40 hover:bg-nest-mist active:scale-[0.98] disabled:opacity-50;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition-all duration-200;
+    @apply hover:bg-emerald-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .field-input {
+    @apply w-full rounded-xl border border-nest-leaf/15 bg-white px-3 py-2.5 text-sm text-nest-ink transition-colors;
+    @apply placeholder:text-nest-muted/50 focus:border-nest-leaf focus:outline-none focus:ring-2 focus:ring-nest-leaf/20;
+  }
+
+  .tab-pill {
+    @apply inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
+  }
+
+  .tab-pill-active {
+    @apply bg-nest-leaf text-white shadow-sm shadow-nest-leaf/25;
+  }
+
+  .tab-pill-idle {
+    @apply border border-nest-leaf/15 bg-white/80 text-nest-muted hover:border-nest-leaf/30 hover:bg-nest-mist hover:text-nest-pine;
+  }
+}
+
+@keyframes nest-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nest-soft-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.nest-orb {
+  animation: nest-soft-pulse 5s ease-in-out infinite;
 }

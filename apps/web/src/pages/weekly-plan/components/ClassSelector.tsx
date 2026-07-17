@@ -6,29 +6,39 @@ interface Props {
 }
 
 const options: { label: string; value: ClassType; desc: string }[] = [
-  { label: '小班', value: '小班', desc: '3-4岁' },
-  { label: '中班', value: '中班', desc: '4-5岁' },
-  { label: '大班', value: '大班', desc: '5-6岁' },
+  { label: '小班', value: '小班', desc: '3–4 岁' },
+  { label: '中班', value: '中班', desc: '4–5 岁' },
+  { label: '大班', value: '大班', desc: '5–6 岁' },
 ]
 
 export default function ClassSelector({ value, onChange }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-4 font-semibold text-gray-700">
+    <div className="surface-panel p-5">
+      <div className="mb-4 flex items-center gap-2 font-medium text-nest-ink">
         <span>选择班级</span>
-        <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">必选</span>
+        <span className="rounded-md bg-rose-50 px-2 py-0.5 text-xs text-rose-600">必选</span>
       </div>
       <div className="flex gap-3">
-        {options.map((opt) => (
-          <div
-            key={opt.value}
-            onClick={() => onChange(opt.value)}
-            className={`flex-1 py-4 px-4 rounded-lg border-2 text-center cursor-pointer transition-all ${value === opt.value ? 'border-blue-400 bg-blue-50' : 'border-gray-100 hover:border-blue-200 hover:bg-gray-50'}`}
-          >
-            <div className="font-semibold text-gray-800">{opt.label}</div>
-            <div className="text-xs text-gray-400 mt-1">{opt.desc}</div>
-          </div>
-        ))}
+        {options.map((opt) => {
+          const selected = value === opt.value
+          return (
+            <button
+              type="button"
+              key={opt.value}
+              onClick={() => onChange(opt.value)}
+              className={`flex-1 rounded-2xl border-2 px-4 py-4 text-center transition-all duration-200 ${
+                selected
+                  ? 'border-nest-leaf bg-nest-mist shadow-sm shadow-nest-leaf/10'
+                  : 'border-transparent bg-nest-sand/40 hover:border-nest-leaf/25 hover:bg-nest-mist/60'
+              }`}
+            >
+              <div className={`font-display text-base font-semibold ${selected ? 'text-nest-pine' : 'text-nest-ink'}`}>
+                {opt.label}
+              </div>
+              <div className="mt-1 text-xs text-nest-muted">{opt.desc}</div>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

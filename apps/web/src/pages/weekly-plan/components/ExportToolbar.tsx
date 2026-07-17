@@ -25,27 +25,26 @@ export default function ExportToolbar({ plan }: Props) {
 
   return (
     <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 flex items-center gap-1.5"
-      >
+      <button type="button" onClick={() => setOpen(!open)} className="btn-accent !px-3 !py-1.5 text-sm">
         <Download size={15} /> 导出
       </button>
       {open && (
-        <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 w-52">
+        <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-nest-leaf/15 bg-white py-1 shadow-lg shadow-nest-pine/10">
           <button
+            type="button"
             onClick={() => handle('doc')}
-            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-nest-ink hover:bg-nest-mist"
           >
             {loading === 'doc' ? '导出中...' : '导出 DOC 格式'}
-            <span className="text-xs text-gray-400 ml-auto">推荐</span>
+            <span className="ml-auto text-xs text-nest-muted">推荐</span>
           </button>
           <button
+            type="button"
             onClick={() => handle('pdf')}
-            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-nest-ink hover:bg-nest-mist"
           >
             {loading === 'pdf' ? '导出中...' : '导出 PDF 格式'}
-            <span className="text-xs text-gray-400 ml-auto">存档</span>
+            <span className="ml-auto text-xs text-nest-muted">存档</span>
           </button>
         </div>
       )}

@@ -16,22 +16,22 @@ export default function WeeklyPlanForm({
   onNotesChange,
 }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-4 font-semibold text-gray-700">填写基本信息</div>
+    <div className="surface-panel p-5">
+      <div className="mb-4 font-display font-medium text-nest-ink">填写基本信息</div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm text-gray-600 mb-1">
+          <label className="mb-1.5 block text-sm text-nest-muted">
             主题名称 <span className="text-red-400">*</span>
           </label>
           <input
             value={themeName}
             onChange={(e) => onThemeNameChange(e.target.value)}
             placeholder="如：好宝宝爱图书"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+            className="field-input"
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-600 mb-1">
+          <label className="mb-1.5 block text-sm text-nest-muted">
             第几周 <span className="text-red-400">*</span>
           </label>
           <input
@@ -43,18 +43,18 @@ export default function WeeklyPlanForm({
               onWeekNumberChange(e.target.value ? Number(e.target.value) : null)
             }
             placeholder="第N周"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+            className="field-input"
           />
         </div>
       </div>
       <div className="mt-3">
-        <label className="block text-sm text-gray-600 mb-1">备注（选填）</label>
+        <label className="mb-1.5 block text-sm text-nest-muted">备注（选填）</label>
         <textarea
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}
           rows={2}
           placeholder="补充说明，如特殊活动安排等"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
+          className="field-input resize-none"
         />
       </div>
     </div>

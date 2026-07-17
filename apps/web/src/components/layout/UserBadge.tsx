@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
+import { LogIn, UserRound } from 'lucide-react'
 
 export default function UserBadge() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
@@ -26,8 +27,9 @@ export default function UserBadge() {
         type="button"
         onClick={() => void handleLogin()}
         disabled={loggingIn}
-        className="ml-auto text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded border border-blue-200 disabled:opacity-50"
+        className="btn-primary ml-auto !px-3 !py-1.5 text-xs"
       >
+        <LogIn size={13} />
         {loggingIn ? '跳转登录中…' : '登录平台'}
       </button>
     )
@@ -40,9 +42,12 @@ export default function UserBadge() {
   const role = authInfo.role || ''
 
   return (
-    <span className="ml-auto text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-      {uid}
-      {role ? ` · ${role}` : ''}
+    <span className="ml-auto inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-full border border-nest-leaf/15 bg-nest-mist/80 px-3 py-1 text-xs text-nest-pine">
+      <UserRound size={13} className="shrink-0 opacity-70" />
+      <span className="truncate">
+        {uid}
+        {role ? ` · ${role}` : ''}
+      </span>
     </span>
   )
 }

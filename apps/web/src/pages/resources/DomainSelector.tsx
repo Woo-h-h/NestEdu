@@ -25,17 +25,17 @@ export default function DomainSelector({ value, onChange }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-4 font-semibold text-gray-700 flex-wrap">
+    <div className="surface-panel p-5">
+      <div className="mb-4 flex flex-wrap items-center gap-2 font-medium text-nest-ink">
         <span>重点领域</span>
-        <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">可多选</span>
+        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-500">可多选</span>
         {value.length > 0 && (
-          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+          <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
             已选 {value.length} 个 · 将生成 {value.length} 份教案
           </span>
         )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {options.map((opt) => {
           const selected = value.includes(opt.value)
           return (
@@ -50,14 +50,18 @@ export default function DomainSelector({ value, onChange }: Props) {
                   toggle(opt.value)
                 }
               }}
-              className={`py-4 px-3 rounded-lg border-2 text-center cursor-pointer transition-all ${
+              className={`cursor-pointer rounded-xl border-2 px-3 py-4 text-center transition-all ${
                 selected
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-gray-100 hover:border-blue-200 hover:bg-gray-50'
+                  ? 'border-nest-leaf bg-nest-mist shadow-sm shadow-nest-leaf/10'
+                  : 'border-transparent bg-nest-sand/40 hover:border-nest-leaf/25 hover:bg-nest-mist/60'
               }`}
             >
-              <div className="font-semibold text-gray-800">{opt.label}</div>
-              <div className="text-xs text-gray-400 mt-1">{opt.desc}</div>
+              <div
+                className={`font-display text-base font-semibold ${selected ? 'text-nest-pine' : 'text-nest-ink'}`}
+              >
+                {opt.label}
+              </div>
+              <div className="mt-1 text-xs text-nest-muted">{opt.desc}</div>
             </div>
           )
         })}

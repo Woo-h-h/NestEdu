@@ -111,30 +111,30 @@ export default function ResourcesPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">课程资源库</h1>
-        <p className="mt-2 text-sm text-gray-500">
+    <div className="page-enter mx-auto max-w-6xl">
+      <div className="mb-7">
+        <h1 className="font-display text-2xl font-bold tracking-wide text-nest-ink md:text-[1.75rem]">
+          课程资源库
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
           教案生成与知识库管理相互独立：先生成再确认入库，或直接上传文件到平台知识库
         </p>
       </div>
 
       {showBrowserKeyHint && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
+        <div className="mb-4 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 text-sm text-sky-800">
           未配置 API Key，主题生成教案将使用演示数据。在根目录{' '}
-          <code className="bg-blue-100 px-1 rounded">.env</code> 设置 VITE_DEEPSEEK_API_KEY
+          <code className="rounded bg-sky-100/80 px-1">.env</code> 设置 VITE_DEEPSEEK_API_KEY
           即可接入大模型
         </div>
       )}
 
-      <div className="flex gap-2 mb-4">
+      <div className="mb-5 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => res.setSection('generate')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-            res.section === 'generate'
-              ? 'bg-blue-500 text-white'
-              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          className={`tab-pill ${
+            res.section === 'generate' ? 'tab-pill-active' : 'tab-pill-idle'
           }`}
         >
           <Wand2 size={16} /> 教案生成
@@ -142,21 +142,17 @@ export default function ResourcesPage() {
         <button
           type="button"
           onClick={() => res.setSection('manage')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-            res.section === 'manage'
-              ? 'bg-blue-500 text-white'
-              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}
+          className={`tab-pill ${res.section === 'manage' ? 'tab-pill-active' : 'tab-pill-idle'}`}
         >
           <BookOpen size={16} /> 知识库管理
         </button>
       </div>
 
       {res.section === 'generate' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+        <div className="surface-panel space-y-5 p-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">按主题生成教案</h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <h2 className="font-display text-lg font-semibold text-nest-ink">按主题生成教案</h2>
+            <p className="mt-1 text-sm text-nest-muted">
               调用平台智能体（ID {getTeachingAgentId()}）生成教案；勾选后确认上传到知识库。需先登录平台。
             </p>
           </div>
@@ -164,23 +160,23 @@ export default function ResourcesPage() {
           <ClassSelector value={res.className} onChange={res.setClassName} />
           <DomainSelector value={res.focusDomains} onChange={res.setFocusDomains} />
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <label className="block text-sm text-gray-600 mb-1">
+          <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/30 p-5">
+            <label className="mb-1.5 block text-sm text-nest-muted">
               主题名称 <span className="text-red-400">*</span>
             </label>
             <input
               value={res.themeName}
               onChange={(e) => res.setThemeName(e.target.value)}
               placeholder="如：好宝宝爱图书"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+              className="field-input"
             />
-            <label className="block text-sm text-gray-600 mb-1 mt-3">补充说明</label>
+            <label className="mb-1.5 mt-3 block text-sm text-nest-muted">补充说明</label>
             <textarea
               value={res.notes}
               onChange={(e) => res.setNotes(e.target.value)}
               rows={2}
               placeholder="可选"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
+              className="field-input resize-none"
             />
           </div>
 
@@ -194,7 +190,7 @@ export default function ResourcesPage() {
                 !res.className ||
                 res.focusDomains.length === 0
               }
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
+              className="btn-primary"
             >
               <Wand2 size={16} />
               {res.isGeneratingPlans
@@ -209,7 +205,7 @@ export default function ResourcesPage() {
               disabled={
                 res.isUploadingGenerated || res.uploadSelection.length === 0 || !isLoggedIn
               }
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 disabled:opacity-50"
+              className="btn-accent"
             >
               <CloudUpload size={16} />
               {`确认上传到知识库（${res.uploadSelection.length}）`}
@@ -232,21 +228,21 @@ export default function ResourcesPage() {
       )}
 
       {res.section === 'manage' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+        <div className="surface-panel space-y-5 p-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">知识库管理</h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
+            <p className="mt-1 text-sm text-nest-muted">
               上传 docx 到平台知识库 10298（分类 20806）；点击卡片可查看完整教案。
             </p>
           </div>
 
           {!isLoggedIn && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
               <span>当前未登录，无法上传或读取平台知识库，请先登录。</span>
               <button
                 type="button"
                 onClick={() => void handleLogin()}
-                className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700"
+                className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm text-white hover:bg-amber-700"
               >
                 登录平台
               </button>
@@ -260,12 +256,12 @@ export default function ResourcesPage() {
               title="上传文件到知识库"
               hint="将 docx 文件拖拽到此处，或点击选择文件；确认后才会真正入库"
             />
-            <div className="flex flex-wrap gap-3 justify-end">
+            <div className="flex flex-wrap justify-end gap-3">
               <button
                 type="button"
                 onClick={handleRefreshPlatform}
                 disabled={res.isLoadingPlatform || !isLoggedIn}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                className="btn-secondary"
               >
                 <RefreshCw size={16} className={res.isLoadingPlatform ? 'animate-spin' : ''} />
                 {res.isLoadingPlatform ? '加载中...' : '刷新列表'}
@@ -279,7 +275,7 @@ export default function ResourcesPage() {
                   res.uploadFiles.length === 0 ||
                   !isLoggedIn
                 }
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
+                className="btn-primary"
               >
                 <Upload size={16} />
                 {res.isPreparingUpload

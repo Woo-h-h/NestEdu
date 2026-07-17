@@ -58,7 +58,7 @@ export default function PlanDetailDialog({ plan, open, onOpenChange }: Props) {
           <DialogDescription>查看教案目标与完整正文</DialogDescription>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {view?.source && (
-              <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded">
+              <span className="rounded bg-nest-sand/80 px-1.5 py-0.5 text-xs text-nest-pine">
                 {view.source === 'platform'
                   ? '平台'
                   : view.source === 'ai'
@@ -72,38 +72,38 @@ export default function PlanDetailDialog({ plan, open, onOpenChange }: Props) {
               .map((d) => (
                 <span
                   key={d}
-                  className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded"
+                  className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
                 >
                   {d.trim()}
                 </span>
               ))}
             {view?.gradeLevel && (
-              <span className="text-xs bg-sky-50 text-sky-600 px-1.5 py-0.5 rounded">
+              <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-700">
                 {view.gradeLevel}
               </span>
             )}
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-sm text-gray-700">
+        <div className="flex-1 space-y-4 overflow-y-auto pr-1 text-sm text-nest-ink">
           {loading && (
-            <div className="flex items-center gap-2 text-gray-400">
-              <Loader2 size={14} className="animate-spin" /> 正在加载完整内容…
+            <div className="flex items-center gap-2 text-nest-muted">
+              <Loader2 size={14} className="animate-spin text-nest-leaf" /> 正在加载完整内容…
             </div>
           )}
 
           {view?.objectives && (
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 mb-1.5">活动目标</h3>
-              <p className="whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <h3 className="mb-1.5 text-xs font-semibold text-nest-muted">活动目标</h3>
+              <p className="whitespace-pre-wrap rounded-xl border border-nest-leaf/10 bg-nest-mist/40 p-3 leading-relaxed">
                 {view.objectives}
               </p>
             </section>
           )}
 
           <section>
-            <h3 className="text-xs font-semibold text-gray-500 mb-1.5">完整内容</h3>
-            <div className="whitespace-pre-wrap leading-relaxed bg-white rounded-lg p-3 border border-gray-100 min-h-[120px]">
+            <h3 className="mb-1.5 text-xs font-semibold text-nest-muted">完整内容</h3>
+            <div className="min-h-[120px] whitespace-pre-wrap rounded-xl border border-nest-leaf/10 bg-white p-3 leading-relaxed">
               {view?.content?.trim() || '暂无正文内容'}
             </div>
           </section>

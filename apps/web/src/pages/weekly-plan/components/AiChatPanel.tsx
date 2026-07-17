@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { WeeklyPlan, ChatMessage } from '@/types/weeklyPlan'
+import type { ChatMessage } from '@/types/weeklyPlan'
 import { Send, Bot, User } from 'lucide-react'
 
 interface Props {
@@ -35,15 +35,15 @@ export default function AiChatPanel({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-3 pb-3 border-b border-gray-100">
-        <p className="text-xs text-gray-400 mb-2">快捷修改指令：</p>
+    <div className="flex h-full flex-col">
+      <div className="mb-3 border-b border-nest-leaf/10 pb-3">
+        <p className="mb-2 text-xs text-nest-muted">快捷修改指令：</p>
         <div className="flex flex-wrap gap-1.5">
           {quickCommands.map((cmd) => (
             <span
               key={cmd}
               onClick={() => send(cmd)}
-              className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full cursor-pointer hover:bg-blue-50 hover:text-blue-500 transition-colors"
+              className="cursor-pointer rounded-full bg-nest-mist px-2 py-1 text-xs text-nest-muted transition-colors hover:bg-nest-leaf hover:text-white"
             >
               {cmd}
             </span>
@@ -51,34 +51,40 @@ export default function AiChatPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto space-y-3 pr-1">
+      <div className="flex-1 space-y-3 overflow-auto pr-1">
         {chatHistory.length === 0 && (
-          <div className="text-center py-10 text-gray-300">
-            <Bot size={36} className="mx-auto mb-2" />
+          <div className="py-10 text-center text-nest-muted/50">
+            <Bot size={36} className="mx-auto mb-2 text-nest-moss/40" />
             <p className="text-sm">描述你想要的修改，AI 帮你自动调整</p>
           </div>
         )}
         {chatHistory.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm">
               {msg.role === 'user' ? (
-                <User size={16} className="text-blue-500" />
+                <User size={16} className="text-nest-leaf" />
               ) : (
-                <Bot size={16} className="text-gray-400" />
+                <Bot size={16} className="text-nest-muted" />
               )}
             </div>
             <div
-              className={`max-w-[80%] px-3 py-2 rounded-xl text-sm whitespace-pre-line ${msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-700 rounded-tl-sm'}`}
+              className={`max-w-[80%] whitespace-pre-line rounded-xl px-3 py-2 text-sm ${
+                msg.role === 'user'
+                  ? 'rounded-tr-sm bg-nest-leaf text-white'
+                  : 'rounded-tl-sm bg-nest-mist text-nest-ink'
+              }`}
             >
               {msg.content}
             </div>
           </div>
         ))}
-        {isAiModifying && <p className="text-xs text-gray-400 animate-pulse">AI 思考中...</p>}
+        {isAiModifying && (
+          <p className="animate-pulse text-xs text-nest-muted">AI 思考中...</p>
+        )}
         <div ref={bottomRef} />
       </div>
 
-      <div className="mt-3 pt-3 border-t border-gray-100">
+      <div className="mt-3 border-t border-nest-leaf/10 pt-3">
         <div className="flex gap-2">
           <textarea
             value={input}
@@ -91,12 +97,13 @@ export default function AiChatPanel({
             }}
             rows={2}
             placeholder="输入修改指令..."
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-400"
+            className="field-input flex-1 resize-none"
           />
           <button
+            type="button"
             onClick={() => send()}
             disabled={!input.trim() || isAiModifying}
-            className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className="btn-primary shrink-0 !px-3"
           >
             <Send size={16} />
           </button>

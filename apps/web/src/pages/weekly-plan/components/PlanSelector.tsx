@@ -53,37 +53,43 @@ export default function PlanSelector({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-4 font-semibold text-gray-700 flex-wrap">
-        <span>教案候选池</span>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2 font-medium text-nest-ink">
+        <span className="font-display">教案候选池</span>
         {selected.length > 0 && (
-          <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+          <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
             已选择 {selected.length} 个
           </span>
         )}
         {sourceHint && (
-          <span className="text-xs text-amber-500 bg-amber-50 px-2 py-0.5 rounded">{sourceHint}</span>
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
+            {sourceHint}
+          </span>
         )}
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
-          <Loader2 size={14} className="animate-spin" /> 正在加载教案...
+        <div className="mb-3 flex items-center gap-2 text-sm text-nest-muted">
+          <Loader2 size={14} className="animate-spin text-nest-leaf" /> 正在加载教案...
         </div>
       )}
 
       {!loading && plans.length === 0 && (
-        <p className="text-sm text-gray-400 mb-3">{emptyHint}</p>
+        <p className="mb-3 text-sm text-nest-muted/80">{emptyHint}</p>
       )}
 
       {plans.length > 0 && (
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="mb-4 flex flex-wrap gap-2">
           {domains.map((d) => (
             <button
               key={d}
               type="button"
               onClick={() => setDomain(d)}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${domain === d ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                domain === d
+                  ? 'bg-nest-leaf text-white shadow-sm shadow-nest-leaf/20'
+                  : 'border border-nest-leaf/10 bg-white text-nest-muted hover:bg-nest-mist hover:text-nest-pine'
+              }`}
             >
               {d}
             </button>
@@ -91,7 +97,7 @@ export default function PlanSelector({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((plan) => {
           const isSel = selected.some((p) => p.id === plan.id)
           const canDelete = Boolean(onDelete) && plan.source !== 'preset'
@@ -99,11 +105,15 @@ export default function PlanSelector({
             <div
               key={plan.id}
               onClick={() => toggle(plan)}
-              className={`border-2 rounded-lg p-4 cursor-pointer transition-all relative ${isSel ? 'border-blue-400 bg-blue-50' : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
+              className={`relative cursor-pointer rounded-xl border-2 p-4 transition-all ${
+                isSel
+                  ? 'border-nest-leaf bg-nest-mist/60 shadow-sm shadow-nest-leaf/10'
+                  : 'border-nest-leaf/10 bg-white hover:border-nest-leaf/25 hover:shadow-sm'
+              }`}
             >
-              <div className="flex justify-between items-start mb-2 gap-2">
-                <h4 className="font-semibold text-gray-800 text-sm">{plan.title}</h4>
-                <div className="flex items-center gap-1 shrink-0">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <h4 className="text-sm font-semibold text-nest-ink">{plan.title}</h4>
+                <div className="flex shrink-0 items-center gap-1">
                   {canDelete && (
                     <button
                       type="button"
@@ -113,27 +123,30 @@ export default function PlanSelector({
                         e.stopPropagation()
                         void onDelete?.(plan)
                       }}
-                      className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                      className="p-1 text-nest-muted hover:text-red-500 disabled:opacity-50"
                     >
                       <Trash2 size={14} />
                     </button>
                   )}
-                  {isSel && <Check size={18} className="text-blue-500" />}
+                  {isSel && <Check size={18} className="text-nest-leaf" />}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-1 mb-2">
+              <div className="mb-2 flex flex-wrap gap-1">
                 {plan.source && (
-                  <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded">
+                  <span className="rounded bg-nest-sand/80 px-1.5 py-0.5 text-xs text-nest-pine">
                     {sourceTag[plan.source] || plan.source}
                   </span>
                 )}
                 {plan.domain.split('、').map((d) => (
-                  <span key={d} className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                  <span
+                    key={d}
+                    className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
+                  >
                     {d.trim()}
                   </span>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 line-clamp-2">{plan.objectives}</p>
+              <p className="line-clamp-2 text-xs text-nest-muted/80">{plan.objectives}</p>
             </div>
           )
         })}

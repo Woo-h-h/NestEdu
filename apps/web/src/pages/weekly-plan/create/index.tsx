@@ -93,10 +93,11 @@ export default function CreatePage() {
 
   if (wp.currentPlan) {
     return (
-      <div>
+      <div className="page-enter">
         <button
+          type="button"
           onClick={() => wp.resetAll()}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-500 mb-4 transition-colors"
+          className="mb-4 flex items-center gap-1 text-sm text-nest-muted transition-colors hover:text-nest-leaf"
         >
           <ArrowLeft size={15} /> 返回重新勾选
         </button>
@@ -119,39 +120,41 @@ export default function CreatePage() {
   const canGenerate = wp.metaReady && wp.selectedPlans.length > 0
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">新建周计划</h1>
-        <p className="mt-2 text-sm text-gray-500">
+    <div className="page-enter mx-auto max-w-6xl">
+      <div className="mb-7">
+        <h1 className="font-display text-2xl font-bold tracking-wide text-nest-ink md:text-[1.75rem]">
+          新建周计划
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
           填写主题与班级周次 → 勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
           {getWeeklyPlanCategoryId()}）
         </p>
       </div>
 
       {!isLoggedIn && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
           生成与上传需登录平台，以便调用智能体并写入知识库。
         </div>
       )}
 
-      <div className="space-y-4 mb-4">
+      <div className="mb-4 space-y-4">
         <ClassSelector value={wp.className} onChange={wp.setClassName} />
 
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="surface-panel p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
+              <label className="mb-1.5 block text-sm text-nest-muted">
                 主题名称 <span className="text-red-400">*</span>
               </label>
               <input
                 value={wp.themeName}
                 onChange={(e) => wp.setThemeName(e.target.value)}
                 placeholder="如：好宝宝爱图书 / 亲亲自然"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+                className="field-input"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
+              <label className="mb-1.5 block text-sm text-nest-muted">
                 第几周 <span className="text-red-400">*</span>
               </label>
               <input
@@ -163,30 +166,30 @@ export default function CreatePage() {
                   wp.setWeekNumber(e.target.value ? Number(e.target.value) : null)
                 }
                 placeholder="如：7"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+                className="field-input"
               />
             </div>
           </div>
           <div className="mt-3">
-            <label className="block text-sm text-gray-600 mb-1">补充说明（选填）</label>
+            <label className="mb-1.5 block text-sm text-nest-muted">补充说明（选填）</label>
             <textarea
               value={wp.notes}
               onChange={(e) => wp.setNotes(e.target.value)}
               rows={2}
               placeholder="可选：特殊活动安排等"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
+              className="field-input resize-none"
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+      <div className="surface-panel mb-4 p-6">
         <div className="mb-4 flex justify-end">
           <button
             type="button"
             onClick={handleRefresh}
             disabled={wp.isLoadingPlatform}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+            className="btn-secondary !px-3 !py-1.5 text-xs"
           >
             <RefreshCw size={14} className={wp.isLoadingPlatform ? 'animate-spin' : ''} />
             刷新教案列表
@@ -204,11 +207,12 @@ export default function CreatePage() {
           />
         </div>
 
-        <div className="pt-4 border-t border-gray-100 text-center">
+        <div className="border-t border-nest-leaf/10 pt-5 text-center">
           <button
+            type="button"
             onClick={handleGenerate}
             disabled={!canGenerate || wp.isGenerating}
-            className="px-8 py-3 bg-blue-500 text-white rounded-xl text-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 mx-auto"
+            className="btn-primary mx-auto !px-8 !py-3 text-base"
           >
             <Sparkles size={20} />
             {wp.isGenerating ? 'AI 正在生成周计划...' : '生成周计划'}
