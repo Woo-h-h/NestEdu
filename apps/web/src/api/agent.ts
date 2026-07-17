@@ -8,6 +8,13 @@ export function getTeachingAgentId(): number {
   return Number.isFinite(n) && n > 0 ? n : 14317
 }
 
+/** 平台周计划生成智能体，见 https://www.zcat.cn/teach/agent/config/14332 */
+export function getWeeklyPlanAgentId(): number {
+  const raw = (import.meta.env.VITE_WEEKLY_PLAN_AGENT_ID || '14332').trim()
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : 14332
+}
+
 interface AgentTextGenerateEnvelope {
   success?: boolean
   status?: string
@@ -31,7 +38,7 @@ export async function generateAgentText(
 
   const auth = authBridge.getAuthInfo()
   if (!auth?.token) {
-    throw new Error('请先登录平台后再使用智能体生成教案')
+    throw new Error('请先登录平台后再使用智能体生成')
   }
 
   const agentId = options?.agentId ?? getTeachingAgentId()

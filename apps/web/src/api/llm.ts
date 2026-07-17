@@ -18,7 +18,7 @@ import { extractJson, isValidTeachingPlans, isValidWeeklyPlan } from '@/lib/week
 import { mockGenerateWeeklyPlan, mockAiModify } from '@/mock/weeklyPlan'
 import { searchKnowledge } from '@/api/knowledge'
 import { request } from '@/api/client'
-import { generateAgentText, getTeachingAgentId } from '@/api/agent'
+import { generateAgentText, getTeachingAgentId, getWeeklyPlanAgentId } from '@/api/agent'
 
 export function isBackendApiEnabled(): boolean {
   const raw = import.meta.env.VITE_USE_BACKEND_API
@@ -103,10 +103,10 @@ async function browserGenerateWeeklyPlan(params: {
 
   let knowledgeContext: string | undefined
   try {
-    const result = await searchKnowledge(params.themeName)
-    if (result.summary) {
-      knowledgeContext = result.summary
-    }
+    knowledgeContext = await loadKnowledgeContextForWeeklyPlan(
+      params.themeName,
+      params.selectedPlans
+    )
   } catch (err) {
     console.warn('[LLM] 知识库查询失败，继续生成:', err)
   }
@@ -123,17 +123,7 @@ async function browserGenerateWeeklyPlan(params: {
   const result = JSON.parse(json)
 
   if (isValidWeeklyPlan(result)) {
-    return {
-      id: `plan_${Date.now()}`,
-      themeName: params.themeName,
-      className: params.className,
-      weekNumber: params.weekNumber,
-      weeklyFocus: result.weeklyFocus,
-      dailyPlans: result.dailyPlans,
-      suggestions: result.suggestions,
-      createdAt: new Date().toISOString(),
-      status: 'draft',
-    }
+    return assembleWeeklyPlan(result, params)
   }
 
   const retryContent = await browserChatCompletion(
@@ -153,17 +143,7 @@ async function browserGenerateWeeklyPlan(params: {
   const retryResult = JSON.parse(retryJson)
 
   if (isValidWeeklyPlan(retryResult)) {
-    return {
-      id: `plan_${Date.now()}`,
-      themeName: params.themeName,
-      className: params.className,
-      weekNumber: params.weekNumber,
-      weeklyFocus: retryResult.weeklyFocus,
-      dailyPlans: retryResult.dailyPlans,
-      suggestions: retryResult.suggestions,
-      createdAt: new Date().toISOString(),
-      status: 'draft',
-    }
+    return assembleWeeklyPlan(retryResult, params)
   }
 
   throw new Error('LLM 返回格式两次均不合法，请重试')
@@ -211,35 +191,135 @@ async function browserModifyWeeklyPlan(params: {
   throw new Error('LLM 修改返回格式不合法')
 }
 
+function assembleWeeklyPlan(
+  result: Pick<WeeklyPlan, 'weeklyFocus' | 'dailyPlans' | 'suggestions'>,
+  params: {
+    themeName: string
+    className: ClassType
+    weekNumber: number
+  }
+): WeeklyPlan {
+  return {
+    id: `plan_${Date.now()}`,
+    themeName: params.themeName,
+    className: params.className,
+    weekNumber: params.weekNumber,
+    weeklyFocus: result.weeklyFocus,
+    dailyPlans: result.dailyPlans,
+    suggestions: result.suggestions,
+    createdAt: new Date().toISOString(),
+    status: 'draft',
+  }
+}
+
+async function loadKnowledgeContextForWeeklyPlan(
+  themeName: string,
+  selectedPlans?: TeachingPlan[]
+): Promise<string | undefined> {
+  const parts: string[] = []
+
+  if (selectedPlans && selectedPlans.length > 0) {
+    parts.push(
+      selectedPlans
+        .map(
+          (plan, idx) =>
+            `【选用教案${idx + 1}】${plan.title}（${plan.domain}）\n${plan.objectives}\n${plan.content}`
+        )
+        .join('\n\n')
+    )
+  }
+
+  try {
+    const result = await searchKnowledge(themeName)
+    if (result.summary) {
+      parts.push(result.summary)
+    }
+  } catch (err) {
+    console.warn('[LLM] 知识库查询失败，继续生成:', err)
+  }
+
+  const merged = parts.join('\n\n').trim()
+  return merged || undefined
+}
+
+async function agentGenerateWeeklyPlan(params: {
+  fileContents: { name: string; content: string }[]
+  themeName: string
+  className: ClassType
+  weekNumber: number
+  notes?: string
+  selectedPlans?: TeachingPlan[]
+}): Promise<WeeklyPlan> {
+  const knowledgeContext = await loadKnowledgeContextForWeeklyPlan(
+    params.themeName,
+    params.selectedPlans
+  )
+  const systemPrompt = buildGenerateSystemPrompt(knowledgeContext)
+  const userMessage = buildGenerateUserMessage(params)
+  const basePrompt = `${systemPrompt}\n\n${userMessage}\n\n请只输出 JSON，不要其它说明。`
+
+  const tryOnce = async (extra?: string) => {
+    const content = await generateAgentText(
+      extra ? `${basePrompt}\n\n${extra}` : basePrompt,
+      { agentId: getWeeklyPlanAgentId(), timeoutMs: 120000 }
+    )
+    const parsed = JSON.parse(extractJson(content))
+    if (!isValidWeeklyPlan(parsed)) {
+      throw new Error('周计划 JSON 格式不合法')
+    }
+    return assembleWeeklyPlan(parsed, params)
+  }
+
+  try {
+    return await tryOnce()
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('请先登录')) {
+      throw err
+    }
+    return await tryOnce(
+      '上次输出格式不符合要求。请严格只输出 JSON，确保 dailyPlans 含周一到周五共 5 项，字段齐全。'
+    )
+  }
+}
+
 export async function generateWeeklyPlan(
   params: CreateWeeklyPlanRequest & {
     fileContents?: { name: string; content: string }[]
     selectedPlans?: TeachingPlan[]
   }
 ): Promise<WeeklyPlan> {
-  if (isBackendApiEnabled()) {
-    const response = await request.post<{ success: boolean; result: WeeklyPlan }>(
-      '/api/v1/ai/weekly-plan/generate',
-      {
-        fileContents: params.fileContents || [],
-        themeName: params.themeName,
-        className: params.className,
-        weekNumber: params.weekNumber,
-        notes: params.notes,
-        selectedPlans: params.selectedPlans,
-      }
-    )
-    return response.result
-  }
-
-  return browserGenerateWeeklyPlan({
+  const payload = {
     fileContents: params.fileContents || [],
     themeName: params.themeName,
     className: params.className,
     weekNumber: params.weekNumber,
     notes: params.notes,
     selectedPlans: params.selectedPlans,
-  })
+  }
+
+  // 优先走平台周计划智能体（agent_id 默认 14332）+ 当前知识库
+  try {
+    return await agentGenerateWeeklyPlan(payload)
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('请先登录')) {
+      throw err
+    }
+    console.warn('[LLM] 平台周计划智能体生成失败，尝试降级:', err)
+  }
+
+  if (isBackendApiEnabled()) {
+    try {
+      const response = await request.post<{ success: boolean; result: WeeklyPlan }>(
+        '/api/v1/ai/weekly-plan/generate',
+        payload
+      )
+      return response.result
+    } catch (err) {
+      console.warn('[LLM] 后端周计划生成失败:', err)
+    }
+  }
+
+  return browserGenerateWeeklyPlan(payload)
 }
 
 export async function modifyWeeklyPlan(

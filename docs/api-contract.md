@@ -130,16 +130,17 @@
 
 未配置 LLM Key 时返回 3～5 条 Mock 教案。
 
-## 平台智能体（教案生成）
+## 平台智能体（教案 / 周计划生成）
 
 前端直连平台开放 API（需登录态）：
 
-- 非流式：`POST /v1/text/generate`，body `{ "agent_id": 14317, "text": "..." }`
-- 默认智能体：[teach/agent/config/14317](https://www.zcat.cn/teach/agent/config/14317)
-- 配置：`VITE_TEACHING_AGENT_ID`（默认 `14317`）
+- 非流式：`POST /v1/text/generate`，body `{ "agent_id": <id>, "text": "..." }`
+- 教案智能体：[teach/agent/config/14317](https://www.zcat.cn/teach/agent/config/14317)（`VITE_TEACHING_AGENT_ID`，默认 `14317`）
+- 周计划智能体：[teach/agent/config/14332](https://www.zcat.cn/teach/agent/config/14332)（`VITE_WEEKLY_PLAN_AGENT_ID`，默认 `14332`）
+- 周计划生成会注入：已勾选教案全文 + 知识库 10298 检索摘要
 - 本地开发：Vite 代理 `/v1` → `VITE_PLATFORM_API_BASE_URL`
 
-未登录时提示先登录；智能体失败时可降级本地 Mock / DeepSeek（若已配置）。
+未登录时提示先登录；智能体失败时可降级后端 BFF / DeepSeek / Mock（若已配置）。
 
 ## 平台知识库 API（纯前端直连）
 
@@ -162,6 +163,8 @@
 | `VITE_DEFAULT_KNOWLEDGE_ID` | 默认知识库 ID（默认 `10298`） |
 | `VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID` | 默认分类 ID（默认 `20806`） |
 | `VITE_DEFAULT_KNOWLEDGE_CATEGORY_KEY` | 默认分类 key |
+| `VITE_TEACHING_AGENT_ID` | 教案生成智能体（默认 `14317`） |
+| `VITE_WEEKLY_PLAN_AGENT_ID` | 周计划生成智能体（默认 `14332`） |
 | `VITE_PLATFORM_API_BASE_URL` | 平台 API，默认 `https://api.zcat.cn` |
 | `VITE_PLATFORM_REFERER` | 代理出站 Referer |
-| `VITE_USE_BACKEND_API` | 仅影响周计划 CRUD / LLM；知识库始终走平台直连 |
+| `VITE_USE_BACKEND_API` | 智能体失败时是否尝试后端 BFF；知识库始终走平台 |

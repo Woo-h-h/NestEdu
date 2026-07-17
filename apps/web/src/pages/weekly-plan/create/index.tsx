@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useWeeklyPlan } from '@/hooks/useWeeklyPlan'
@@ -6,10 +6,18 @@ import PlanSelector from '../components/PlanSelector'
 import PlanEditor from '../components/PlanEditor'
 import { ArrowLeft, Sparkles, RefreshCw } from 'lucide-react'
 import { isBackendApiEnabled } from '@/api/llm'
+import { getWeeklyPlanAgentId } from '@/api/agent'
+import { authBridge } from '@/lib/authBridge'
+import type { AuthInfo } from '@zcat-open/auth-bridge'
 
 export default function CreatePage() {
   const wp = useWeeklyPlan()
   const showBrowserKeyHint = !isBackendApiEnabled() && !wp.apiConfigured
+  const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
+  const isLoggedIn = Boolean(authInfo?.token)
+  const weeklyAgentId = getWeeklyPlanAgentId()
+
+  useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -82,13 +90,21 @@ export default function CreatePage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">新建周计划</h1>
-        <p className="mt-2 text-sm text-gray-500">勾选教案 → 生成周计划 → 编辑导出</p>
+        <p className="mt-2 text-sm text-gray-500">
+          勾选教案 → 调用智能体（ID {weeklyAgentId}）结合知识库生成周计划 → 编辑导出
+        </p>
       </div>
+
+      {!isLoggedIn && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          生成周计划需登录平台，以便调用智能体并读取知识库 10298。
+        </div>
+      )}
 
       {showBrowserKeyHint && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
-          未配置 API Key，当前使用演示数据。在根目录 <code className="bg-blue-100 px-1 rounded">.env</code>{' '}
-          设置 VITE_DEEPSEEK_API_KEY 即可接入大模型
+          智能体不可用时将尝试降级。可配置 DeepSeek：根目录{' '}
+          <code className="bg-blue-100 px-1 rounded">.env</code> 中的 VITE_DEEPSEEK_API_KEY
         </div>
       )}
 
