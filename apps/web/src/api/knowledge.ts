@@ -113,6 +113,8 @@ function mapPlatformResult(raw: unknown, knowledgeId: string): TeachingPlan[] {
     (Array.isArray(obj.items) && obj.items) ||
     (Array.isArray(obj.data) && obj.data) ||
     (Array.isArray(obj.documents) && obj.documents) ||
+    (Array.isArray(obj.records) && obj.records) ||
+    (Array.isArray(obj.rows) && obj.rows) ||
     null
 
   if (list) {
@@ -196,11 +198,21 @@ export async function fetchKnowledgePlans(
       /401|token|未授权|登录|cookie/i.test(platformMsg) ||
       /401|token|未授权|登录|cookie/i.test(message)
 
-    console.warn('[Knowledge] 平台知识库查询失败，使用本地预设:', err)
+    console.warn('[Knowledge] 平台知识库查询失败:', err)
+
+    // 未登录时不回退预设，避免把本地教案误当成平台知识库
+    if (needLogin) {
+      return {
+        plans: [],
+        source: 'empty',
+        error: '请先登录平台后加载知识库 10298',
+      }
+    }
+
     return {
       plans: presetTeachingPlans.map((plan) => ({ ...plan, source: 'preset' as const })),
       source: 'preset',
-      error: needLogin ? '请先登录平台后加载知识库 10298' : platformMsg,
+      error: platformMsg,
     }
   }
 }

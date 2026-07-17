@@ -41,7 +41,7 @@ export function useTeachingResources() {
       } else if (source === 'preset') {
         setListHint(error ? `本地预设（平台失败：${error}）` : '本地预设')
       } else {
-        setListHint('暂无数据')
+        setListHint(error || '暂无数据')
       }
       return next
     } finally {

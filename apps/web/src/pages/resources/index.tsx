@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
 import { useTeachingResources } from '@/hooks/useTeachingResources'
 import FileUploadCard from '@/pages/weekly-plan/components/FileUploadCard'
 import ClassSelector from '@/pages/weekly-plan/components/ClassSelector'
@@ -6,10 +7,30 @@ import PlanManageList from '@/pages/resources/PlanManageList'
 import { Upload, BookOpen, Wand2, RefreshCw, CloudUpload } from 'lucide-react'
 import { isBackendApiEnabled } from '@/api/llm'
 import { getTeachingAgentId } from '@/api/agent'
+import { authBridge, loginWithAi101 } from '@/lib/authBridge'
+import type { AuthInfo } from '@zcat-open/auth-bridge'
 
 export default function ResourcesPage() {
   const res = useTeachingResources()
   const showBrowserKeyHint = !isBackendApiEnabled() && !res.apiConfigured
+  const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
+  const isLoggedIn = Boolean(authInfo?.token)
+
+  useEffect(() => authBridge.subscribe(setAuthInfo), [])
+
+  useEffect(() => {
+    if (isLoggedIn && res.section === 'manage') {
+      void res.loadPlatformPlans()
+    }
+  }, [isLoggedIn, res.section, res.loadPlatformPlans])
+
+  const handleLogin = async () => {
+    try {
+      await loginWithAi101()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '登录失败')
+    }
+  }
 
   const handleGenerate = async () => {
     if (!res.themeName.trim()) {
@@ -179,9 +200,22 @@ export default function ResourcesPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">知识库管理</h2>
             <p className="mt-1 text-sm text-gray-500">
-              自主上传 docx 到平台知识库，或删除已有文档
+              对接平台知识库 10298（分类 20806）。需登录后才能拉取真实文档。
             </p>
           </div>
+
+          {!isLoggedIn && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800">
+              <span>当前未登录，无法读取平台知识库，请先登录。</span>
+              <button
+                type="button"
+                onClick={() => void handleLogin()}
+                className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-sm hover:bg-amber-700"
+              >
+                登录平台
+              </button>
+            </div>
+          )}
 
           <div className="space-y-3">
             <FileUploadCard
@@ -194,7 +228,7 @@ export default function ResourcesPage() {
               <button
                 type="button"
                 onClick={handleRefreshPlatform}
-                disabled={res.isLoadingPlatform}
+                disabled={res.isLoadingPlatform || !isLoggedIn}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
               >
                 <RefreshCw size={16} className={res.isLoadingPlatform ? 'animate-spin' : ''} />
@@ -203,7 +237,7 @@ export default function ResourcesPage() {
               <button
                 type="button"
                 onClick={handleUploadFiles}
-                disabled={res.isUploading || res.uploadFiles.length === 0}
+                disabled={res.isUploading || res.uploadFiles.length === 0 || !isLoggedIn}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
               >
                 <Upload size={16} />
@@ -217,7 +251,11 @@ export default function ResourcesPage() {
             plans={res.platformPlans}
             loading={res.isLoadingPlatform}
             sourceHint={res.listHint}
-            emptyHint="知识库暂无文档，可上传文件或到「教案生成」入库"
+            emptyHint={
+              isLoggedIn
+                ? '知识库暂无文档，可上传文件或到「教案生成」入库'
+                : '请先登录平台以加载知识库 10298'
+            }
             onDelete={handleDelete}
             deleting={res.isDeleting}
           />

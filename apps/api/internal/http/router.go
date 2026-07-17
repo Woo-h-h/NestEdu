@@ -45,6 +45,9 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	aiHandler.registerRoutes(api)
 	knowledgeHandler.registerRoutes(api)
 
+	// 平台知识库 / 智能体：同域反代，避免生产环境落到 NoRoute「api route not found」
+	registerPlatformProxy(r, cfg.Platform)
+
 	registerWebStatic(r, cfg.WebStaticDir, cfg.WebBasePath)
 
 	return r

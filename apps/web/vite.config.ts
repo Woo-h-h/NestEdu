@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       open: true,
       proxy: {
-        // 平台知识库：前端直连 api.zcat.cn（纯前端，不经本地 Go BFF）
+        // 平台知识库：必须写在 /api/v1 之前，避免被本地 Go 吃掉
         "/api/knowledge": {
           target: env.VITE_PLATFORM_API_BASE_URL || env.VITE_AI101_API_BASE_URL || "https://api.zcat.cn",
           changeOrigin: true,
@@ -55,8 +55,8 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
         },
-        // 可选：若本地仍跑 Go，其它 /api/v1 可走 LOCAL_API_BASE_URL
-        "/api": {
+        // 仅本地 Go BFF（/api/v1/*），不要用宽泛的 /api 以免误伤知识库路径
+        "/api/v1": {
           target: env.LOCAL_API_BASE_URL || "http://127.0.0.1:8088",
           changeOrigin: true,
         },
