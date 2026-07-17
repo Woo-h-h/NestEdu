@@ -9,6 +9,7 @@ import {
 import { parseDocxFiles } from '@/lib/parse-docx'
 import { authBridge } from '@/lib/authBridge'
 import { isApiConfigured } from '@/api/weeklyPlan'
+import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
 
 export type ResourcesSection = 'generate' | 'manage'
 
@@ -27,6 +28,10 @@ export function useTeachingResources() {
   const [isUploading, setIsUploading] = useState(false)
   const [isUploadingGenerated, setIsUploadingGenerated] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isPreparingUpload, setIsPreparingUpload] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState<PendingUploadItem[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmMode, setConfirmMode] = useState<'files' | 'generated'>('files')
 
   const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
@@ -72,31 +77,22 @@ export function useTeachingResources() {
     }
   }, [themeName, className])
 
-  const uploadGeneratedPlansToPlatform = useCallback(async (plans: TeachingPlan[]) => {
+  const prepareGeneratedUpload = useCallback((plans: TeachingPlan[]) => {
     const auth = authBridge.getAuthInfo()
     if (!auth?.token) throw new Error('请先登录平台后再上传')
     if (plans.length === 0) throw new Error('请先勾选要上传的教案')
 
-    setIsUploadingGenerated(true)
-    try {
-      const uploaded: TeachingPlan[] = []
-      for (const plan of plans) {
-        const content = [plan.objectives, plan.content].filter(Boolean).join('\n\n')
-        uploaded.push(
-          await uploadKnowledgeDocument({
-            title: plan.title,
-            content: content || plan.title,
-          })
-        )
-      }
-      setUploadSelection([])
-      return uploaded
-    } finally {
-      setIsUploadingGenerated(false)
-    }
+    const items: PendingUploadItem[] = plans.map((plan) => ({
+      fileName: plan.title,
+      title: plan.title,
+      content: [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title,
+    }))
+    setPendingUploads(items)
+    setConfirmMode('generated')
+    setConfirmOpen(true)
   }, [])
 
-  const uploadFilesToPlatform = useCallback(async () => {
+  const prepareFileUpload = useCallback(async () => {
     const auth = authBridge.getAuthInfo()
     if (!auth?.token) throw new Error('请先登录平台后再上传')
     if (uploadFiles.length === 0) throw new Error('请先选择要上传的 docx 文件')
@@ -106,31 +102,66 @@ export function useTeachingResources() {
     )
     if (invalid) throw new Error('仅支持 .docx / .doc 文件')
 
-    setIsUploading(true)
+    setIsPreparingUpload(true)
     try {
       const parsed = await parseDocxFiles(uploadFiles)
       if (parsed.length === 0) {
         throw new Error('未能解析出有效文本，请确认文件为有效 docx')
       }
+      setPendingUploads(
+        parsed.map((file) => ({
+          fileName: file.name,
+          title: file.name.replace(/\.(docx|doc)$/i, ''),
+          content: file.content,
+        }))
+      )
+      setConfirmMode('files')
+      setConfirmOpen(true)
+    } finally {
+      setIsPreparingUpload(false)
+    }
+  }, [uploadFiles])
 
+  const cancelPendingUpload = useCallback(() => {
+    if (isUploading || isUploadingGenerated) return
+    setConfirmOpen(false)
+    setPendingUploads([])
+  }, [isUploading, isUploadingGenerated])
+
+  const confirmPendingUpload = useCallback(async () => {
+    if (pendingUploads.length === 0) throw new Error('没有待上传内容')
+
+    const uploadingGenerated = confirmMode === 'generated'
+    if (uploadingGenerated) setIsUploadingGenerated(true)
+    else setIsUploading(true)
+
+    try {
       const uploaded: TeachingPlan[] = []
-      for (const file of parsed) {
-        const title = file.name.replace(/\.(docx|doc)$/i, '')
+      for (const item of pendingUploads) {
         uploaded.push(
           await uploadKnowledgeDocument({
-            title,
-            content: file.content,
+            title: item.title,
+            content: item.content,
           })
         )
       }
 
-      setUploadFiles([])
+      setConfirmOpen(false)
+      setPendingUploads([])
+      if (uploadingGenerated) {
+        setUploadSelection([])
+      } else {
+        setUploadFiles([])
+      }
+
+      setSection('manage')
       await loadPlatformPlans()
       return uploaded
     } finally {
-      setIsUploading(false)
+      if (uploadingGenerated) setIsUploadingGenerated(false)
+      else setIsUploading(false)
     }
-  }, [uploadFiles, loadPlatformPlans])
+  }, [pendingUploads, confirmMode, loadPlatformPlans])
 
   const deletePlan = useCallback(async (plan: TeachingPlan) => {
     if (plan.source === 'preset') {
@@ -171,11 +202,16 @@ export function useTeachingResources() {
     isUploading,
     isUploadingGenerated,
     isDeleting,
+    isPreparingUpload,
+    pendingUploads,
+    confirmOpen,
     apiConfigured: isApiConfigured(),
     generateTeachingPlansFromTheme,
-    uploadGeneratedPlansToPlatform,
+    prepareGeneratedUpload,
+    prepareFileUpload,
+    confirmPendingUpload,
+    cancelPendingUpload,
     loadPlatformPlans,
-    uploadFilesToPlatform,
     deletePlan,
   }
 }

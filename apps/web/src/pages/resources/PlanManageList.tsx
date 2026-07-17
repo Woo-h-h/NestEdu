@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Loader2, Trash2 } from 'lucide-react'
+import { Check, Eye, Loader2, Trash2 } from 'lucide-react'
 
 interface Props {
   plans: TeachingPlan[]
@@ -12,6 +12,7 @@ interface Props {
   selected?: TeachingPlan[]
   onChange?: (plans: TeachingPlan[]) => void
   onDelete?: (plan: TeachingPlan) => void | Promise<void>
+  onView?: (plan: TeachingPlan) => void
   deleting?: boolean
   title?: string
 }
@@ -31,6 +32,7 @@ export default function PlanManageList({
   selected = [],
   onChange,
   onDelete,
+  onView,
   deleting = false,
   title = '教案列表',
 }: Props) {
@@ -56,6 +58,10 @@ export default function PlanManageList({
         ? selected.filter((p) => p.id !== plan.id)
         : [...selected, plan]
     )
+  }
+
+  const openView = (plan: TeachingPlan) => {
+    onView?.(plan)
   }
 
   return (
@@ -109,18 +115,40 @@ export default function PlanManageList({
           return (
             <div
               key={plan.id}
-              onClick={() => toggle(plan)}
-              className={`border rounded-lg p-4 bg-white transition-all ${
-                selectable ? 'cursor-pointer' : ''
+              role={onView || selectable ? 'button' : undefined}
+              tabIndex={onView || selectable ? 0 : undefined}
+              onClick={() => {
+                if (selectable) toggle(plan)
+                else if (onView) openView(plan)
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                e.preventDefault()
+                if (selectable) toggle(plan)
+                else if (onView) openView(plan)
+              }}
+              className={`border rounded-lg p-4 bg-white transition-all text-left ${
+                selectable || onView ? 'cursor-pointer hover:border-blue-200 hover:shadow-sm' : ''
               } ${
-                selectable && isSel
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-gray-100'
+                selectable && isSel ? 'border-blue-400 bg-blue-50' : 'border-gray-100'
               }`}
             >
               <div className="flex justify-between items-start mb-2 gap-2">
                 <h4 className="font-semibold text-gray-800 text-sm">{plan.title}</h4>
                 <div className="flex items-center gap-1 shrink-0">
+                  {onView && (
+                    <button
+                      type="button"
+                      title="查看完整内容"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openView(plan)
+                      }}
+                      className="p-1 text-gray-400 hover:text-blue-500"
+                    >
+                      <Eye size={14} />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       type="button"
@@ -151,6 +179,9 @@ export default function PlanManageList({
                 ))}
               </div>
               <p className="text-xs text-gray-400 line-clamp-2">{plan.objectives}</p>
+              {onView && !selectable && (
+                <p className="text-[11px] text-blue-500 mt-2">点击查看完整内容</p>
+              )}
             </div>
           )
         })}
