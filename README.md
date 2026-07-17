@@ -1,6 +1,10 @@
-# mvp-template
+# mvp-template / 附幼智能平台
 
-可复制的 MVP 项目模板（前后端同仓）：
+可复制的 MVP 项目模板（前后端同仓），已迁入幼儿园周计划智能体核心能力。
+
+- 前端：React + TypeScript + Vite
+- 后端：Go + Gin（周计划 CRUD + LLM 代理）
+- 入口：`/` Dashboard → `/weekly-plan/create` 新建周计划
 
 - 前端：React + TypeScript + Vite
 - 后端：Go + Gin（独立服务）

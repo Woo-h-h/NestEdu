@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/your-org/mvp-template/apps/api/internal/service"
 	"github.com/your-org/mvp-template/apps/api/internal/store"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -24,7 +25,15 @@ func newTestRouter(t *testing.T) *httptest.Server {
 		t.Fatalf("auto migrate: %v", err)
 	}
 
-	return httptest.NewServer(NewRouter(RouterConfig{DB: db}))
+	return newTestRouterWithDB(t, db)
+}
+
+func newTestRouterWithDB(t *testing.T, db *gorm.DB) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(NewRouter(RouterConfig{
+		DB: db,
+		LLM: service.LLMConfig{},
+	}))
 }
 
 func TestSampleRoutesCreateAndListItems(t *testing.T) {

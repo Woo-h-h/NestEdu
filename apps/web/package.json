@@ -14,6 +14,8 @@
     "@zcat-open/auth-bridge": "^0.1.6",
     "autoprefixer": "^10.5.0",
     "axios": "^1.16.1",
+    "docx": "^9.5.0",
+    "mammoth": "^1.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",

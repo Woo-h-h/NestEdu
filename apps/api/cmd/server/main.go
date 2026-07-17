@@ -7,6 +7,7 @@ import (
 	backendDB "github.com/your-org/mvp-template/apps/api/internal/db"
 	apihttp "github.com/your-org/mvp-template/apps/api/internal/http"
 	"github.com/your-org/mvp-template/apps/api/internal/model"
+	"github.com/your-org/mvp-template/apps/api/internal/service"
 	"github.com/your-org/mvp-template/apps/api/internal/store"
 )
 
@@ -17,6 +18,7 @@ func main() {
 	}
 
 	model.SampleItemTableName = cfg.Sample.TableName
+	model.WeeklyPlanTableName = cfg.WeeklyPlan.TableName
 
 	db, err := backendDB.Open(cfg.DB)
 	if err != nil {
@@ -36,6 +38,22 @@ func main() {
 		DB:           db,
 		WebStaticDir: cfg.WebStaticDir,
 		WebBasePath:  cfg.WebBasePath,
+		LLM: service.LLMConfig{
+			APIKey:  cfg.LLM.APIKey,
+			BaseURL: cfg.LLM.BaseURL,
+			Model:   cfg.LLM.Model,
+		},
+		Platform: service.PlatformClientConfig{
+			BaseURL: cfg.Platform.BaseURL,
+			Referer: cfg.Platform.Referer,
+			MVP:     cfg.Platform.MVP,
+		},
+		Knowledge: service.KnowledgeConfig{
+			ListPath:   cfg.Platform.KnowledgeListPath,
+			DetailPath: cfg.Platform.KnowledgeDetailPath,
+			UploadPath: cfg.Platform.KnowledgeUploadPath,
+			DefaultID:  cfg.Platform.DefaultKnowledgeID,
+		},
 	})
 
 	log.Printf("mvp template backend server listening on %s", cfg.ServerAddr)

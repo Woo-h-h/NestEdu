@@ -18,10 +18,33 @@ type SampleConfig struct {
 	TableName string
 }
 
+type WeeklyPlanConfig struct {
+	TableName string
+}
+
+type LLMConfig struct {
+	APIKey  string
+	BaseURL string
+	Model   string
+}
+
+type PlatformConfig struct {
+	BaseURL             string
+	Referer             string
+	MVP                 string
+	KnowledgeListPath   string
+	KnowledgeDetailPath string
+	KnowledgeUploadPath string
+	DefaultKnowledgeID  string
+}
+
 type Config struct {
 	ServerAddr   string
 	DB           DBConfig
 	Sample       SampleConfig
+	WeeklyPlan   WeeklyPlanConfig
+	LLM          LLMConfig
+	Platform     PlatformConfig
 	WebStaticDir string
 	WebBasePath  string
 }
@@ -44,6 +67,23 @@ func Load() (Config, error) {
 		},
 		Sample: SampleConfig{
 			TableName: getEnv("SAMPLE_TABLE_NAME", "sample_items"),
+		},
+		WeeklyPlan: WeeklyPlanConfig{
+			TableName: getEnv("WEEKLY_PLAN_TABLE_NAME", "weekly_plans"),
+		},
+		LLM: LLMConfig{
+			APIKey:  strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")),
+			BaseURL: getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+			Model:   getEnv("DEEPSEEK_MODEL", "deepseek-chat"),
+		},
+		Platform: PlatformConfig{
+			BaseURL:             getEnv("PLATFORM_API_BASE_URL", "https://api.zcat.cn"),
+			Referer:             getEnv("PLATFORM_REFERER", "https://www.zcat.cn"),
+			MVP:                 getEnv("PLATFORM_MVP", "mvp-template"),
+			KnowledgeListPath:   getEnv("KNOWLEDGE_LIST_PATH", "/api/knowledge/document/list"),
+			KnowledgeDetailPath: getEnv("KNOWLEDGE_DETAIL_PATH", "/api/knowledge/document/detail"),
+			KnowledgeUploadPath: getEnv("KNOWLEDGE_UPLOAD_PATH", "/api/knowledge/document/text"),
+			DefaultKnowledgeID:  getEnv("DEFAULT_KNOWLEDGE_ID", "10298"),
 		},
 		WebStaticDir: strings.TrimSpace(os.Getenv("WEB_STATIC_DIR")),
 		WebBasePath:  NormalizeWebBasePath(os.Getenv("WEB_BASE_PATH")),

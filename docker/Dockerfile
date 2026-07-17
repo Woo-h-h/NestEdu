@@ -30,7 +30,8 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/mvp-api ./cmd/server
 
 FROM alpine:3.20
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
-    && apk add --no-cache ca-certificates tzdata
+    && apk add --no-cache ca-certificates tzdata \
+    && mkdir -p /app/data
 WORKDIR /app
 COPY --from=api-builder /out/mvp-api /usr/local/bin/mvp-api
 COPY --from=web /app/apps/web/dist ./bin/dist
@@ -39,4 +40,7 @@ ENV SERVER_ADDR=:8088
 ENV WEB_STATIC_DIR=/app/bin/dist
 ENV WEB_BASE_PATH=
 ENV GIN_MODE=release
+ENV DB_DRIVER=sqlite
+ENV DB_DSN=/app/data/mvp.db
+ENV DB_AUTO_MIGRATE=true
 CMD ["mvp-api"]
