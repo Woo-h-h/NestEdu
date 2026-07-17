@@ -15,6 +15,21 @@ dist
 dist-ssr
 *.local
 
+# Local databases & runtime data (已跟踪的文件不受影响，仅忽略新增)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+apps/api/data/
+data/
+
+# Secrets / credentials (勿提交)
+*.pem
+*.p12
+*.keystore
+credentials.json
+**/secrets/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
