@@ -1,0 +1,25 @@
+schema: spec-driven
+
+# Project context shown to AI/tools when creating OpenSpec artifacts.
+context: |
+  Project: mvp-template
+  Repo layout:
+  - frontend: apps/web (React + TypeScript + Vite)
+  - backend: apps/api (Go + Gin)
+
+  Key conventions:
+  - Frontend pages must call APIs only through apps/web/src/api/*
+  - Backend HTTP handlers must use the shared response helpers in internal/http
+  - Keep API envelope stable: success/result/errorMessage
+  - Any medium/large feature must start with OpenSpec change artifacts
+
+rules:
+  proposal:
+    - Keep proposal concise and implementation-oriented
+    - Must include Why, What Changes, Impact
+  design:
+    - Must include at least one alternative and why it was rejected
+    - Must include risks/tradeoffs
+  tasks:
+    - Tasks must be independently verifiable
+    - Use checkbox format and keep each task small

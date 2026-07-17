@@ -1,0 +1,43 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🌐 前端-浏览器",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3005",
+      "webRoot": "${workspaceFolder}/apps/web",
+      "preLaunchTask": "🎨 仅前端热重载"
+    },
+    {
+      "name": "🌐 浏览器",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3005",
+      "webRoot": "${workspaceFolder}/apps/web"
+    },
+    {
+      "name": "🐹 后端-Go 服务",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/apps/api/cmd/server",
+      "cwd": "${workspaceFolder}/apps/api",
+      "env": {
+        "SERVER_ADDR": ":8088",
+        "DB_DRIVER": "sqlite",
+        "DB_DSN": "${workspaceFolder}/data/mvp-template.db",
+        "DB_AUTO_MIGRATE": "true",
+        "WEB_STATIC_DIR": ""
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🐞 全栈断点调试",
+      "configurations": ["🌐 浏览器", "🐹 后端-Go 服务"],
+      "preLaunchTask": "🔥 全栈热重载",
+      "stopAll": true
+    }
+  ]
+}
