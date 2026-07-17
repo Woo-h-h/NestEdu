@@ -125,10 +125,10 @@ export default function PlanEditor({
             </tr>
             <tr>
               <td className={mergeLabelClass}>{'\n'}</td>
-              <td className={headerClass}>集体学习</td>
-              <td className={headerClass}>区域游戏</td>
-              <td className={headerClass}>日常生活</td>
-              <td className={headerClass}>户外运动</td>
+              <td className={headerClass}>自主学习</td>
+              <td className={headerClass}>自主游戏</td>
+              <td className={headerClass}>自主生活</td>
+              <td className={headerClass}>自主运动</td>
             </tr>
             {plan.dailyPlans.map((dp, i) => (
               <tr key={dp.day}>

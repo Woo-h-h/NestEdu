@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useWeeklyPlan } from '@/hooks/useWeeklyPlan'
 import PlanSelector from '../components/PlanSelector'
 import PlanEditor from '../components/PlanEditor'
+import ClassSelector from '../components/ClassSelector'
 import { ArrowLeft, Sparkles, RefreshCw } from 'lucide-react'
 import { getWeeklyPlanAgentId } from '@/api/agent'
 import {
@@ -37,6 +37,10 @@ export default function CreatePage() {
   }, [wp.isModified])
 
   const handleGenerate = async () => {
+    if (!wp.metaReady) {
+      toast.error('请先选择班级、填写主题并设置周次')
+      return
+    }
     if (wp.selectedPlans.length === 0) {
       toast.error('请先勾选至少一个教案')
       return
@@ -112,14 +116,14 @@ export default function CreatePage() {
     )
   }
 
-  const canGenerate = wp.selectedPlans.length > 0
+  const canGenerate = wp.metaReady && wp.selectedPlans.length > 0
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">新建周计划</h1>
         <p className="mt-2 text-sm text-gray-500">
-          勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
+          填写主题与班级周次 → 勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
           {getWeeklyPlanCategoryId()}）
         </p>
       </div>
@@ -130,22 +134,51 @@ export default function CreatePage() {
         </div>
       )}
 
-      {wp.hasContext && wp.context && (
-        <div className="mb-4 p-3 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
-          <span>
-            班级：<strong className="text-gray-800">{wp.context.className}</strong>
-          </span>
-          <span>
-            主题：<strong className="text-gray-800">{wp.context.themeName}</strong>
-          </span>
-          <span>
-            周次：<strong className="text-gray-800">第 {wp.context.weekNumber} 周</strong>
-          </span>
-          <Link to="/resources" className="text-blue-500 hover:underline ml-auto">
-            修改教学信息
-          </Link>
+      <div className="space-y-4 mb-4">
+        <ClassSelector value={wp.className} onChange={wp.setClassName} />
+
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                主题名称 <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={wp.themeName}
+                onChange={(e) => wp.setThemeName(e.target.value)}
+                placeholder="如：好宝宝爱图书 / 亲亲自然"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                第几周 <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={40}
+                value={wp.weekNumber ?? ''}
+                onChange={(e) =>
+                  wp.setWeekNumber(e.target.value ? Number(e.target.value) : null)
+                }
+                placeholder="如：7"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+              />
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="block text-sm text-gray-600 mb-1">补充说明（选填）</label>
+            <textarea
+              value={wp.notes}
+              onChange={(e) => wp.setNotes(e.target.value)}
+              rows={2}
+              placeholder="可选：特殊活动安排等"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"
+            />
+          </div>
         </div>
-      )}
+      </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
         <div className="mb-4 flex justify-end">

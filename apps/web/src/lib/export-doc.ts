@@ -10,9 +10,12 @@ import {
   WidthType,
   BorderStyle,
   HeadingLevel,
+  VerticalAlign,
 } from 'docx'
 import type { WeeklyPlan } from '@/types/weeklyPlan'
+import { weeklyPlanFileName } from '@/lib/weeklyPlanText'
 
+/** 按华科附幼样表导出：快乐一周 + 自主学习/游戏/生活/运动，文件名如「小四班第7周计划.docx」 */
 export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
   const border = {
     style: BorderStyle.SINGLE,
@@ -35,30 +38,33 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
       fontSize?: number
       colSpan?: number
       shading?: string
+      width?: number
     } = {}
   ): TableCell {
+    const lines = (text || '').split('\n')
     return new TableCell({
-      children: [
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: text || '',
-              bold: options.bold ?? false,
-              size: (options.fontSize ?? 20) * 2,
-              font: 'Microsoft YaHei',
-            }),
-          ],
-          alignment: options.alignment ?? AlignmentType.LEFT,
-          spacing: { before: 40, after: 40 },
-        }),
-      ],
-      width: { size: 2000, type: WidthType.DXA },
+      children: lines.map(
+        (line) =>
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                bold: options.bold ?? false,
+                size: (options.fontSize ?? 18) * 2,
+                font: 'Microsoft YaHei',
+              }),
+            ],
+            alignment: options.alignment ?? AlignmentType.LEFT,
+            spacing: { before: 20, after: 20 },
+          })
+      ),
+      width: { size: options.width ?? 1800, type: WidthType.DXA },
       borders: cellBorders,
       columnSpan: options.colSpan,
       shading: options.shading
-        ? { fill: options.shading, type: 'solid' }
+        ? { fill: options.shading, type: 'clear' as const }
         : undefined,
-      verticalAlign: 'center',
+      verticalAlign: VerticalAlign.CENTER,
     })
   }
 
@@ -67,11 +73,13 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
   rows.push(
     new TableRow({
       children: [
-        makeCell('周工作\n重点', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
-        makeCell(plan.weeklyFocus, { colSpan: 4 }),
-        makeCell('', { colSpan: 0 }),
-        makeCell('', { colSpan: 0 }),
-        makeCell('', { colSpan: 0 }),
+        makeCell('周工作\n重点', {
+          bold: true,
+          alignment: AlignmentType.CENTER,
+          shading: 'F5F7FA',
+          width: 900,
+        }),
+        makeCell(plan.weeklyFocus, { colSpan: 4, width: 7200 }),
       ],
     })
   )
@@ -79,20 +87,36 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
   rows.push(
     new TableRow({
       children: [
-        makeCell('时间', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
-        makeCell('集体学习', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
-        makeCell('区域游戏', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
-        makeCell('日常生活', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
-        makeCell('户外运动', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
+        makeCell('日期', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA', width: 900 }),
+        makeCell('自主学习', {
+          bold: true,
+          alignment: AlignmentType.CENTER,
+          shading: 'F5F7FA',
+        }),
+        makeCell('自主游戏', {
+          bold: true,
+          alignment: AlignmentType.CENTER,
+          shading: 'F5F7FA',
+        }),
+        makeCell('自主生活', {
+          bold: true,
+          alignment: AlignmentType.CENTER,
+          shading: 'F5F7FA',
+        }),
+        makeCell('自主运动', {
+          bold: true,
+          alignment: AlignmentType.CENTER,
+          shading: 'F5F7FA',
+        }),
       ],
     })
   )
 
-  plan.dailyPlans.forEach((dp) => {
+  for (const dp of plan.dailyPlans) {
     rows.push(
       new TableRow({
         children: [
-          makeCell(dp.day, { bold: true, alignment: AlignmentType.CENTER }),
+          makeCell(dp.day, { bold: true, alignment: AlignmentType.CENTER, width: 900 }),
           makeCell(dp.collectiveLearning),
           makeCell(dp.regionalGames),
           makeCell(dp.dailyLife),
@@ -100,23 +124,26 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
         ],
       })
     )
-  })
+  }
 
   rows.push(
     new TableRow({
       children: [
-        makeCell('实施\n建议', { bold: true, alignment: AlignmentType.CENTER, shading: 'F5F7FA' }),
-        makeCell(plan.suggestions, { colSpan: 4 }),
-        makeCell('', { colSpan: 0 }),
-        makeCell('', { colSpan: 0 }),
-        makeCell('', { colSpan: 0 }),
+        makeCell('实施\n建议', {
+          bold: true,
+          alignment: AlignmentType.CENTER,
+          shading: 'F5F7FA',
+          width: 900,
+        }),
+        makeCell(plan.suggestions, { colSpan: 4, width: 7200 }),
       ],
     })
   )
 
   const table = new Table({
     rows,
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: 8100, type: WidthType.DXA },
+    columnWidths: [900, 1800, 1800, 1800, 1800],
   })
 
   const doc = new Document({
@@ -125,13 +152,22 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
         document: {
           run: {
             font: 'Microsoft YaHei',
-            size: 20 * 2,
+            size: 18 * 2,
           },
         },
       },
     },
     sections: [
       {
+        properties: {
+          page: {
+            size: {
+              orientation: 'landscape',
+              width: 16838,
+              height: 11906,
+            },
+          },
+        },
         children: [
           new Paragraph({
             text: '快乐一周',
@@ -142,18 +178,26 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
           new Paragraph({
             children: [
               new TextRun({
-                text: `主题名称：${plan.themeName}          `,
-                size: 24 * 2,
+                text: `主题名称：${plan.themeName}`,
+                size: 22 * 2,
                 font: 'Microsoft YaHei',
               }),
               new TextRun({
-                text: `班级：${plan.className}       `,
-                size: 24 * 2,
+                text: '          ',
+                size: 22 * 2,
+              }),
+              new TextRun({
+                text: `班级：${plan.className}`,
+                size: 22 * 2,
                 font: 'Microsoft YaHei',
+              }),
+              new TextRun({
+                text: '       ',
+                size: 22 * 2,
               }),
               new TextRun({
                 text: `第${plan.weekNumber}周`,
-                size: 24 * 2,
+                size: 22 * 2,
                 font: 'Microsoft YaHei',
               }),
             ],
@@ -170,7 +214,7 @@ export async function exportToDoc(plan: WeeklyPlan): Promise<void> {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `周计划_${plan.themeName}_${plan.className}_第${plan.weekNumber}周.docx`
+  a.download = weeklyPlanFileName(plan)
   a.click()
   URL.revokeObjectURL(url)
 }

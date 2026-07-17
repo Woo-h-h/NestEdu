@@ -57,7 +57,7 @@ export default function AppLayout() {
       >
         <div className="px-4 py-4 border-b border-slate-700 text-center">
           <span className="text-white font-bold whitespace-nowrap text-lg">
-            {collapsed ? '附幼' : '附幼智能平台'}
+            {collapsed ? '华科附幼' : '华科附幼智能教案助手'}
           </span>
         </div>
 

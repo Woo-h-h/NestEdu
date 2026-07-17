@@ -24,7 +24,8 @@ export interface DayPlan {
 export interface WeeklyPlan {
   id: string
   themeName: string
-  className: ClassType
+  /** 班级名，如「小班」「小四班」 */
+  className: string
   weekNumber: number
   weeklyFocus: string
   dailyPlans: DayPlan[]
@@ -37,7 +38,7 @@ export interface CreateWeeklyPlanRequest {
   fileNames: string[]
   fileContents?: { name: string; content: string }[]
   themeName: string
-  className: ClassType
+  className: string
   weekNumber: number
   notes?: string
   selectedPlans?: TeachingPlan[]

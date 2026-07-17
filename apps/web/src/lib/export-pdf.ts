@@ -6,7 +6,7 @@ export async function exportToPdf(plan: WeeklyPlan): Promise<void> {
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>周计划_${plan.themeName}</title>
+  <title>${plan.className}第${plan.weekNumber}周计划</title>
   <style>
     @page { size: A4 landscape; margin: 15mm; }
     body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; font-size: 12px; color: #333; }
@@ -23,8 +23,8 @@ export async function exportToPdf(plan: WeeklyPlan): Promise<void> {
 <body>
   <h1>快乐一周</h1>
   <div class="info">
-    主题名称：${plan.themeName} &nbsp;&nbsp;&nbsp;&nbsp;
-    班级：${plan.className} &nbsp;&nbsp;&nbsp;&nbsp;
+    主题名称：${escapeHtml(plan.themeName)} &nbsp;&nbsp;&nbsp;&nbsp;
+    班级：${escapeHtml(plan.className)} &nbsp;&nbsp;&nbsp;&nbsp;
     第${plan.weekNumber}周
   </div>
   <table>
@@ -33,11 +33,11 @@ export async function exportToPdf(plan: WeeklyPlan): Promise<void> {
       <td colspan="4">${escapeHtml(plan.weeklyFocus)}</td>
     </tr>
     <tr>
-      <td class="header-cell">时间</td>
-      <td class="header-cell">集体学习</td>
-      <td class="header-cell">区域游戏</td>
-      <td class="header-cell">日常生活</td>
-      <td class="header-cell">户外运动</td>
+      <td class="header-cell">日期</td>
+      <td class="header-cell">自主学习</td>
+      <td class="header-cell">自主游戏</td>
+      <td class="header-cell">自主生活</td>
+      <td class="header-cell">自主运动</td>
     </tr>
     ${plan.dailyPlans
       .map(

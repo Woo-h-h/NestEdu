@@ -7,9 +7,9 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">幼儿园信息平台智能体</h1>
+        <h1 className="text-2xl font-bold text-gray-900">华科附幼智能教案助手</h1>
         <p className="mt-2 text-sm text-gray-500">
-          教案生成与知识库管理：按主题生成并可选择入库，或直接上传/删除平台文档。
+          教案生成与知识库管理：按主题生成并可选择入库，或直接上传/删除平台文档；支持周计划生成与管理。
         </p>
       </div>
 

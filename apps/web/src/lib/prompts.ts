@@ -1,6 +1,6 @@
-import type { WeeklyPlan, ClassType, ChatMessage, TeachingPlan } from '@/types/weeklyPlan'
+import type { WeeklyPlan, ChatMessage, TeachingPlan } from '@/types/weeklyPlan'
 
-const KINDERGARTEN_CONTEXT = `你是"附属幼儿园"的资深教研组长，拥有20年幼儿教育经验。
+const KINDERGARTEN_CONTEXT = `你是"华中科技大学附属幼儿园（华科附幼）"的资深教研组长，拥有20年幼儿教育经验。
 
 【办园理念】自然和谐、共同成长
 【课程体系】《幼儿自主学习课程》
@@ -10,15 +10,15 @@ const KINDERGARTEN_CONTEXT = `你是"附属幼儿园"的资深教研组长，拥
 
 【五大领域】健康、语言、社会、科学、艺术`
 
-const WEEKLY_PLAN_STRUCTURE = `周计划表是一个8行×5列的表格：
+const WEEKLY_PLAN_STRUCTURE = `周计划表是一个8行×5列的表格（华科附幼「快乐一周」格式）：
 
 第1行：周工作重点（跨4列合并，概括本周保教工作重点，含生活习惯、安全教育、游戏规则等）
-第2行：表头——时间 | 集体学习 | 区域游戏 | 日常生活 | 户外运动
+第2行：表头——日期 | 自主学习 | 自主游戏 | 自主生活 | 自主运动
 第3-7行：周一至周五的每日计划
-  - 集体学习：上午集体教学活动名称及领域（如"《好宝宝爱图书》（语言、社会）"）
-  - 区域游戏：角色游戏、表演区、建构区等活动安排
-  - 日常生活：自由环节（喝水/如厕）、过渡环节（洗手/进餐/午睡）、离园环节（安全教育）
-  - 户外运动：集体游戏 + 自选器材
+  - 自主学习：上午集体教学活动名称及领域（如"《好宝宝爱图书》（语言、社会）"）
+  - 自主游戏：角色游戏、表演区、建构区等活动安排
+  - 自主生活：自由环节（喝水/如厕）、过渡环节（洗手/进餐/午睡）、离园环节（安全教育）
+  - 自主运动：集体游戏 + 自选器材
 第8行：实施建议（跨4列合并，含家长配合事项、活动延伸建议等）`
 
 const OUTPUT_FORMAT = `你必须严格按以下JSON格式输出，不要输出任何其他内容：
@@ -27,10 +27,10 @@ const OUTPUT_FORMAT = `你必须严格按以下JSON格式输出，不要输出�
   "dailyPlans": [
     {
       "day": "周一",
-      "collectiveLearning": "集体学习内容",
-      "regionalGames": "区域游戏内容",
-      "dailyLife": "日常生活内容",
-      "outdoorSports": "户外运动内容"
+      "collectiveLearning": "自主学习内容",
+      "regionalGames": "自主游戏内容",
+      "dailyLife": "自主生活内容",
+      "outdoorSports": "自主运动内容"
     }
   ],
   "suggestions": "实施建议（字符串，用\\n换行分隔多条）"
@@ -51,10 +51,10 @@ ${WEEKLY_PLAN_STRUCTURE}
 
 【生成要求】
 1. 严格遵循表格结构，每天的内容要充实、具体、可操作
-2. 集体学习活动需标注所属领域（语言、社会、科学、艺术、健康）
-3. 区域游戏要与当日集体学习主题相关联
-4. 日常生活环节要完整覆盖自由环节、过渡环节、离园环节
-5. 户外运动需区分集体游戏和自选器材
+2. 自主学习活动需标注所属领域（语言、社会、科学、艺术、健康）
+3. 自主游戏要与当日自主学习主题相关联
+4. 自主生活环节要完整覆盖自由环节、过渡环节、离园环节
+5. 自主运动需区分集体游戏和自选器材
 6. 周工作重点要涵盖保教工作、生活常规、安全教育
 7. 语言要符合幼儿教师的专业表达习惯
 8. 内容须符合《3-6岁儿童学习与发展指南》相应年龄段要求
@@ -88,7 +88,7 @@ ${JSON.stringify(currentPlan, null, 2)}
 export function buildGenerateUserMessage(params: {
   fileContents: { name: string; content: string }[]
   themeName: string
-  className: ClassType
+  className: string
   weekNumber: number
   notes?: string
   selectedPlans?: TeachingPlan[]
@@ -105,7 +105,7 @@ export function buildGenerateUserMessage(params: {
   }
 
   if (params.selectedPlans && params.selectedPlans.length > 0) {
-    parts.push(`\n--- 教师选择的教案（请自动分配到周一至周五的集体学习中）---`)
+    parts.push(`\n--- 教师选择的教案（请自动分配到周一至周五的自主学习中）---`)
     params.selectedPlans.forEach((plan, idx) => {
       parts.push(`\n【教案${idx + 1}】${plan.title}（${plan.domain}）\n${plan.content.slice(0, 2000)}`)
     })

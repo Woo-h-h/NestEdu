@@ -7,6 +7,9 @@ import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
 import { CloudUpload, RefreshCw } from 'lucide-react'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
+import { fetchKnowledgePlanById } from '@/api/knowledge'
+import { exportToDoc } from '@/lib/export-doc'
+import { parseWeeklyPlanFromDocument, weeklyPlanFileName } from '@/lib/weeklyPlanText'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
@@ -16,6 +19,7 @@ export default function WeeklyPlanManagePage() {
   const isLoggedIn = Boolean(authInfo?.token)
   const [viewPlan, setViewPlan] = useState<TeachingPlan | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
@@ -69,12 +73,27 @@ export default function WeeklyPlanManagePage() {
     }
   }
 
+  const handleExport = async (plan: TeachingPlan) => {
+    setExporting(true)
+    try {
+      const detail = (await fetchKnowledgePlanById(plan.id)) || plan
+      const weekly = parseWeeklyPlanFromDocument(detail)
+      await exportToDoc(weekly)
+      toast.success(`已导出 ${weeklyPlanFileName(weekly)}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">周计划管理</h1>
         <p className="mt-2 text-sm text-gray-500">
-          管理知识库 {kb.scope.knowledgeId} 下分类 {kb.scope.categoryId} 的周计划文档：上传、查看、删除
+          管理知识库 {kb.scope.knowledgeId} 下分类 {kb.scope.categoryId}{' '}
+          的周计划：上传、查看、导出（「班级第N周计划.docx」）、删除
         </p>
       </div>
 
@@ -136,8 +155,10 @@ export default function WeeklyPlanManagePage() {
             setViewPlan(plan)
             setDetailOpen(true)
           }}
+          onExport={(plan) => void handleExport(plan)}
           onDelete={handleDelete}
           deleting={kb.isDeleting}
+          exporting={exporting}
         />
       </div>
 

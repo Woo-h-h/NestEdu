@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Eye, Loader2, Trash2 } from 'lucide-react'
+import { Check, Download, Eye, Loader2, Trash2 } from 'lucide-react'
 
 interface Props {
   plans: TeachingPlan[]
@@ -13,7 +13,9 @@ interface Props {
   onChange?: (plans: TeachingPlan[]) => void
   onDelete?: (plan: TeachingPlan) => void | Promise<void>
   onView?: (plan: TeachingPlan) => void
+  onExport?: (plan: TeachingPlan) => void | Promise<void>
   deleting?: boolean
+  exporting?: boolean
   title?: string
 }
 
@@ -33,7 +35,9 @@ export default function PlanManageList({
   onChange,
   onDelete,
   onView,
+  onExport,
   deleting = false,
+  exporting = false,
   title = '教案列表',
 }: Props) {
   const [domain, setDomain] = useState('全部')
@@ -147,6 +151,20 @@ export default function PlanManageList({
                       className="p-1 text-gray-400 hover:text-blue-500"
                     >
                       <Eye size={14} />
+                    </button>
+                  )}
+                  {onExport && (
+                    <button
+                      type="button"
+                      title="导出周计划 DOC"
+                      disabled={exporting}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void onExport(plan)
+                      }}
+                      className="p-1 text-gray-400 hover:text-green-600 disabled:opacity-50"
+                    >
+                      <Download size={14} />
                     </button>
                   )}
                   {canDelete && (

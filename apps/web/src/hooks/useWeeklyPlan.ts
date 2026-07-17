@@ -8,6 +8,7 @@ import {
 import { fetchKnowledgePlans } from '@/api/knowledge'
 import {
   loadTeachingContext,
+  saveTeachingContext,
   isTeachingContextComplete,
   type TeachingContext,
 } from '@/lib/teachingContext'
@@ -19,35 +20,22 @@ function mergePlans(existing: TeachingPlan[], incoming: TeachingPlan[]): Teachin
   return Array.from(map.values())
 }
 
-function resolveGenerateMeta(
-  ctx: TeachingContext | null,
-  selectedPlans: TeachingPlan[]
-): { themeName: string; className: ClassType; weekNumber: number; notes?: string } {
-  if (isTeachingContextComplete(ctx)) {
-    return {
-      themeName: ctx.themeName.trim(),
-      className: ctx.className,
-      weekNumber: ctx.weekNumber,
-      notes: ctx.notes,
-    }
-  }
-  const firstTitle = selectedPlans[0]?.title?.trim()
-  return {
-    themeName: firstTitle || '周主题',
-    className: '中班',
-    weekNumber: 1,
-  }
-}
-
 export function useWeeklyPlan() {
-  const [context, setContext] = useState<TeachingContext | null>(() => loadTeachingContext())
+  const initialCtx = loadTeachingContext()
+  const [themeName, setThemeName] = useState(initialCtx?.themeName ?? '')
+  const [className, setClassName] = useState<ClassType | ''>(initialCtx?.className ?? '')
+  const [weekNumber, setWeekNumber] = useState<number | null>(initialCtx?.weekNumber ?? null)
+  const [notes, setNotes] = useState(initialCtx?.notes ?? '')
+
+  const [context, setContext] = useState<TeachingContext | null>(() => initialCtx)
   const [candidatePlans, setCandidatePlans] = useState<TeachingPlan[]>(
-    () => loadTeachingContext()?.candidatePlans ?? []
+    () => initialCtx?.candidatePlans ?? []
   )
   const [selectedPlans, setSelectedPlans] = useState<TeachingPlan[]>(() => {
-    const ctx = loadTeachingContext()
-    if (!ctx?.selectedPlanIds?.length) return []
-    return (ctx.candidatePlans || []).filter((p) => ctx.selectedPlanIds!.includes(p.id))
+    if (!initialCtx?.selectedPlanIds?.length) return []
+    return (initialCtx.candidatePlans || []).filter((p) =>
+      initialCtx.selectedPlanIds!.includes(p.id)
+    )
   })
   const [poolSourceHint, setPoolSourceHint] = useState('')
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
@@ -57,10 +45,88 @@ export function useWeeklyPlan() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [isAiModifying, setIsAiModifying] = useState(false)
 
+  const persistMeta = useCallback(
+    (
+      next: Partial<{
+        themeName: string
+        className: ClassType | ''
+        weekNumber: number | null
+        notes: string
+        selected: TeachingPlan[]
+        candidates: TeachingPlan[]
+      }> = {}
+    ) => {
+      const theme = (next.themeName ?? themeName).trim()
+      const cls = next.className !== undefined ? next.className : className
+      const week = next.weekNumber !== undefined ? next.weekNumber : weekNumber
+      const note = next.notes !== undefined ? next.notes : notes
+      const selected = next.selected ?? selectedPlans
+      const candidates = next.candidates ?? candidatePlans
+
+      if (!theme || !cls || !week || week <= 0) return
+
+      const ctx: TeachingContext = {
+        themeName: theme,
+        className: cls,
+        weekNumber: week,
+        notes: note || undefined,
+        candidatePlans: candidates,
+        selectedPlanIds: selected.map((p) => p.id),
+      }
+      saveTeachingContext(ctx)
+      setContext(ctx)
+    },
+    [themeName, className, weekNumber, notes, selectedPlans, candidatePlans]
+  )
+
+  const updateThemeName = useCallback(
+    (v: string) => {
+      setThemeName(v)
+      persistMeta({ themeName: v })
+    },
+    [persistMeta]
+  )
+
+  const updateClassName = useCallback(
+    (v: ClassType) => {
+      setClassName(v)
+      persistMeta({ className: v })
+    },
+    [persistMeta]
+  )
+
+  const updateWeekNumber = useCallback(
+    (v: number | null) => {
+      setWeekNumber(v)
+      persistMeta({ weekNumber: v })
+    },
+    [persistMeta]
+  )
+
+  const updateNotes = useCallback(
+    (v: string) => {
+      setNotes(v)
+      persistMeta({ notes: v })
+    },
+    [persistMeta]
+  )
+
+  const updateSelectedPlans = useCallback(
+    (plans: TeachingPlan[]) => {
+      setSelectedPlans(plans)
+      persistMeta({ selected: plans })
+    },
+    [persistMeta]
+  )
+
   const refreshContext = useCallback(() => {
     const ctx = loadTeachingContext()
     setContext(ctx)
     if (ctx) {
+      setThemeName(ctx.themeName)
+      setClassName(ctx.className)
+      setWeekNumber(ctx.weekNumber)
+      setNotes(ctx.notes || '')
       setCandidatePlans((prev) => mergePlans(ctx.candidatePlans || [], prev))
       if (ctx.selectedPlanIds?.length) {
         setSelectedPlans((prev) => {
@@ -102,19 +168,24 @@ export function useWeeklyPlan() {
     void loadPlatformPlans()
   }, [refreshContext, loadPlatformPlans])
 
+  const metaReady = Boolean(themeName.trim() && className && weekNumber && weekNumber > 0)
+
   const generatePlan = useCallback(async () => {
     if (selectedPlans.length === 0) return
+    if (!themeName.trim()) throw new Error('请先填写主题名称')
+    if (!className) throw new Error('请先选择班级')
+    if (!weekNumber || weekNumber <= 0) throw new Error('请先选择周次')
 
-    const meta = resolveGenerateMeta(loadTeachingContext(), selectedPlans)
+    persistMeta()
     setIsGenerating(true)
     try {
       const plan = await createWeeklyPlan({
-        themeName: meta.themeName,
-        className: meta.className,
-        weekNumber: meta.weekNumber,
+        themeName: themeName.trim(),
+        className,
+        weekNumber,
         fileNames: [],
         fileContents: [],
-        notes: meta.notes,
+        notes: notes || undefined,
         selectedPlans,
       })
       setCurrentPlan(plan)
@@ -123,7 +194,7 @@ export function useWeeklyPlan() {
     } finally {
       setIsGenerating(false)
     }
-  }, [selectedPlans])
+  }, [selectedPlans, themeName, className, weekNumber, notes, persistMeta])
 
   const sendAiInstruction = useCallback(
     async (instruction: string) => {
@@ -169,11 +240,20 @@ export function useWeeklyPlan() {
   }, [refreshContext])
 
   return {
+    themeName,
+    setThemeName: updateThemeName,
+    className,
+    setClassName: updateClassName,
+    weekNumber,
+    setWeekNumber: updateWeekNumber,
+    notes,
+    setNotes: updateNotes,
+    metaReady,
     context,
     hasContext: isTeachingContextComplete(context),
     candidatePlans,
     selectedPlans,
-    setSelectedPlans,
+    setSelectedPlans: updateSelectedPlans,
     poolSourceHint,
     isLoadingPlatform,
     loadPlatformPlans,

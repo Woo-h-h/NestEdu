@@ -1,6 +1,5 @@
 import type {
   WeeklyPlan,
-  ClassType,
   ChatMessage,
   TeachingPlan,
   CreateWeeklyPlanRequest,
@@ -83,7 +82,7 @@ function assembleWeeklyPlan(
   result: Pick<WeeklyPlan, 'weeklyFocus' | 'dailyPlans' | 'suggestions'>,
   params: {
     themeName: string
-    className: ClassType
+    className: string
     weekNumber: number
   },
   agentId = getWeeklyPlanAgentId()
@@ -134,7 +133,7 @@ async function loadKnowledgeContextForWeeklyPlan(
 async function agentGenerateWeeklyPlan(params: {
   fileContents: { name: string; content: string }[]
   themeName: string
-  className: ClassType
+  className: string
   weekNumber: number
   notes?: string
   selectedPlans?: TeachingPlan[]
