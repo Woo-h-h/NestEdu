@@ -6,8 +6,7 @@ import AppLayout from '@/components/layout/AppLayout'
 
 const DashboardPage = lazy(() => import('@/pages/dashboard/index'))
 const ResourcesPage = lazy(() => import('@/pages/resources/index'))
-const WeeklyPlanCreatePage = lazy(() => import('@/pages/weekly-plan/create/index'))
-const WeeklyPlanManagePage = lazy(() => import('@/pages/weekly-plan/manage/index'))
+const WeeklyPlanPage = lazy(() => import('@/pages/weekly-plan/index'))
 const NotFoundPage = lazy(() => import('@/packages/components/NotFound/index'))
 
 const routes = [
@@ -25,19 +24,19 @@ const routes = [
       },
       {
         path: 'weekly-plan',
-        element: <Navigate to="/weekly-plan/create" replace />,
+        element: <PageLazy component={WeeklyPlanPage} />,
       },
       {
         path: 'weekly-plan/create',
-        element: <PageLazy component={WeeklyPlanCreatePage} />,
+        element: <Navigate to="/weekly-plan" replace />,
       },
       {
         path: 'weekly-plan/manage',
-        element: <PageLazy component={WeeklyPlanManagePage} />,
+        element: <Navigate to="/weekly-plan" replace />,
       },
       {
         path: 'weekly-plan/history',
-        element: <Navigate to="/weekly-plan/manage" replace />,
+        element: <Navigate to="/weekly-plan" replace />,
       },
     ],
   },

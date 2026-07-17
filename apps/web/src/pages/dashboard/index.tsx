@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, CalendarDays, FolderOpen, Plus, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarDays, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export default function DashboardPage() {
@@ -30,7 +30,7 @@ export default function DashboardPage() {
           </span>
           <ArrowRight size={14} className="text-white/40" />
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/20 backdrop-blur-sm">
-            <CalendarDays size={13} /> 周计划生成
+            <CalendarDays size={13} /> 周计划管理
           </span>
         </div>
       </section>
@@ -60,30 +60,21 @@ export default function DashboardPage() {
               <CalendarDays size={22} />
             </div>
             <div>
-              <h2 className="font-display text-lg font-semibold text-nest-ink">周计划生成</h2>
+              <h2 className="font-display text-lg font-semibold text-nest-ink">周计划管理</h2>
               <p className="mt-1.5 text-sm leading-relaxed text-nest-muted">
-                选择班级与主题后勾选教案一键生成「快乐一周」；支持编辑、AI 改稿、导出与入库。
+                勾选教案生成「快乐一周」，支持编辑、AI 改稿、导出；也可在知识库中统一管理周计划文档。
               </p>
             </div>
           </div>
-          <div className="mt-auto flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/weekly-plan/create')}
-              className="btn-primary"
-            >
-              <Plus size={16} />
-              新建周计划
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/weekly-plan/manage')}
-              className="btn-secondary"
-            >
-              <FolderOpen size={16} />
-              周计划管理
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/weekly-plan')}
+            className="btn-primary mt-auto w-fit"
+          >
+            <Sparkles size={16} />
+            进入周计划
+            <ArrowRight size={16} />
+          </button>
         </article>
       </div>
 

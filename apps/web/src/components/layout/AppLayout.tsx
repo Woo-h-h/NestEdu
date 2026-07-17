@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
-  Plus,
-  FolderOpen,
   BookOpen,
   Home,
   ChevronLeft,
@@ -12,36 +10,20 @@ import {
 } from 'lucide-react'
 import UserBadge from '@/components/layout/UserBadge'
 
-type MenuChild = { path: string; title: string; icon: typeof Plus }
-type MenuItem =
-  | { path: string; title: string; icon: typeof Home }
-  | { title: string; icon: typeof BookOpen; children: MenuChild[] }
+type MenuItem = { path: string; title: string; icon: typeof Home }
 
 const menuItems: MenuItem[] = [
   { path: '/', title: '首页', icon: Home },
   { path: '/resources', title: '课程资源库', icon: BookOpen },
-  {
-    title: '周计划生成',
-    icon: CalendarDays,
-    children: [
-      { path: '/weekly-plan/create', title: '新建周计划', icon: Plus },
-      { path: '/weekly-plan/manage', title: '周计划管理', icon: FolderOpen },
-    ],
-  },
+  { path: '/weekly-plan', title: '周计划管理', icon: CalendarDays },
 ]
 
 function resolveBreadcrumbs(pathname: string): string[] {
   if (pathname === '/') return ['首页']
-
-  for (const item of menuItems) {
-    if ('path' in item && item.path === pathname) {
-      return ['首页', item.title]
-    }
-    if ('children' in item) {
-      const child = item.children.find((c) => c.path === pathname)
-      if (child) return ['首页', item.title, child.title]
-    }
-  }
+  const item = menuItems.find((m) => m.path === pathname)
+  if (item) return ['首页', item.title]
+  if (pathname.startsWith('/weekly-plan')) return ['首页', '周计划管理']
+  if (pathname.startsWith('/resources')) return ['首页', '课程资源库']
   return ['首页']
 }
 
@@ -89,49 +71,10 @@ export default function AppLayout() {
         <nav className="relative z-10 flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
           {menuItems.map((item) => {
             const Icon = item.icon
-            if ('children' in item) {
-              const isActive = item.children.some((c) => location.pathname === c.path)
-              const parentPath = item.children[0]?.path
-              return (
-                <div key={item.title} className="mb-1">
-                  <button
-                    type="button"
-                    onClick={() => parentPath && navigate(parentPath)}
-                    title={item.title}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
-                      isActive
-                        ? 'bg-white/15 text-white shadow-sm'
-                        : 'text-emerald-50/75 hover:bg-white/8 hover:text-white'
-                    } ${collapsed ? 'justify-center' : ''}`}
-                  >
-                    <Icon size={18} className="shrink-0" />
-                    {!collapsed && <span className="font-medium">{item.title}</span>}
-                  </button>
-                  {!collapsed &&
-                    item.children.map((child) => {
-                      const ChildIcon = child.icon
-                      const childActive = location.pathname === child.path
-                      return (
-                        <button
-                          type="button"
-                          key={child.path}
-                          onClick={() => navigate(child.path)}
-                          className={`mt-0.5 flex w-full items-center gap-2.5 rounded-lg py-2 pl-10 pr-3 text-[13px] transition-all ${
-                            childActive
-                              ? 'bg-emerald-400/20 font-medium text-emerald-50'
-                              : 'text-emerald-100/55 hover:bg-white/6 hover:text-emerald-50'
-                          }`}
-                        >
-                          <ChildIcon size={14} className="shrink-0" />
-                          <span>{child.title}</span>
-                        </button>
-                      )
-                    })}
-                </div>
-              )
-            }
-
-            const active = location.pathname === item.path
+            const active =
+              item.path === '/'
+                ? location.pathname === '/'
+                : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
             return (
               <button
                 type="button"

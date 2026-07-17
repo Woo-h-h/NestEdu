@@ -15,7 +15,8 @@ import { serializeWeeklyPlanText, weeklyPlanUploadTitle } from '@/lib/weeklyPlan
 import { authBridge } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
-export default function CreatePage() {
+/** 周计划生成分区（嵌入「周计划管理」页 Tab） */
+export default function WeeklyPlanCreateSection() {
   const wp = useWeeklyPlan()
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const isLoggedIn = Boolean(authInfo?.token)
@@ -93,7 +94,7 @@ export default function CreatePage() {
 
   if (wp.currentPlan) {
     return (
-      <div className="page-enter">
+      <div>
         <button
           type="button"
           onClick={() => wp.resetAll()}
@@ -120,27 +121,25 @@ export default function CreatePage() {
   const canGenerate = wp.metaReady && wp.selectedPlans.length > 0
 
   return (
-    <div className="page-enter mx-auto max-w-6xl">
-      <div className="mb-7">
-        <h1 className="font-display text-2xl font-bold tracking-wide text-nest-ink md:text-[1.75rem]">
-          新建周计划
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
-          填写主题与班级周次 → 勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
-          {getWeeklyPlanCategoryId()}）
-        </p>
-      </div>
-
+    <div className="space-y-4">
       {!isLoggedIn && (
-        <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
+        <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
           生成与上传需登录平台，以便调用智能体并写入知识库。
         </div>
       )}
 
-      <div className="mb-4 space-y-4">
+      <div className="surface-panel space-y-5 p-6">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-nest-ink">生成周计划</h2>
+          <p className="mt-1 text-sm text-nest-muted">
+            填写主题与班级周次 → 勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
+            {getWeeklyPlanCategoryId()}）
+          </p>
+        </div>
+
         <ClassSelector value={wp.className} onChange={wp.setClassName} />
 
-        <div className="surface-panel p-5">
+        <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/30 p-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm text-nest-muted">
@@ -181,10 +180,8 @@ export default function CreatePage() {
             />
           </div>
         </div>
-      </div>
 
-      <div className="surface-panel mb-4 p-6">
-        <div className="mb-4 flex justify-end">
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={handleRefresh}
@@ -196,16 +193,14 @@ export default function CreatePage() {
           </button>
         </div>
 
-        <div className="mb-6">
-          <PlanSelector
-            plans={wp.candidatePlans}
-            selected={wp.selectedPlans}
-            onChange={wp.setSelectedPlans}
-            loading={wp.isLoadingPlatform}
-            sourceHint={wp.poolSourceHint}
-            emptyHint="暂无教案，可点击右上角刷新，或到课程资源库上传/生成"
-          />
-        </div>
+        <PlanSelector
+          plans={wp.candidatePlans}
+          selected={wp.selectedPlans}
+          onChange={wp.setSelectedPlans}
+          loading={wp.isLoadingPlatform}
+          sourceHint={wp.poolSourceHint}
+          emptyHint="暂无教案，可点击右上角刷新，或到课程资源库上传/生成"
+        />
 
         <div className="border-t border-nest-leaf/10 pt-5 text-center">
           <button

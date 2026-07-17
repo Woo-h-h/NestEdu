@@ -13,7 +13,8 @@ import { parseWeeklyPlanFromDocument, weeklyPlanFileName } from '@/lib/weeklyPla
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
-export default function WeeklyPlanManagePage() {
+/** 周计划知识库管理分区（嵌入「周计划管理」页 Tab） */
+export default function WeeklyPlanManageSection() {
   const kb = useWeeklyPlanKnowledge()
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const isLoggedIn = Boolean(authInfo?.token)
@@ -88,18 +89,16 @@ export default function WeeklyPlanManagePage() {
   }
 
   return (
-    <div className="page-enter mx-auto max-w-6xl">
-      <div className="mb-7">
-        <h1 className="font-display text-2xl font-bold tracking-wide text-nest-ink md:text-[1.75rem]">
-          周计划管理
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
-          管理知识库 {kb.scope.knowledgeId} 下分类 {kb.scope.categoryId}{' '}
-          的周计划：上传、查看、导出（「班级第N周计划.docx」）、删除
-        </p>
-      </div>
-
+    <>
       <div className="surface-panel space-y-5 p-6">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
+          <p className="mt-1 text-sm text-nest-muted">
+            管理知识库 {kb.scope.knowledgeId} 下分类 {kb.scope.categoryId}{' '}
+            的周计划：上传、查看、导出（「班级第N周计划.docx」）、删除
+          </p>
+        </div>
+
         {!isLoggedIn && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
             <span>当前未登录，无法上传或读取周计划知识库，请先登录。</span>
@@ -152,7 +151,7 @@ export default function WeeklyPlanManagePage() {
           plans={kb.platformPlans}
           loading={kb.isLoadingPlatform}
           sourceHint={kb.listHint}
-          emptyHint="暂无周计划，可上传 docx 或从「新建周计划」选择入库"
+          emptyHint="暂无周计划，可上传 docx 或从「周计划生成」入库"
           onView={(plan) => {
             setViewPlan(plan)
             setDetailOpen(true)
@@ -173,6 +172,6 @@ export default function WeeklyPlanManagePage() {
       />
 
       <PlanDetailDialog plan={viewPlan} open={detailOpen} onOpenChange={setDetailOpen} />
-    </div>
+    </>
   )
 }
