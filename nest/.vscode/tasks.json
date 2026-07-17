@@ -1,0 +1,120 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🛑 释放端口",
+      "type": "shell",
+      "command": "bash ${workspaceFolder}/scripts/stop-dev.sh all",
+      "problemMatcher": []
+    },
+    {
+      "label": "⚙️ Vite 服务",
+      "type": "shell",
+      "command": "pnpm dev:web",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "localhost:3005"
+        }
+      }
+    },
+    {
+      "label": "🎨 仅前端热重载",
+      "dependsOn": ["🛑 释放端口", "⚙️ Vite 服务"],
+      "dependsOrder": "sequence",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "⚙️ Go 服务",
+      "type": "shell",
+      "command": "go run ./cmd/server",
+      "options": {
+        "cwd": "${workspaceFolder}/apps/api",
+        "env": {
+          "SERVER_ADDR": ":8088",
+          "DB_DRIVER": "sqlite",
+          "DB_DSN": "${workspaceFolder}/data/mvp-template.db",
+          "DB_AUTO_MIGRATE": "true"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "🔥 全栈热重载",
+      "dependsOn": [
+        "🛑 释放端口",
+        {
+          "tasks": ["⚙️ Vite 服务", "⚙️ Go 服务"],
+          "dependsOrder": "parallel"
+        }
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 打包前端",
+      "type": "shell",
+      "command": "pnpm build:web",
+      "group": "build",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "🧹 规范检查",
+      "type": "shell",
+      "command": "pnpm lint",
+      "group": "test",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "👁️ 预览产物",
+      "type": "shell",
+      "command": "pnpm preview",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "localhost:"
+        }
+      }
+    },
+    {
+      "label": "🧪 跑 CI",
+      "type": "shell",
+      "command": "pnpm run ci",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "🐳 构建镜像",
+      "type": "shell",
+      "command": "docker build -f docker/Dockerfile -t mvp-template:local .",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "🐳 启动容器",
+      "type": "shell",
+      "command": "docker rm -f mvp-template-local >/dev/null 2>&1 || true; docker run --rm --name mvp-template-local -p 8088:8088 -e DB_DRIVER=sqlite -e DB_DSN=/tmp/mvp.db -e DB_AUTO_MIGRATE=true mvp-template:local",
+      "dependsOn": ["🐳 构建镜像"],
+      "problemMatcher": []
+    }
+  ]
+}

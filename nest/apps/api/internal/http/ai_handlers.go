@@ -1,0 +1,70 @@
+package http
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/your-org/mvp-template/apps/api/internal/service"
+)
+
+type aiHandler struct {
+	llm *service.LLMService
+}
+
+func newAIHandler(llm *service.LLMService) *aiHandler {
+	return &aiHandler{llm: llm}
+}
+
+func (h *aiHandler) registerRoutes(api *gin.RouterGroup) {
+	weekly := api.Group("/ai/weekly-plan")
+	weekly.POST("/generate", h.generateWeeklyPlan)
+	weekly.POST("/modify", h.modifyWeeklyPlan)
+
+	teaching := api.Group("/ai/teaching-plans")
+	teaching.POST("/generate", h.generateTeachingPlans)
+}
+
+func (h *aiHandler) generateTeachingPlans(c *gin.Context) {
+	var input service.GenerateTeachingPlansInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonErr(c, http.StatusBadRequest, err)
+		return
+	}
+
+	plans, err := h.llm.GenerateTeachingPlans(c.Request.Context(), input)
+	if err != nil {
+		jsonErr(c, http.StatusInternalServerError, err)
+		return
+	}
+	jsonResult(c, http.StatusOK, plans)
+}
+
+func (h *aiHandler) generateWeeklyPlan(c *gin.Context) {
+	var input service.GenerateWeeklyPlanInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonErr(c, http.StatusBadRequest, err)
+		return
+	}
+
+	plan, err := h.llm.GenerateWeeklyPlan(c.Request.Context(), input)
+	if err != nil {
+		jsonErr(c, http.StatusInternalServerError, err)
+		return
+	}
+	jsonResult(c, http.StatusOK, plan)
+}
+
+func (h *aiHandler) modifyWeeklyPlan(c *gin.Context) {
+	var input service.ModifyWeeklyPlanInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonErr(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.llm.ModifyWeeklyPlan(c.Request.Context(), input)
+	if err != nil {
+		jsonErr(c, http.StatusInternalServerError, err)
+		return
+	}
+	jsonResult(c, http.StatusOK, result)
+}
