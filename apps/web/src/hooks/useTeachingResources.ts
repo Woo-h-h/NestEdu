@@ -62,25 +62,36 @@ export function useTeachingResources() {
     }
   }, [section, loadPlatformPlans])
 
-  const generateTeachingPlansFromTheme = useCallback(async () => {
-    if (!themeName.trim()) throw new Error('请先填写主题名称')
-    if (!className) throw new Error('请先选择班级')
-    if (focusDomains.length === 0) throw new Error('请至少选择一个重点领域')
-    setIsGeneratingPlans(true)
-    try {
-      const generated = await generateTeachingPlans({
-        themeName: themeName.trim(),
-        className: className || undefined,
-        focusDomains,
-        count: focusDomains.length,
-      })
-      setGeneratedPlans(generated)
-      setUploadSelection(generated)
-      return generated
-    } finally {
-      setIsGeneratingPlans(false)
-    }
-  }, [themeName, className, focusDomains])
+  const generateTeachingPlansFromTheme = useCallback(
+    async (options?: { durationMinutes?: number }) => {
+      if (!themeName.trim()) throw new Error('请先填写主题名称')
+      if (!className) throw new Error('请先选择班级')
+      if (focusDomains.length === 0) throw new Error('请至少选择一个重点领域')
+
+      const noteParts = [notes.trim()]
+      if (options?.durationMinutes) {
+        noteParts.push(`活动时长：${options.durationMinutes}分钟`)
+      }
+      const combinedNotes = noteParts.filter(Boolean).join('\n')
+
+      setIsGeneratingPlans(true)
+      try {
+        const generated = await generateTeachingPlans({
+          themeName: themeName.trim(),
+          className: className || undefined,
+          focusDomains,
+          count: focusDomains.length,
+          notes: combinedNotes || undefined,
+        })
+        setGeneratedPlans(generated)
+        setUploadSelection(generated)
+        return generated
+      } finally {
+        setIsGeneratingPlans(false)
+      }
+    },
+    [themeName, className, focusDomains, notes]
+  )
 
   const prepareGeneratedUpload = useCallback((plans: TeachingPlan[]) => {
     const auth = authBridge.getAuthInfo()

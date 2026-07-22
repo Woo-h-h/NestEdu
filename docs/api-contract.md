@@ -167,4 +167,64 @@
 | `VITE_WEEKLY_PLAN_AGENT_ID` | 周计划生成智能体（默认 `14332`） |
 | `VITE_PLATFORM_API_BASE_URL` | 平台 API，默认 `https://api.zcat.cn` |
 | `VITE_PLATFORM_REFERER` | 代理出站 Referer |
-| `VITE_USE_BACKEND_API` | 智能体失败时是否尝试后端 BFF；知识库始终走平台 |
+| `VITE_USE_BACKEND_API` | 为 `true` 时走 Go BFF（含成果库 CRUD）；为 `false` 时成果库回退 `localStorage`；知识库始终走平台 |
+
+## 成果库 Growth Records API
+
+教师录入类成果（专业研究成果、获奖与荣誉、学习与研修）经 BFF 持久化；前端 `apps/web/src/api/growth.ts` 在 `VITE_USE_BACKEND_API=false` 时使用浏览器 `localStorage`（键 `nestedu_growth_records_v1`）。
+
+### 归属用户
+
+请求须携带以下任一请求头（与现有 BFF 用户解析一致）：
+
+- `X-Uid-Hash`
+- `X-Uid`
+- `X-User-Id`
+
+### 9) 列表
+
+- `GET /api/v1/growth-records`
+
+Query 筛选（均可选）：
+
+| 参数 | 说明 |
+|------|------|
+| `year` | 年份，如 `2025` |
+| `category` | 类别：`专业研究成果` \| `获奖与荣誉` \| `学习与研修` |
+| `level` | 级别 |
+| `status` | 状态 |
+| `keyword` | 名称/简介/关键词模糊匹配 |
+
+响应 `result`: `GrowthRecord[]`
+
+### 10) 详情
+
+- `GET /api/v1/growth-records/:id`
+
+记录不存在时返回 404。
+
+### 11) 创建 / 更新
+
+- `POST /api/v1/growth-records` — 创建（body 含 `id` 时按 upsert 处理）
+- `PUT /api/v1/growth-records/:id` — 按路径 ID 更新
+
+请求体字段（`GrowthRecordPayload`）：
+
+- `id`（必填）
+- `name`（必填）
+- `year`（必填，整数）
+- `category`（必填）
+- `subtype`, `date`, `level`, `role`, `org`, `intro`
+- `keywords`（字符串数组）
+- `status`
+- `representative`（布尔，是否代表成果）
+- `extra`（对象，类别专属扩展字段）
+- `files`（`{ name, type, size }[]` 附件元数据）
+
+响应 `result`: 单条 `GrowthRecord`（含 `createdAt` / `updatedAt`）
+
+### 12) 删除
+
+- `DELETE /api/v1/growth-records/:id`
+
+响应 `result`: `{ "deleted": true }`

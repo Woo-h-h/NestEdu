@@ -7,6 +7,9 @@ import AppLayout from '@/components/layout/AppLayout'
 const DashboardPage = lazy(() => import('@/pages/dashboard/index'))
 const ResourcesPage = lazy(() => import('@/pages/resources/index'))
 const WeeklyPlanPage = lazy(() => import('@/pages/weekly-plan/index'))
+const ArchivePage = lazy(() => import('@/pages/archive/index'))
+const ArchiveUploadPage = lazy(() => import('@/pages/archive/upload'))
+const ProfilePage = lazy(() => import('@/pages/profile/index'))
 const NotFoundPage = lazy(() => import('@/packages/components/NotFound/index'))
 
 const routes = [
@@ -19,8 +22,12 @@ const routes = [
         element: <PageLazy component={DashboardPage} />,
       },
       {
-        path: 'resources',
+        path: 'activity',
         element: <PageLazy component={ResourcesPage} />,
+      },
+      {
+        path: 'resources',
+        element: <Navigate to="/activity" replace />,
       },
       {
         path: 'weekly-plan',
@@ -37,6 +44,18 @@ const routes = [
       {
         path: 'weekly-plan/history',
         element: <Navigate to="/weekly-plan" replace />,
+      },
+      {
+        path: 'archive',
+        element: <PageLazy component={ArchivePage} />,
+      },
+      {
+        path: 'archive/upload',
+        element: <PageLazy component={ArchiveUploadPage} />,
+      },
+      {
+        path: 'profile',
+        element: <PageLazy component={ProfilePage} />,
       },
     ],
   },

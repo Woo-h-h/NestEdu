@@ -166,6 +166,7 @@ export function buildTeachingPlanUserMessage(params: {
   focusDomain?: string
   focusDomains?: string[]
   count?: number
+  notes?: string
 }): string {
   const domains =
     params.focusDomains && params.focusDomains.length > 0
@@ -194,6 +195,9 @@ export function buildTeachingPlanUserMessage(params: {
     )
   } else {
     parts.push('教案之间应覆盖不同领域或不同活动类型，避免重复。')
+  }
+  if (params.notes?.trim()) {
+    parts.push(`补充说明：${params.notes.trim()}`)
   }
   parts.push('请输出完整 JSON。')
   return parts.join('\n')

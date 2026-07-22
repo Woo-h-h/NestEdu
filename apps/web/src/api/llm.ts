@@ -242,6 +242,7 @@ async function agentGenerateTeachingPlans(params: {
   className?: string
   focusDomains?: string[]
   count?: number
+  notes?: string
 }): Promise<TeachingPlan[]> {
   const count =
     params.focusDomains && params.focusDomains.length > 0
@@ -280,6 +281,7 @@ export async function generateTeachingPlans(params: {
   className?: string
   focusDomains?: string[]
   count?: number
+  notes?: string
 }): Promise<TeachingPlan[]> {
   const themeName = params.themeName.trim()
   if (!themeName) {
@@ -298,6 +300,7 @@ export async function generateTeachingPlans(params: {
       className: params.className,
       focusDomains,
       count,
+      notes: params.notes,
     })
   } catch (err) {
     const agentId = getTeachingAgentId()

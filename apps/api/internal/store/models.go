@@ -6,5 +6,6 @@ func DomainModels() []any {
 	return []any{
 		&model.SampleItem{},
 		&model.WeeklyPlan{},
+		&model.GrowthRecord{},
 	}
 }

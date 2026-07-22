@@ -164,3 +164,40 @@ body,
 .nest-orb {
   animation: nest-soft-pulse 5s ease-in-out infinite;
 }
+
+@media print {
+  body.printing * {
+    visibility: hidden;
+  }
+
+  body.printing #annual-report-print,
+  body.printing #annual-report-print * {
+    visibility: visible;
+  }
+
+  body.printing #annual-report-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: white;
+  }
+
+  body.printing .no-print,
+  body.printing .profile-report-dialog > [data-slot='dialog-overlay'],
+  body.printing .no-print-chrome [data-slot='dialog-header'] {
+    display: none !important;
+  }
+
+  body.printing .profile-report-dialog {
+    position: static !important;
+    transform: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

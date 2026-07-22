@@ -3,8 +3,10 @@ import { toast } from 'sonner'
 import { useWeeklyPlan } from '@/hooks/useWeeklyPlan'
 import PlanSelector from '../components/PlanSelector'
 import PlanEditor from '../components/PlanEditor'
+import WeekBoard from '../components/WeekBoard'
 import ClassSelector from '../components/ClassSelector'
-import { ArrowLeft, Sparkles, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Sparkles, RefreshCw, Link2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { getWeeklyPlanAgentId } from '@/api/agent'
 import {
   uploadKnowledgeDocument,
@@ -102,6 +104,20 @@ export default function WeeklyPlanCreateSection() {
         >
           <ArrowLeft size={15} /> 返回重新勾选
         </button>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-nest-leaf/15 bg-nest-mist/30 px-4 py-3 text-sm text-nest-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <Link2 size={15} className="text-nest-leaf" />
+            周看板中点击「生成详细方案」可跳转
+            <Link to="/activity" className="font-medium text-nest-pine hover:underline">
+              活动方案
+            </Link>
+            页，主题与领域会自动带入
+          </span>
+        </div>
+
+        <WeekBoard plan={wp.currentPlan} />
+
         <PlanEditor
           plan={wp.currentPlan}
           chatHistory={wp.chatHistory}
@@ -199,7 +215,7 @@ export default function WeeklyPlanCreateSection() {
           onChange={wp.setSelectedPlans}
           loading={wp.isLoadingPlatform}
           sourceHint={wp.poolSourceHint}
-          emptyHint="暂无教案，可点击右上角刷新，或到课程资源库上传/生成"
+          emptyHint="暂无活动方案，可点击右上角刷新，或到活动方案页上传/生成"
         />
 
         <div className="border-t border-nest-leaf/10 pt-5 text-center">

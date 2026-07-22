@@ -12,10 +12,10 @@ export default function WeeklyPlanPage() {
     <div className="page-enter mx-auto max-w-6xl">
       <div className="mb-7">
         <h1 className="font-display text-2xl font-bold tracking-wide text-nest-ink md:text-[1.75rem]">
-          周计划管理
+          周计划
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
-          周计划生成与知识库管理相互独立：先勾选教案生成「快乐一周」，再编辑导出或入库；也可直接管理知识库文档
+          统筹一周保教安排：勾选教案生成周看板，可跳转活动方案生成详细单次活动；支持编辑导出与知识库入库
         </p>
       </div>
 
