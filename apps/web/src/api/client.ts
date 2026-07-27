@@ -23,11 +23,21 @@ const createApiInstance = (): ApiClient => {
   });
 
   instance.interceptors.request.use((config) => {
-    const authHeaders = buildAuthHeaders(authBridge.getAuthInfo(), {
+    const authInfo = authBridge.getAuthInfo();
+    const authHeaders = buildAuthHeaders(authInfo, {
       clientName: import.meta.env.VITE_AI101_CLIENT_NAME || "mvp-template",
       platform: "h5",
       version: "1.0.0",
     });
+
+    // 平台知识库等接口需要 uid 哈希；auth-bridge 默认头不带这些字段
+    const uidHash =
+      (authInfo as { uidHash?: unknown; uid_hash?: unknown } | null)?.uidHash ??
+      (authInfo as { uid_hash?: unknown } | null)?.uid_hash;
+    if (uidHash !== undefined && uidHash !== null && String(uidHash).trim()) {
+      authHeaders["X-Uid-Hash"] = String(uidHash).trim();
+      authHeaders["X-Uid"] = String(uidHash).trim();
+    }
 
     config.headers = AxiosHeaders.concat(authHeaders, config.headers);
     return config;

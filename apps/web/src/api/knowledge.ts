@@ -198,6 +198,16 @@ export async function fetchArchivePlansForOwnerFolder(
   }
 
   const { categories, error: catError } = await fetchKnowledgeCategories(scope.knowledgeId)
+  if (import.meta.env.DEV) {
+    console.warn('[ArchiveKB] categories', {
+      knowledgeId: scope.knowledgeId,
+      archiveCategoryId: scope.categoryId,
+      folderName: key,
+      categoryCount: categories.length,
+      catError: catError || null,
+      sampleNames: categories.slice(0, 12).map((c) => ({ id: c.id, name: c.name, parentId: c.parentId })),
+    })
+  }
   if (catError && categories.length === 0) {
     return {
       plans: [],
@@ -209,6 +219,12 @@ export async function fetchArchivePlansForOwnerFolder(
   }
 
   const folders = resolveTeacherArchiveFolders(categories, scope.categoryId, key)
+  if (import.meta.env.DEV) {
+    console.warn('[ArchiveKB] owner folders', {
+      folderName: key,
+      matched: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
+    })
+  }
   if (folders.length === 0) {
     return {
       plans: [],
@@ -395,7 +411,7 @@ function extractErrorMessage(err: unknown): string {
 }
 
 function isAuthError(message: string): boolean {
-  return /401|token|未授权|登录|cookie/i.test(message)
+  return /401|403|token|未授权|登录|cookie|forbidden/i.test(message)
 }
 
 export async function fetchKnowledgePlans(
