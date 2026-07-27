@@ -2,6 +2,10 @@ import type { TeachingPlan } from '@/types/weeklyPlan'
 import { presetTeachingPlans } from '@/data/teachingPlans'
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
+import {
+  mapKnowledgeCategory,
+  resolveTeacherArchiveFolders,
+} from '@/lib/archiveTeacherScope'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 
@@ -39,6 +43,9 @@ const PRODUCT_DEFAULT_CATEGORY_KEY = 'custom_1784259353619'
 /** 周计划分类 https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20807&category_key=custom_1784275664825 */
 const PRODUCT_WEEKLY_CATEGORY_ID = '20807'
 const PRODUCT_WEEKLY_CATEGORY_KEY = 'custom_1784275664825'
+/** 教师成果库 https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20895&category_key=custom_1785116184487 */
+const PRODUCT_ARCHIVE_CATEGORY_ID = '20895'
+const PRODUCT_ARCHIVE_CATEGORY_KEY = 'custom_1785116184487'
 
 export function getDefaultKnowledgeId(): string {
   return (
@@ -79,6 +86,178 @@ export function weeklyPlanKnowledgeScope() {
     knowledgeId: getDefaultKnowledgeId(),
     categoryId: getWeeklyPlanCategoryId(),
     categoryKey: getWeeklyPlanCategoryKey(),
+  }
+}
+
+export function getArchiveCategoryId(): string {
+  return (
+    (import.meta.env.VITE_ARCHIVE_KNOWLEDGE_CATEGORY_ID || '').trim() ||
+    PRODUCT_ARCHIVE_CATEGORY_ID
+  )
+}
+
+export function getArchiveCategoryKey(): string {
+  return (
+    (import.meta.env.VITE_ARCHIVE_KNOWLEDGE_CATEGORY_KEY || '').trim() ||
+    PRODUCT_ARCHIVE_CATEGORY_KEY
+  )
+}
+
+/** 教师成果库作用域；categoryId 为空表示尚未配置 */
+export function archiveKnowledgeScope() {
+  return {
+    knowledgeId: getDefaultKnowledgeId(),
+    categoryId: getArchiveCategoryId(),
+    categoryKey: getArchiveCategoryKey(),
+  }
+}
+
+export function isArchiveKnowledgeConfigured(): boolean {
+  return Boolean(getArchiveCategoryId())
+}
+
+export interface KnowledgeCategory {
+  id: string
+  name: string
+  parentId: string
+  key: string
+  childrenIds: string[]
+}
+
+const PLATFORM_CATEGORY_LIST_PATH = '/api/knowledge/category/list'
+
+export async function fetchKnowledgeCategories(
+  knowledgeId?: string
+): Promise<{ categories: KnowledgeCategory[]; error?: string }> {
+  const kid = (knowledgeId || getDefaultKnowledgeId()).trim()
+  if (!kid) return { categories: [], error: 'knowledgeId is required' }
+
+  try {
+    // 生产同域反代 /api/knowledge；本地 Vite 代理到平台
+    const envelope = await request.get<ApiEnvelope>(PLATFORM_CATEGORY_LIST_PATH, {
+      params: { knowledge_id: parseIdValue(kid) },
+    })
+    assertSuccess(envelope, '知识库分类列表失败')
+    const raw = envelope.result
+    const list = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === 'object'
+        ? ((raw as { list?: unknown; items?: unknown; data?: unknown }).list ||
+            (raw as { items?: unknown }).items ||
+            (raw as { data?: unknown }).data ||
+            [])
+        : []
+    if (!Array.isArray(list)) return { categories: [] }
+
+    const categories: KnowledgeCategory[] = []
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue
+      const mapped = mapKnowledgeCategory(item as Record<string, unknown>)
+      if (mapped) categories.push(mapped)
+    }
+    return { categories }
+  } catch (err) {
+    const msg = extractErrorMessage(err)
+    console.warn('[Knowledge] 分类列表失败:', err)
+    return { categories: [], error: msg }
+  }
+}
+
+/**
+ * 仅加载「教师成果库」下与当前昵称同名的文件夹（及其子文件夹）中的文档。
+ */
+export async function fetchArchivePlansForNickname(
+  nickname: string,
+  options: { keyword?: string; limit?: number } = {}
+): Promise<{
+  plans: TeachingPlan[]
+  source: KnowledgeSource
+  folders: KnowledgeCategory[]
+  nickname: string
+  error?: string
+}> {
+  const nick = nickname.trim()
+  const scope = archiveKnowledgeScope()
+  if (!nick) {
+    return {
+      plans: [],
+      source: 'empty',
+      folders: [],
+      nickname: '',
+      error: '请先在平台设置昵称，以便匹配个人成果文件夹',
+    }
+  }
+  if (!scope.categoryId) {
+    return {
+      plans: [],
+      source: 'empty',
+      folders: [],
+      nickname: nick,
+      error: '未配置教师成果库分类',
+    }
+  }
+
+  const { categories, error: catError } = await fetchKnowledgeCategories(scope.knowledgeId)
+  if (catError && categories.length === 0) {
+    return {
+      plans: [],
+      source: 'empty',
+      folders: [],
+      nickname: nick,
+      error: isAuthError(catError) ? '请先登录平台后加载教师成果库' : catError,
+    }
+  }
+
+  const folders = resolveTeacherArchiveFolders(categories, scope.categoryId, nick)
+  if (folders.length === 0) {
+    return {
+      plans: [],
+      source: 'empty',
+      folders: [],
+      nickname: nick,
+      error: `未找到与昵称「${nick}」对应的文件夹，请在教师成果库下创建同名文件夹`,
+    }
+  }
+
+  const results = await Promise.all(
+    folders.map((folder) =>
+      fetchKnowledgePlans({
+        keyword: options.keyword,
+        knowledgeId: scope.knowledgeId,
+        categoryId: folder.id,
+        categoryKey: folder.key,
+        limit: options.limit ?? 50,
+        fallbackPreset: false,
+      })
+    )
+  )
+
+  const seen = new Set<string>()
+  const plans: TeachingPlan[] = []
+  let platformOk = false
+  let lastError = ''
+  for (const result of results) {
+    if (result.source === 'platform') platformOk = true
+    if (result.error) lastError = result.error
+    for (const plan of result.plans) {
+      if (seen.has(plan.id)) continue
+      seen.add(plan.id)
+      plans.push(plan)
+    }
+  }
+
+  if (plans.length > 0) {
+    return { plans, source: 'platform', folders, nickname: nick }
+  }
+  if (platformOk) {
+    return { plans: [], source: 'empty', folders, nickname: nick }
+  }
+  return {
+    plans: [],
+    source: 'empty',
+    folders,
+    nickname: nick,
+    error: lastError || '教师成果库暂无文档',
   }
 }
 
@@ -214,8 +393,15 @@ export async function fetchKnowledgePlans(
   options: FetchKnowledgePlansOptions = {}
 ): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string }> {
   const knowledgeId = (options.knowledgeId || getDefaultKnowledgeId()).trim()
-  const categoryId = (options.categoryId || getDefaultCategoryId()).trim()
-  const categoryKey = (options.categoryKey || getDefaultCategoryKey()).trim()
+  // 显式传入 categoryId/categoryKey（含空字符串）时不回退教案默认分类，避免串库
+  const hasExplicitCategory =
+    options.categoryId !== undefined || options.categoryKey !== undefined
+  const categoryId = (
+    hasExplicitCategory ? options.categoryId || '' : getDefaultCategoryId()
+  ).trim()
+  const categoryKey = (
+    hasExplicitCategory ? options.categoryKey || '' : getDefaultCategoryKey()
+  ).trim()
   const fallbackPreset = options.fallbackPreset !== false
 
   try {
@@ -338,8 +524,14 @@ export async function uploadKnowledgeDocument(params: {
   if (!auth?.token) throw new Error('请先登录平台后再上传')
 
   const knowledgeId = (params.knowledgeId || getDefaultKnowledgeId()).trim()
-  const categoryId = (params.categoryId || getDefaultCategoryId()).trim()
-  const categoryKey = (params.categoryKey || getDefaultCategoryKey()).trim()
+  const hasExplicitCategory =
+    params.categoryId !== undefined || params.categoryKey !== undefined
+  const categoryId = (
+    hasExplicitCategory ? params.categoryId || '' : getDefaultCategoryId()
+  ).trim()
+  const categoryKey = (
+    hasExplicitCategory ? params.categoryKey || '' : getDefaultCategoryKey()
+  ).trim()
 
   let envelope: ApiEnvelope
   if (USE_BFF) {

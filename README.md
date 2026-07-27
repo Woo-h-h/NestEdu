@@ -95,7 +95,7 @@ flowchart TB
 | 首页 | `/` | 欢迎、快捷入口、真实统计（知识库 + 成果库）、个人成长闭环 |
 | 活动方案 | `/activity` | 单次活动/教案生成、预览、入库；含知识库管理 |
 | 周计划 | `/weekly-plan` | 周看板统筹、生成详细方案、保存入库、导出 |
-| 成果库 | `/archive` | 系统统计 + 教师录入；筛选、卡片/时间轴、代表成果 |
+| 成果库 | `/archive` | 平台「教师成果库」按登录昵称隔离个人文件夹 + 教师录入；筛选、卡片/时间轴、代表成果 |
 | 教师画像 | `/profile` | 成长维度、趋势、优劣势、行动建议、年度报告 |
 
 侧栏（桌面）/ 底部导航（移动端）五入口：**首页 · 活动方案 · 周计划 · 成果库 · 教师画像**。画像仅用于个人发展，不进行教师排名或绩效评分。
@@ -186,6 +186,7 @@ main.tsx
 |------|---------|----------|
 | 教案 | `20806` | [知识库 · 教案](https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20806&category_key=custom_1784259353619) |
 | 周计划 | `20807` | [知识库 · 周计划](https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20807&category_key=custom_1784275664825) |
+| 教师成果库 | `20895` | [知识库 · 教师成果库](https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20895&category_key=custom_1785116184487) |
 
 | 能力 | 智能体 | 配置变量 | 平台配置 |
 |------|--------|----------|----------|
@@ -329,6 +330,8 @@ VITE_AI101_DIRECT_AUTH=true
 VITE_DEFAULT_KNOWLEDGE_ID=10298
 VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID=20806
 VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID=20807
+VITE_ARCHIVE_KNOWLEDGE_CATEGORY_ID=20895
+VITE_ARCHIVE_KNOWLEDGE_CATEGORY_KEY=custom_1785116184487
 VITE_TEACHING_AGENT_ID=14317
 VITE_WEEKLY_PLAN_AGENT_ID=14332
 VITE_PLATFORM_API_BASE_URL=https://api.zcat.cn
@@ -379,6 +382,7 @@ pnpm run ci         # 统一 CI 脚本（scripts/ci.sh）
 | `VITE_USE_BACKEND_API` | `false`：教案/周计划走前端智能体（推荐本地） |
 | `VITE_DEFAULT_KNOWLEDGE_*` | 教案知识库 ID / 分类 20806 及 category_key |
 | `VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_*` | 周计划分类 20807 及 category_key |
+| `VITE_ARCHIVE_KNOWLEDGE_CATEGORY_*` | 教师成果库分类 20895 及 category_key |
 | `VITE_TEACHING_AGENT_ID` / `VITE_WEEKLY_PLAN_AGENT_ID` | 教案 14317 / 周计划 14332 |
 | `VITE_PLATFORM_API_BASE_URL` / `VITE_PLATFORM_REFERER` | 平台 API 与代理 Referer |
 | `VITE_AI101_*` | 登录、父窗口白名单、换票 |
