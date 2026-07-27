@@ -64,7 +64,10 @@ func registerPlatformProxy(r *gin.Engine, cfg service.PlatformClientConfig) {
 	// 用中间件前缀匹配，避免 Gin 通配路由在部分路径下未命中
 	r.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/api/knowledge") || path == "/v1" || strings.HasPrefix(path, "/v1/") {
+		if strings.HasPrefix(path, "/api/knowledge") ||
+			strings.HasPrefix(path, "/api/user") ||
+			path == "/v1" ||
+			strings.HasPrefix(path, "/v1/") {
 			handler(c)
 			return
 		}

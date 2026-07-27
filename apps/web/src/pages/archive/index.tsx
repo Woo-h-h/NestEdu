@@ -291,8 +291,8 @@ export default function ArchivePage() {
               >
                 华科附幼教案知识库 · 教师成果库
               </a>
-              。登录后<strong>仅显示与您昵称同名的文件夹</strong>
-              {kb.nickname ? `（当前：${kb.nickname}）` : ''}，不会看到其他老师的文件夹。
+              。登录后<strong>仅显示与您手机号同名的文件夹</strong>
+              {kb.phone ? `（当前：${kb.phone}）` : ''}，不会看到其他老师的文件夹。
             </p>
           </div>
 
@@ -321,15 +321,15 @@ export default function ArchivePage() {
             </div>
           )}
 
-          {kb.configured && isLoggedIn && !kb.nickname && (
+          {kb.configured && isLoggedIn && !kb.phone && (
             <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
-              已登录但未读取到昵称。请在平台个人资料中设置昵称（需与教师成果库下的文件夹名一致，例如「王焕」）。
+              已登录但未读取到手机号。请确认平台账号已绑定手机号；教师成果库下需创建与手机号同名的文件夹（例如「17362955307」）。
             </div>
           )}
 
-          {kb.configured && isLoggedIn && kb.nickname && kb.teacherFolders.length === 0 && !kb.isLoadingPlatform && (
+          {kb.configured && isLoggedIn && kb.phone && kb.teacherFolders.length === 0 && !kb.isLoadingPlatform && (
             <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
-              未找到与昵称「{kb.nickname}」对应的文件夹。请在知识库「教师成果库」下创建同名文件夹后再刷新。
+              未找到与手机号「{kb.phone}」对应的文件夹。请在知识库「教师成果库」下创建同名文件夹后再刷新。
             </div>
           )}
 
@@ -343,7 +343,7 @@ export default function ArchivePage() {
                     ? `上传到「${kb.uploadTarget.name}」文件夹`
                     : '上传文件到个人成果文件夹'
                 }
-                hint="将 docx 拖到此处；仅写入与您昵称同名的文件夹，确认后才会入库"
+                hint="将 docx 拖到此处；仅写入与您手机号同名的文件夹，确认后才会入库"
               />
               <div className="flex flex-wrap justify-end gap-3">
                 <button
@@ -380,9 +380,9 @@ export default function ArchivePage() {
             sourceHint={kb.listHint}
             emptyHint={
               kb.configured
-                ? kb.nickname
-                  ? `昵称「${kb.nickname}」下暂无文档，可上传 docx 或在平台同名文件夹中添加`
-                  : '设置昵称后将显示个人成果文件夹'
+                ? kb.phone
+                  ? `手机号「${kb.phone}」下暂无文档，可上传 docx 或在平台同名文件夹中添加`
+                  : '获取手机号后将显示个人成果文件夹'
                 : '配置分类后将显示教师成果库内容'
             }
             onView={(plan) => {

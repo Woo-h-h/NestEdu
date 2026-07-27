@@ -1,38 +1,5 @@
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
-/** 仅取可对齐知识库文件夹名的昵称；无昵称时返回空串（不做 uid/「老师」回退） */
-export function resolveAuthNickname(authInfo: AuthInfo | null | undefined): string {
-  if (!authInfo) return ''
-
-  const hint = authInfo.displayNameHint
-  if (typeof hint === 'string' && hint.trim()) return hint.trim()
-
-  const fromRecord = (record: Record<string, unknown> | null | undefined): string => {
-    if (!record) return ''
-    for (const key of [
-      'nickname',
-      'nick_name',
-      'nickName',
-      'display_name',
-      'displayName',
-      'user_name',
-      'userName',
-      'name',
-    ]) {
-      const value = record[key]
-      if (typeof value === 'string' && value.trim()) return value.trim()
-    }
-    return ''
-  }
-
-  if (authInfo.user && typeof authInfo.user === 'object') {
-    const fromUser = fromRecord(authInfo.user as Record<string, unknown>)
-    if (fromUser) return fromUser
-  }
-
-  return fromRecord(authInfo as unknown as Record<string, unknown>)
-}
-
 export interface KnowledgeCategoryNode {
   id: string
   name: string
@@ -54,20 +21,35 @@ export function mapKnowledgeCategory(raw: Record<string, unknown>): KnowledgeCat
   }
 }
 
-/** 在教师成果库下，找出名称与昵称完全一致的文件夹，并包含其全部子孙分类 */
+/** 规范化文件夹名：去空白，便于手机号比对 */
+export function normalizeFolderName(name: string): string {
+  return name.trim().replace(/\s+/g, '')
+}
+
+export function ownerFolderNameMatches(folderName: string, phone: string): boolean {
+  if (!phone.trim()) return false
+  return normalizeFolderName(folderName) === normalizeFolderName(phone)
+}
+
+/**
+ * 在「教师成果库」下，找出名称与手机号一致的文件夹，并包含其全部子孙分类。
+ * 文件夹名须与登录手机号一致（如 17362955307）。
+ */
 export function resolveTeacherArchiveFolders(
   categories: KnowledgeCategoryNode[],
   archiveParentId: string,
-  nickname: string
+  phone: string
 ): KnowledgeCategoryNode[] {
-  const nick = nickname.trim()
+  const phoneKey = normalizeFolderName(phone)
   const parent = archiveParentId.trim()
-  if (!nick || !parent || categories.length === 0) return []
+  if (!phoneKey || !parent || categories.length === 0) return []
 
   const byId = new Map(categories.map((item) => [item.id, item]))
   const underArchive = categories.filter((item) => isUnderParent(item.id, parent, byId))
 
-  const namedRoots = underArchive.filter((item) => item.name.trim() === nick)
+  const namedRoots = underArchive.filter(
+    (item) => normalizeFolderName(item.name) === phoneKey
+  )
   if (namedRoots.length === 0) return []
 
   const selected = new Map<string, KnowledgeCategoryNode>()
@@ -75,6 +57,14 @@ export function resolveTeacherArchiveFolders(
     collectSubtree(root.id, byId, selected)
   }
   return [...selected.values()]
+}
+
+/** @deprecated 保留兼容；展示名请用平台 /user/self */
+export function resolveAuthNickname(authInfo: AuthInfo | null | undefined): string {
+  if (!authInfo) return ''
+  const hint = authInfo.displayNameHint
+  if (typeof hint === 'string' && hint.trim()) return hint.trim()
+  return ''
 }
 
 function isUnderParent(

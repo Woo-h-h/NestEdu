@@ -164,27 +164,27 @@ export async function fetchKnowledgeCategories(
 }
 
 /**
- * 仅加载「教师成果库」下与当前昵称同名的文件夹（及其子文件夹）中的文档。
+ * 仅加载「教师成果库」下与归属键（手机号）同名的文件夹（及其子文件夹）中的文档。
  */
-export async function fetchArchivePlansForNickname(
-  nickname: string,
+export async function fetchArchivePlansForOwnerFolder(
+  folderName: string,
   options: { keyword?: string; limit?: number } = {}
 ): Promise<{
   plans: TeachingPlan[]
   source: KnowledgeSource
   folders: KnowledgeCategory[]
-  nickname: string
+  folderName: string
   error?: string
 }> {
-  const nick = nickname.trim()
+  const key = folderName.trim()
   const scope = archiveKnowledgeScope()
-  if (!nick) {
+  if (!key) {
     return {
       plans: [],
       source: 'empty',
       folders: [],
-      nickname: '',
-      error: '请先在平台设置昵称，以便匹配个人成果文件夹',
+      folderName: '',
+      error: '未能获取手机号，无法匹配个人成果文件夹',
     }
   }
   if (!scope.categoryId) {
@@ -192,7 +192,7 @@ export async function fetchArchivePlansForNickname(
       plans: [],
       source: 'empty',
       folders: [],
-      nickname: nick,
+      folderName: key,
       error: '未配置教师成果库分类',
     }
   }
@@ -203,19 +203,19 @@ export async function fetchArchivePlansForNickname(
       plans: [],
       source: 'empty',
       folders: [],
-      nickname: nick,
+      folderName: key,
       error: isAuthError(catError) ? '请先登录平台后加载教师成果库' : catError,
     }
   }
 
-  const folders = resolveTeacherArchiveFolders(categories, scope.categoryId, nick)
+  const folders = resolveTeacherArchiveFolders(categories, scope.categoryId, key)
   if (folders.length === 0) {
     return {
       plans: [],
       source: 'empty',
       folders: [],
-      nickname: nick,
-      error: `未找到与昵称「${nick}」对应的文件夹，请在教师成果库下创建同名文件夹`,
+      folderName: key,
+      error: `未找到与手机号「${key}」对应的文件夹，请在教师成果库下创建同名文件夹`,
     }
   }
 
@@ -247,18 +247,27 @@ export async function fetchArchivePlansForNickname(
   }
 
   if (plans.length > 0) {
-    return { plans, source: 'platform', folders, nickname: nick }
+    return { plans, source: 'platform', folders, folderName: key }
   }
   if (platformOk) {
-    return { plans: [], source: 'empty', folders, nickname: nick }
+    return { plans: [], source: 'empty', folders, folderName: key }
   }
   return {
     plans: [],
     source: 'empty',
     folders,
-    nickname: nick,
+    folderName: key,
     error: lastError || '教师成果库暂无文档',
   }
+}
+
+/** @deprecated 使用 fetchArchivePlansForOwnerFolder */
+export async function fetchArchivePlansForNickname(
+  nickname: string,
+  options: { keyword?: string; limit?: number } = {}
+) {
+  const result = await fetchArchivePlansForOwnerFolder(nickname, options)
+  return { ...result, nickname: result.folderName }
 }
 
 function parseIdValue(id: string): string | number {

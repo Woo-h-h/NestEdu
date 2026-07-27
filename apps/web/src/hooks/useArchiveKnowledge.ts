@@ -3,24 +3,25 @@ import type { TeachingPlan } from '@/types/weeklyPlan'
 import {
   archiveKnowledgeScope,
   deleteKnowledgeDocument,
-  fetchArchivePlansForNickname,
+  fetchArchivePlansForOwnerFolder,
   isArchiveKnowledgeConfigured,
   uploadKnowledgeDocument,
   type KnowledgeCategory,
 } from '@/api/knowledge'
+import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { parseDocxFiles } from '@/lib/parse-docx'
+import { ownerFolderNameMatches } from '@/lib/archiveTeacherScope'
 import { authBridge } from '@/lib/authBridge'
-import { resolveAuthNickname } from '@/lib/archiveTeacherScope'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
 
-/** 教师成果库：仅展示登录昵称对应文件夹（及其子文件夹）中的文档 */
+/** 教师成果库：仅展示登录手机号对应文件夹（及其子文件夹）中的文档 */
 export function useArchiveKnowledge() {
   const scope = archiveKnowledgeScope()
   const configured = isArchiveKnowledgeConfigured()
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [platformPlans, setPlatformPlans] = useState<TeachingPlan[]>([])
   const [teacherFolders, setTeacherFolders] = useState<KnowledgeCategory[]>([])
-  const [nickname, setNickname] = useState('')
+  const [phone, setPhone] = useState('')
   const [listHint, setListHint] = useState('')
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -29,44 +30,68 @@ export function useArchiveKnowledge() {
   const [pendingUploads, setPendingUploads] = useState<PendingUploadItem[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const uploadTarget = teacherFolders.find((folder) => folder.name.trim() === nickname) ||
-    teacherFolders[0]
+  const ownerFolderName = phone
+  const uploadTarget =
+    teacherFolders.find((folder) => ownerFolderNameMatches(folder.name, phone)) || undefined
 
   const loadPlatformPlans = useCallback(
     async (keyword?: string) => {
       if (!configured || !scope.categoryId) {
         setPlatformPlans([])
         setTeacherFolders([])
-        setNickname('')
+        setPhone('')
         setListHint(
           '未配置教师成果库分类：请在知识库打开「教师成果库」文件夹，将 URL 中的 category_id / category_key 写入 .env'
         )
         return [] as TeachingPlan[]
       }
 
-      const nick = resolveAuthNickname(authBridge.getAuthInfo())
-      setNickname(nick)
-      if (!nick) {
+      const auth = authBridge.getAuthInfo()
+      if (!auth?.token) {
         setPlatformPlans([])
         setTeacherFolders([])
-        setListHint('请先在平台设置昵称；成果库仅显示与昵称同名的个人文件夹')
+        setPhone('')
+        setListHint('请先登录平台后加载教师成果库')
+        return []
+      }
+
+      let currentPhone = ''
+      try {
+        currentPhone = await getCurrentTeacherPhone()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '获取手机号失败'
+        setPlatformPlans([])
+        setTeacherFolders([])
+        setPhone('')
+        setListHint(msg)
+        return []
+      }
+
+      setPhone(currentPhone)
+      if (!currentPhone) {
+        setPlatformPlans([])
+        setTeacherFolders([])
+        setListHint('未能获取手机号；成果库仅显示与手机号同名的个人文件夹')
         return []
       }
 
       setIsLoadingPlatform(true)
       try {
-        const { plans: next, source, error, folders } = await fetchArchivePlansForNickname(nick, {
-          keyword: keyword?.trim() || undefined,
-          limit: 50,
-        })
+        const { plans: next, source, error, folders } = await fetchArchivePlansForOwnerFolder(
+          currentPhone,
+          {
+            keyword: keyword?.trim() || undefined,
+            limit: 50,
+          }
+        )
         setPlatformPlans(next)
         setTeacherFolders(folders)
         if (source === 'platform') {
           setListHint(
-            `仅显示昵称「${nick}」· ${folders.length} 个文件夹 · 知识库 ${scope.knowledgeId}`
+            `仅显示手机号「${currentPhone}」· ${folders.length} 个文件夹 · 知识库 ${scope.knowledgeId}`
           )
         } else {
-          setListHint(error || `昵称「${nick}」下暂无成果文档`)
+          setListHint(error || `手机号「${currentPhone}」下暂无成果文档`)
         }
         return next
       } finally {
@@ -80,10 +105,17 @@ export function useArchiveKnowledge() {
     if (!configured) throw new Error('请先配置教师成果库分类 ID')
     const auth = authBridge.getAuthInfo()
     if (!auth?.token) throw new Error('请先登录平台后再上传')
-    const nick = resolveAuthNickname(auth)
-    if (!nick) throw new Error('请先在平台设置昵称后再上传')
+
+    let currentPhone = phone
+    if (!currentPhone) {
+      currentPhone = await getCurrentTeacherPhone()
+      setPhone(currentPhone)
+    }
+    if (!currentPhone) throw new Error('未能获取手机号，无法上传到个人成果文件夹')
     if (!uploadTarget) {
-      throw new Error(`未找到与昵称「${nick}」对应的文件夹，请先在教师成果库下创建同名文件夹`)
+      throw new Error(
+        `未找到与手机号「${currentPhone}」对应的文件夹，请先在教师成果库下创建同名文件夹`
+      )
     }
     if (uploadFiles.length === 0) throw new Error('请先选择要上传的 docx 文件')
 
@@ -109,7 +141,7 @@ export function useArchiveKnowledge() {
     } finally {
       setIsPreparingUpload(false)
     }
-  }, [configured, uploadFiles, uploadTarget])
+  }, [configured, phone, uploadFiles, uploadTarget])
 
   const cancelPendingUpload = useCallback(() => {
     if (isUploading) return
@@ -161,7 +193,8 @@ export function useArchiveKnowledge() {
   return {
     scope,
     configured,
-    nickname,
+    phone,
+    ownerFolderName,
     teacherFolders,
     uploadTarget,
     uploadFiles,

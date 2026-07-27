@@ -23,6 +23,8 @@ export default function ProfilePage() {
     loading,
     error,
     isEmpty,
+    phone,
+    displayName: platformDisplayName,
     teacherRecordCount,
     dimensions,
     categoryCounts,
@@ -40,7 +42,10 @@ export default function ProfilePage() {
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
-  const displayName = useMemo(() => resolveProfileDisplayName(authInfo), [authInfo])
+  const displayName = useMemo(() => {
+    if (platformDisplayName.trim()) return platformDisplayName.trim()
+    return resolveProfileDisplayName(authInfo)
+  }, [platformDisplayName, authInfo])
 
   return (
     <div className="page-enter mx-auto max-w-6xl">
@@ -49,6 +54,12 @@ export default function ProfilePage() {
         teacherRecordCount={teacherRecordCount}
         categoryCounts={categoryCounts}
       />
+
+      {phone ? (
+        <p className="mt-3 text-xs text-nest-muted">
+          画像数据来自教师成果库中与手机号「{phone}」同名的个人文件夹（可叠加本地录入）。
+        </p>
+      ) : null}
 
       <ComplianceBanner className="mt-5" />
 
@@ -65,7 +76,7 @@ export default function ProfilePage() {
           </button>
         </div>
       ) : isEmpty ? (
-        <EmptyState className="mt-6" />
+        <EmptyState className="mt-6" phone={phone} />
       ) : (
         <div className="mt-8 space-y-8">
           <section>
@@ -135,7 +146,7 @@ export default function ProfilePage() {
 
       <div className="no-print mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-nest-leaf/10 pt-8">
         <p className="max-w-lg text-xs leading-relaxed text-nest-muted">
-          画像与报告数据均来自您的成果记录本地聚合；系统生成统计全面接入后将自动纳入「保教活动」维度。
+          画像与报告优先聚合您手机号文件夹中的教师成果库文档，并合并本地录入与活动方案/周计划系统统计。
         </p>
         <button
           type="button"
@@ -183,19 +194,21 @@ function ComplianceBanner({ className }: { className?: string }) {
   )
 }
 
-function EmptyState({ className }: { className?: string }) {
+function EmptyState({ className, phone }: { className?: string; phone?: string }) {
   return (
     <div className={`surface-panel p-10 text-center ${className}`}>
       <p className="font-display text-lg font-semibold text-nest-ink">尚无足够数据生成画像</p>
       <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-nest-muted">
-        请先在成果库录入专业研究成果、获奖与荣誉或学习与研修记录；保存活动方案与周计划后，系统统计也将纳入结构观察。
+        {phone
+          ? `请在知识库「教师成果库」下确认已有手机号「${phone}」同名文件夹，并上传奖状/成果文档；也可在成果库补充录入。`
+          : '请先登录平台；画像将根据您手机号对应的教师成果库文件夹中的文件生成。'}
       </p>
-      <Link to="/archive/upload" className="btn-primary mt-6 inline-flex">
-        <Plus size={16} />
-        录入第一条成果
-      </Link>
-      <Link to="/archive" className="btn-secondary mt-3 ml-0 inline-flex md:ml-3">
+      <Link to="/archive" className="btn-primary mt-6 inline-flex">
         查看成果库
+      </Link>
+      <Link to="/archive/upload" className="btn-secondary mt-3 ml-0 inline-flex md:ml-3">
+        <Plus size={16} />
+        补充录入
       </Link>
     </div>
   )
