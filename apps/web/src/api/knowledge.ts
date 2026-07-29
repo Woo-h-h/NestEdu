@@ -5,6 +5,7 @@ import { authBridge } from '@/lib/authBridge'
 import {
   flattenKnowledgeCategories,
   listArchiveChildFolderNames,
+  resolveArchiveParentId,
   resolveTeacherArchiveFolders,
 } from '@/lib/archiveTeacherScope'
 
@@ -129,34 +130,53 @@ const PLATFORM_CATEGORY_LIST_PATH = '/api/knowledge/category/list'
 
 export async function fetchKnowledgeCategories(
   knowledgeId?: string
-): Promise<{ categories: KnowledgeCategory[]; error?: string }> {
+): Promise<{ categories: KnowledgeCategory[]; error?: string; rawCount?: number }> {
   const kid = (knowledgeId || getDefaultKnowledgeId()).trim()
-  if (!kid) return { categories: [], error: 'knowledgeId is required' }
+  if (!kid) return { categories: [], error: 'knowledgeId is required', rawCount: 0 }
 
   try {
     // 生产同域反代 /api/knowledge；本地 Vite 代理到平台
+    // 与平台 SPA 一致：GET /api/knowledge/category/list?knowledge_id=
     const envelope = await request.get<ApiEnvelope>(PLATFORM_CATEGORY_LIST_PATH, {
       params: { knowledge_id: parseIdValue(kid) },
     })
     assertSuccess(envelope, '知识库分类列表失败')
     const raw = envelope.result
-    const list = Array.isArray(raw)
-      ? raw
-      : raw && typeof raw === 'object'
-        ? ((raw as { list?: unknown; items?: unknown; data?: unknown }).list ||
-            (raw as { items?: unknown }).items ||
-            (raw as { data?: unknown }).data ||
-            [])
-        : []
-    if (!Array.isArray(list)) return { categories: [] }
+    const list = extractCategoryList(raw)
+    if (!Array.isArray(list)) {
+      return {
+        categories: [],
+        error: '知识库分类列表格式异常（result 非数组）',
+        rawCount: 0,
+      }
+    }
 
     const categories = flattenKnowledgeCategories(list)
-    return { categories }
+    if (import.meta.env.DEV) {
+      console.warn('[Knowledge] category/list', {
+        knowledgeId: kid,
+        rawCount: list.length,
+        mappedCount: categories.length,
+        names: categories.map((c) => c.name),
+      })
+    }
+    return { categories, rawCount: list.length }
   } catch (err) {
     const msg = extractErrorMessage(err)
     console.warn('[Knowledge] 分类列表失败:', err)
-    return { categories: [], error: msg }
+    return { categories: [], error: msg, rawCount: 0 }
   }
+}
+
+function extractCategoryList(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw
+  if (!raw || typeof raw !== 'object') return []
+  const obj = raw as Record<string, unknown>
+  for (const key of ['list', 'items', 'data', 'categories', 'rows', 'records']) {
+    const value = obj[key]
+    if (Array.isArray(value)) return value
+  }
+  return []
 }
 
 /**
@@ -193,15 +213,27 @@ export async function fetchArchivePlansForOwnerFolder(
     }
   }
 
-  const { categories, error: catError } = await fetchKnowledgeCategories(scope.knowledgeId)
+  const { categories, error: catError, rawCount } = await fetchKnowledgeCategories(
+    scope.knowledgeId
+  )
+  const archiveParentId = resolveArchiveParentId(categories, scope.categoryId)
+  const childNames = listArchiveChildFolderNames(categories, archiveParentId)
   if (import.meta.env.DEV) {
     console.warn('[ArchiveKB] categories', {
       knowledgeId: scope.knowledgeId,
-      archiveCategoryId: scope.categoryId,
+      configuredArchiveId: scope.categoryId,
+      resolvedArchiveId: archiveParentId,
       folderName: key,
       categoryCount: categories.length,
+      rawCount: rawCount ?? null,
       catError: catError || null,
-      sampleNames: categories.slice(0, 12).map((c) => ({ id: c.id, name: c.name, parentId: c.parentId })),
+      archiveChildNames: childNames,
+      sampleNames: categories.slice(0, 20).map((c) => ({
+        id: c.id,
+        name: c.name,
+        parentId: c.parentId,
+        childrenIds: c.childrenIds,
+      })),
     })
   }
   if (catError && categories.length === 0) {
@@ -213,22 +245,35 @@ export async function fetchArchivePlansForOwnerFolder(
       error: isAuthError(catError) ? '请先登录平台后加载教师成果库' : catError,
     }
   }
-
-  const folders = resolveTeacherArchiveFolders(categories, scope.categoryId, key)
-  if (import.meta.env.DEV) {
-    console.warn('[ArchiveKB] owner folders', {
-      folderName: key,
-      archiveChildNames: listArchiveChildFolderNames(categories, scope.categoryId),
-      matched: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
-    })
-  }
-  if (folders.length === 0) {
+  if (categories.length === 0) {
     return {
       plans: [],
       source: 'empty',
       folders: [],
       folderName: key,
-      error: `未找到与手机号「${key}」对应的文件夹，请在教师成果库下创建同名文件夹`,
+      error: '知识库分类列表为空，请确认已登录且 X-Uid-Hash 有效后刷新',
+    }
+  }
+
+  const folders = resolveTeacherArchiveFolders(categories, archiveParentId, key)
+  if (import.meta.env.DEV) {
+    console.warn('[ArchiveKB] owner folders', {
+      folderName: key,
+      archiveChildNames: childNames,
+      matched: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
+    })
+  }
+  if (folders.length === 0) {
+    const hint =
+      childNames.length > 0
+        ? `教师成果库下现有文件夹：${childNames.join('、')}。未找到与手机号「${key}」同名的文件夹。`
+        : `未找到与手机号「${key}」对应的文件夹（分类共 ${categories.length} 个）。请在知识库「教师成果库」下创建同名文件夹后刷新。`
+    return {
+      plans: [],
+      source: 'empty',
+      folders: [],
+      folderName: key,
+      error: hint,
     }
   }
 

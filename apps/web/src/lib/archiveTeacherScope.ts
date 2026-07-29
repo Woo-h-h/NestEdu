@@ -91,6 +91,21 @@ export function ownerFolderNameMatches(folderName: string, phone: string): boole
   return normalizeFolderName(folderName) === normalizeFolderName(phone)
 }
 
+/** 配置的 category_id 若不在列表中，回退按名称「教师成果库」定位 */
+export function resolveArchiveParentId(
+  categories: KnowledgeCategoryNode[],
+  configuredId: string
+): string {
+  const configured = configuredId.trim()
+  if (configured && categories.some((item) => item.id === configured)) {
+    return configured
+  }
+  const byName = categories.find(
+    (item) => normalizeFolderName(item.name) === normalizeFolderName('教师成果库')
+  )
+  return byName?.id || configured
+}
+
 /**
  * 在「教师成果库」下，找出名称与手机号一致的文件夹，并包含其全部子孙分类。
  * 文件夹名须与登录手机号一致（如 17362955307）。
@@ -98,6 +113,7 @@ export function ownerFolderNameMatches(folderName: string, phone: string): boole
  * 匹配策略（兼容平台两种树字段）：
  * 1. 从成果库节点的 children_ids 向下收集
  * 2. 再按 parent_id 链兜底
+ * 3. 全库按手机号精确匹配文件夹名
  */
 export function resolveTeacherArchiveFolders(
   categories: KnowledgeCategoryNode[],
@@ -105,11 +121,13 @@ export function resolveTeacherArchiveFolders(
   phone: string
 ): KnowledgeCategoryNode[] {
   const phoneKey = normalizeFolderName(phone)
-  const parent = archiveParentId.trim()
-  if (!phoneKey || !parent || categories.length === 0) return []
+  if (!phoneKey || categories.length === 0) return []
 
+  const parent = resolveArchiveParentId(categories, archiveParentId)
   const byId = new Map(categories.map((item) => [item.id, item]))
-  const underArchive = collectUnderArchive(parent, byId, categories)
+  const underArchive = parent
+    ? collectUnderArchive(parent, byId, categories)
+    : new Map<string, KnowledgeCategoryNode>()
 
   const namedRoots = [...underArchive.values()].filter(
     (item) => item.id !== parent && normalizeFolderName(item.name) === phoneKey
@@ -137,9 +155,15 @@ export function listArchiveChildFolderNames(
   categories: KnowledgeCategoryNode[],
   archiveParentId: string
 ): string[] {
-  const parent = archiveParentId.trim()
+  const parent = resolveArchiveParentId(categories, archiveParentId)
   if (!parent) return []
   const byId = new Map(categories.map((item) => [item.id, item]))
+  const archiveNode = byId.get(parent)
+  if (archiveNode && archiveNode.childrenIds.length > 0) {
+    return archiveNode.childrenIds
+      .map((id) => byId.get(id)?.name || '')
+      .filter(Boolean)
+  }
   const under = collectUnderArchive(parent, byId, categories)
   return [...under.values()]
     .filter((item) => item.id !== parent && item.parentId === parent)

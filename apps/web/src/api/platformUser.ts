@@ -1,5 +1,6 @@
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
+import { clearCachedUidHash, setCachedUidHash } from '@/lib/uidHashCache'
 
 export interface PlatformUserSelf {
   raw: Record<string, unknown>
@@ -54,7 +55,7 @@ export async function fetchPlatformUserSelf(): Promise<PlatformUserSelf | null> 
     (raw.data && typeof raw.data === 'object' && (raw.data as Record<string, unknown>)) ||
     raw
 
-  return {
+  const user: PlatformUserSelf = {
     raw: nested,
     phone: pickString(nested, [
       'phone',
@@ -76,6 +77,8 @@ export async function fetchPlatformUserSelf(): Promise<PlatformUserSelf | null> 
     uidHash: pickString(nested, ['uid_hash', 'uidHash', 'uid', 'id']),
     role: pickString(nested, ['role']),
   }
+  if (user.uidHash) setCachedUidHash(user.uidHash)
+  return user
 }
 
 /** 优先手机号；平台「用户名」常即手机号 */
@@ -91,12 +94,15 @@ const SELF_CACHE_TTL_MS = 60_000
 
 let cachedSelf: { value: PlatformUserSelf | null; at: number } | null = null
 let inflightSelf: Promise<PlatformUserSelf | null> | null = null
-
 /** 清除用户资料缓存（登出或切换账号时调用） */
 export function clearTeacherPhoneCache() {
   cachedSelf = null
   inflightSelf = null
+  clearCachedUidHash()
 }
+
+/** 最近一次 /user/self 拿到的 uid_hash（可能为空） */
+export { getCachedUidHash } from '@/lib/uidHashCache'
 
 async function getCachedPlatformUserSelf(): Promise<PlatformUserSelf | null> {
   const now = Date.now()
@@ -109,6 +115,7 @@ async function getCachedPlatformUserSelf(): Promise<PlatformUserSelf | null> {
     try {
       const user = await fetchPlatformUserSelf()
       cachedSelf = { value: user, at: Date.now() }
+      if (user?.uidHash) setCachedUidHash(user.uidHash)
       return user
     } finally {
       inflightSelf = null

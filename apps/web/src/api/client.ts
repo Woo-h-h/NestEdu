@@ -1,3 +1,4 @@
+import { getCachedUidHash } from "@/lib/uidHashCache";
 import { authBridge } from "@/lib/authBridge";
 import { buildAuthHeaders } from "@zcat-open/auth-bridge";
 import axios, { AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
@@ -15,6 +16,32 @@ export interface ApiClient extends Omit<AxiosInstance, "get" | "post" | "put" | 
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
 }
 
+function resolveUidHashForHeaders(authInfo: ReturnType<typeof authBridge.getAuthInfo>): string {
+  if (!authInfo) return getCachedUidHash();
+
+  const direct =
+    (authInfo as { uidHash?: unknown }).uidHash ??
+    (authInfo as { uid_hash?: unknown }).uid_hash;
+  if (direct !== undefined && direct !== null && String(direct).trim()) {
+    return String(direct).trim();
+  }
+
+  const user =
+    authInfo.user && typeof authInfo.user === "object"
+      ? (authInfo.user as Record<string, unknown>)
+      : null;
+  if (user) {
+    for (const key of ["uid_hash", "uidHash", "uid"]) {
+      const value = user[key];
+      if (value !== undefined && value !== null && String(value).trim()) {
+        return String(value).trim();
+      }
+    }
+  }
+
+  return getCachedUidHash();
+}
+
 const createApiInstance = (): ApiClient => {
   const instance = axios.create({
     baseURL: settings.api,
@@ -30,13 +57,11 @@ const createApiInstance = (): ApiClient => {
       version: "1.0.0",
     });
 
-    // 平台知识库等接口需要 uid 哈希；auth-bridge 默认头不带这些字段
-    const uidHash =
-      (authInfo as { uidHash?: unknown; uid_hash?: unknown } | null)?.uidHash ??
-      (authInfo as { uid_hash?: unknown } | null)?.uid_hash;
-    if (uidHash !== undefined && uidHash !== null && String(uidHash).trim()) {
-      authHeaders["X-Uid-Hash"] = String(uidHash).trim();
-      authHeaders["X-Uid"] = String(uidHash).trim();
+    // 平台知识库分类/文档需要 X-Uid-Hash；authInfo 常无此字段，需回退 /user/self 缓存
+    const uidHash = resolveUidHashForHeaders(authInfo);
+    if (uidHash) {
+      authHeaders["X-Uid-Hash"] = uidHash;
+      authHeaders["X-Uid"] = uidHash;
     }
 
     config.headers = AxiosHeaders.concat(authHeaders, config.headers);

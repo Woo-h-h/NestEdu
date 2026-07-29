@@ -329,7 +329,14 @@ export default function ArchivePage() {
 
           {kb.configured && isLoggedIn && kb.phone && kb.teacherFolders.length === 0 && !kb.isLoadingPlatform && (
             <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
-              未找到与手机号「{kb.phone}」对应的文件夹。请在知识库「教师成果库」下创建同名文件夹后再刷新。
+              {kb.listHint?.trim()
+                ? kb.listHint
+                : `未找到与手机号「${kb.phone}」对应的文件夹。请在知识库「教师成果库」下创建同名文件夹后再刷新。`}
+              <div className="mt-2 text-xs text-amber-800/80">
+                若平台侧已能看到该文件夹，请打开控制台查看{' '}
+                <code className="rounded bg-white/80 px-1">[ArchiveKB]</code> 日志，或执行{' '}
+                <code className="rounded bg-white/80 px-1">await window.__NEST_ARCHIVE_DEBUG__()</code>。
+              </div>
             </div>
           )}
 

@@ -158,6 +158,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   ;(window as Window & {
     __NEST_AUTH__?: () => unknown
     __NEST_USER__?: () => Promise<unknown>
+    __NEST_ARCHIVE_DEBUG__?: () => Promise<unknown>
   }).__NEST_AUTH__ = () => {
     const info = authBridge.getAuthInfo()
     logAuthDebug(info, "window.__NEST_AUTH__()")
@@ -183,6 +184,34 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
       return null
     }
   }
+  ;(window as Window & { __NEST_ARCHIVE_DEBUG__?: () => Promise<unknown> }).__NEST_ARCHIVE_DEBUG__ =
+    async () => {
+      const { fetchArchivePlansForOwnerFolder, fetchKnowledgeCategories, archiveKnowledgeScope } =
+        await import("@/api/knowledge")
+      const { getCachedUidHash, getCurrentTeacherPhone } = await import("@/api/platformUser")
+      const phone = await getCurrentTeacherPhone()
+      const scope = archiveKnowledgeScope()
+      const cats = await fetchKnowledgeCategories(scope.knowledgeId)
+      const archive = phone
+        ? await fetchArchivePlansForOwnerFolder(phone, { limit: 5 })
+        : null
+      const payload = {
+        phone,
+        cachedUidHash: getCachedUidHash(),
+        scope,
+        categoryCount: cats.categories.length,
+        categoryError: cats.error || null,
+        categoryNames: cats.categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          parentId: c.parentId,
+          childrenIds: c.childrenIds,
+        })),
+        archive,
+      }
+      console.warn("[ArchiveDebug]", payload)
+      return payload
+    }
 }
 
 async function probePlatformUserSelf() {
