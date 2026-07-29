@@ -192,7 +192,7 @@ main.tsx
 |------|--------|----------|----------|
 | 教案生成 | `14317` | `VITE_TEACHING_AGENT_ID` | [agent/14317](https://www.zcat.cn/teach/agent/config/14317) |
 | 周计划生成 / AI 改稿 | `14332` | `VITE_WEEKLY_PLAN_AGENT_ID` | [agent/14332](https://www.zcat.cn/teach/agent/config/14332) |
-| 教师画像解读 | 配置 `VITE_PROFILE_AGENT_ID` | 前端先按手机号隔离成果库文档再注入提示词；**不要**给 Agent 挂整库自动检索 |
+| 教师画像解读 | `14372` | `VITE_PROFILE_AGENT_ID` | [agent/14372](https://www.zcat.cn/teach/agent/config/14372)；前端按手机号隔离成果后再注入提示词，**不要**挂整库自动检索 |
 
 调用约定：`POST /v1/text/generate`（用户 Token + `agent_id`）。失败直接表面错误；自动化链路须有明确终止条件（超时 / 明确失败 / 人工确认），见 [AGENTS.md](AGENTS.md)。
 

@@ -8,16 +8,16 @@ export const TEACHING_AGENT_ID_DEFAULT = 14317
 /** 周计划生成智能体：https://www.zcat.cn/teach/agent/config/14332 */
 export const WEEKLY_PLAN_AGENT_ID_DEFAULT = 14332
 
-/** 教师画像智能体：请在平台创建后写入 VITE_PROFILE_AGENT_ID（勿挂整库检索） */
+/** 教师画像智能体：https://www.zcat.cn/teach/agent/config/14372 */
+export const PROFILE_AGENT_ID_DEFAULT = 14372
+
+/** 教师画像智能体（勿挂整库自动检索；由前端注入本人手机号文件夹摘要） */
 export function getProfileAgentId(): number {
-  const raw = (import.meta.env.VITE_PROFILE_AGENT_ID || '').trim()
+  const raw = (
+    import.meta.env.VITE_PROFILE_AGENT_ID || String(PROFILE_AGENT_ID_DEFAULT)
+  ).trim()
   const n = Number(raw)
-  if (!Number.isFinite(n) || n <= 0) {
-    throw new Error(
-      '未配置教师画像智能体：请在 .env 设置 VITE_PROFILE_AGENT_ID（平台 teach/agent/config/{id}），且 Agent 不要挂载整库自动检索'
-    )
-  }
-  return n
+  return Number.isFinite(n) && n > 0 ? n : PROFILE_AGENT_ID_DEFAULT
 }
 
 export function getTeachingAgentId(): number {

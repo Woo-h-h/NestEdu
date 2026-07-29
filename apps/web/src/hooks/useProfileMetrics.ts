@@ -6,8 +6,9 @@ import {
   weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
 import {
-  getCurrentTeacherDisplayName,
+  fetchPlatformUserSelf,
   getCurrentTeacherPhone,
+  resolvePhoneFromUserSelf,
 } from '@/api/platformUser'
 import { authBridge } from '@/lib/authBridge'
 import {
@@ -67,41 +68,24 @@ function planToGrowthRecord(plan: TeachingPlan): GrowthRecord {
   }
 }
 
-async function loadSystemStats(): Promise<SystemStats> {
-  try {
-    const weekly = weeklyPlanKnowledgeScope()
-    const [activityRes, weeklyRes] = await Promise.allSettled([
-      fetchKnowledgePlans({ limit: 50, fallbackPreset: false }),
-      fetchKnowledgePlans({ limit: 50, fallbackPreset: false, ...weekly }),
-    ])
-    return {
-      activityPlans:
-        activityRes.status === 'fulfilled' && activityRes.value.source === 'platform'
-          ? activityRes.value.plans.length
-          : undefined,
-      weeklyPlans:
-        weeklyRes.status === 'fulfilled' && weeklyRes.value.source === 'platform'
-          ? weeklyRes.value.plans.length
-          : undefined,
-    }
-  } catch {
-    return {}
-  }
+function resolvePlatformDisplayName(user: {
+  nickname: string
+  realName: string
+} | null): string {
+  if (!user) return ''
+  if (user.realName.trim()) return user.realName.trim()
+  if (user.nickname.trim()) return user.nickname.trim()
+  return ''
 }
 
-export function useProfileMetrics(externalSystemStats: SystemStats = EMPTY_SYSTEM_STATS) {
+export function useProfileMetrics(initialSystemStats: SystemStats = {}) {
   const [records, setRecords] = useState<GrowthRecord[]>([])
-  const [loadedSystemStats, setLoadedSystemStats] = useState<SystemStats>({})
+  const [systemStats, setSystemStats] = useState<SystemStats>(initialSystemStats)
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actions, setActions] = useState<ProfileActionItem[]>([])
-
-  const systemStats = useMemo(
-    () => ({ ...loadedSystemStats, ...externalSystemStats }),
-    [loadedSystemStats, externalSystemStats]
-  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,7 +95,27 @@ export function useProfileMetrics(externalSystemStats: SystemStats = EMPTY_SYSTE
       const loggedIn = Boolean(auth?.token)
 
       const localPromise = listGrowthRecords().catch(() => [] as GrowthRecord[])
-      const statsPromise = loadSystemStats()
+      const statsPromise = (async (): Promise<SystemStats> => {
+        try {
+          const weekly = weeklyPlanKnowledgeScope()
+          const [activityRes, weeklyRes] = await Promise.allSettled([
+            fetchKnowledgePlans({ limit: 50, fallbackPreset: false }),
+            fetchKnowledgePlans({ limit: 50, fallbackPreset: false, ...weekly }),
+          ])
+          return {
+            activityPlans:
+              activityRes.status === 'fulfilled' && activityRes.value.source === 'platform'
+                ? activityRes.value.plans.length
+                : undefined,
+            weeklyPlans:
+              weeklyRes.status === 'fulfilled' && weeklyRes.value.source === 'platform'
+                ? weeklyRes.value.plans.length
+                : undefined,
+          }
+        } catch {
+          return {}
+        }
+      })()
 
       let kbRecords: GrowthRecord[] = []
       let nextPhone = ''
@@ -119,25 +123,23 @@ export function useProfileMetrics(externalSystemStats: SystemStats = EMPTY_SYSTE
 
       if (loggedIn) {
         try {
-          const [phoneValue, nameValue] = await Promise.all([
-            getCurrentTeacherPhone(),
-            getCurrentTeacherDisplayName(),
-          ])
-          nextPhone = phoneValue
-          nextDisplayName = nameValue
+          const user = await fetchPlatformUserSelf()
+          nextPhone = resolvePhoneFromUserSelf(user) || (await getCurrentTeacherPhone())
+          nextDisplayName = resolvePlatformDisplayName(user)
           setPhone(nextPhone)
           if (nextDisplayName) setDisplayName(nextDisplayName)
 
           if (nextPhone) {
             const archive = await fetchArchivePlansForOwnerFolder(nextPhone, { limit: 50 })
             kbRecords = archive.plans.map(planToGrowthRecord)
-            if (archive.error && archive.plans.length === 0 && !archive.folders.length) {
-              // 无个人文件夹时不阻断画像，仍可用本地录入 + 系统统计
-              console.warn('[Profile]', archive.error)
-            }
           }
         } catch (err) {
-          console.warn('[Profile] 加载个人成果库失败:', err)
+          // 知识库失败不阻断本地录入；有手机号时再提示
+          if (!nextPhone) {
+            console.warn('[Profile] 加载个人成果库失败:', err)
+          } else {
+            setError(err instanceof Error ? err.message : '加载个人成果库失败')
+          }
         }
       } else {
         setPhone('')
@@ -150,13 +152,13 @@ export function useProfileMetrics(externalSystemStats: SystemStats = EMPTY_SYSTE
         ...localRecords.filter((item) => !seen.has(item.id) && !item.id.startsWith('kb_')),
       ]
       setRecords(merged)
-      setLoadedSystemStats(nextStats)
+      setSystemStats({ ...initialSystemStats, ...nextStats })
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [initialSystemStats])
 
   useEffect(() => {
     void load()

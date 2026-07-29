@@ -3,11 +3,9 @@ import { presetTeachingPlans } from '@/data/teachingPlans'
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
 import {
-  flattenKnowledgeCategories,
   listArchiveChildFolderNames,
   resolveArchiveParentId,
   resolveTeacherArchiveFolders,
-  summarizeRawCategories,
 } from '@/lib/archiveTeacherScope'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
@@ -180,16 +178,31 @@ export async function fetchKnowledgeCategories(
       if (list.length > 0) break
     }
 
+    // 动态 import：分类映射必须落在独立 chunk，避免与 React minify 短名冲突
+    const { flattenKnowledgeCategories, summarizeRawCategories } = await import(
+      '@/lib/knowledgeCategoryMap'
+    )
     const categories = flattenKnowledgeCategories(bestList)
     debug.rawCount = bestList.length
     debug.mappedCount = categories.length
     debug.sampleRaw = summarizeRawCategories(bestList, 5)
     debug.envelopeKeys =
       lastEnvelope && typeof lastEnvelope === 'object' ? Object.keys(lastEnvelope) : []
+    debug.mapperChunk = 'knowledgeCategoryMap(dynamic)'
 
-    console.warn('[Knowledge] category/list', debug)
+    if (bestList.length > 0 && categories.length === 0) {
+      console.error('[Knowledge] category mapping produced 0 from non-empty list', {
+        rawCount: bestList.length,
+        sampleRaw: debug.sampleRaw,
+      })
+    } else {
+      console.warn('[Knowledge] category/list', {
+        ...debug,
+        names: categories.map((c) => c.name),
+      })
+    }
 
-    // 映射失败时仍保留文档反推结果，并与已映射分类合并
+    // 映射不完整时合并文档反推结果
     if (categories.length < bestList.length) {
       const discovered = await discoverCategoriesFromDocuments(kid)
       debug.discoveredFromDocuments = discovered.length
