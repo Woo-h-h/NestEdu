@@ -169,6 +169,7 @@
 | `VITE_ARCHIVE_KNOWLEDGE_CATEGORY_KEY` | 教师成果库分类 key（默认 `custom_1785116184487`） |
 | `VITE_TEACHING_AGENT_ID` | 教案生成智能体（默认 `14317`） |
 | `VITE_WEEKLY_PLAN_AGENT_ID` | 周计划生成智能体（默认 `14332`） |
+| `VITE_PROFILE_AGENT_ID` | 教师画像智能体；调用前由前端按手机号文件夹组装上下文，勿依赖整库检索 |
 | `VITE_PLATFORM_API_BASE_URL` | 平台 API，默认 `https://api.zcat.cn` |
 | `VITE_PLATFORM_REFERER` | 代理出站 Referer |
 | `VITE_USE_BACKEND_API` | 为 `true` 时走 Go BFF（含成果库 CRUD）；为 `false` 时成果库回退 `localStorage`；知识库始终走平台 |

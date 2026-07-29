@@ -3,7 +3,8 @@ import { presetTeachingPlans } from '@/data/teachingPlans'
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
 import {
-  mapKnowledgeCategory,
+  flattenKnowledgeCategories,
+  listArchiveChildFolderNames,
   resolveTeacherArchiveFolders,
 } from '@/lib/archiveTeacherScope'
 
@@ -149,12 +150,7 @@ export async function fetchKnowledgeCategories(
         : []
     if (!Array.isArray(list)) return { categories: [] }
 
-    const categories: KnowledgeCategory[] = []
-    for (const item of list) {
-      if (!item || typeof item !== 'object') continue
-      const mapped = mapKnowledgeCategory(item as Record<string, unknown>)
-      if (mapped) categories.push(mapped)
-    }
+    const categories = flattenKnowledgeCategories(list)
     return { categories }
   } catch (err) {
     const msg = extractErrorMessage(err)
@@ -222,6 +218,7 @@ export async function fetchArchivePlansForOwnerFolder(
   if (import.meta.env.DEV) {
     console.warn('[ArchiveKB] owner folders', {
       folderName: key,
+      archiveChildNames: listArchiveChildFolderNames(categories, scope.categoryId),
       matched: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
     })
   }

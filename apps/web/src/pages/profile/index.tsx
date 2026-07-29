@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileText, Loader2, Plus, ShieldCheck } from 'lucide-react'
+import { toast } from 'sonner'
+import { FileText, Loader2, Plus, ShieldCheck, Sparkles } from 'lucide-react'
 import { authBridge } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import ProfileHeroCard, { resolveProfileDisplayName } from '@/components/profile/ProfileHeroCard'
+import ProfileAgentMarkdown from '@/components/profile/ProfileAgentMarkdown'
 import DimensionCards from '@/components/profile/DimensionCards'
 import RadarChart from '@/components/profile/RadarChart'
 import TrendChart from '@/components/profile/TrendChart'
@@ -13,12 +15,23 @@ import ActionPlanList from '@/components/profile/ActionPlanList'
 import PathCards from '@/components/profile/PathCards'
 import AnnualReportModal from '@/components/profile/AnnualReportModal'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
+import { generateProfileAgentAnalysis } from '@/api/profileAgent'
+import { getProfileAgentId } from '@/api/agent'
 
 const REPORT_YEAR = new Date().getFullYear()
 
 export default function ProfilePage() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const [reportOpen, setReportOpen] = useState(false)
+  const [agentLoading, setAgentLoading] = useState(false)
+  const [agentError, setAgentError] = useState('')
+  const [agentMarkdown, setAgentMarkdown] = useState('')
+  const [agentMeta, setAgentMeta] = useState<{
+    archiveDocCount: number
+    localRecordCount: number
+    agentId: number
+  } | null>(null)
+
   const {
     loading,
     error,
@@ -47,6 +60,31 @@ export default function ProfilePage() {
     return resolveProfileDisplayName(authInfo)
   }, [platformDisplayName, authInfo])
 
+  const isLoggedIn = Boolean(authInfo?.token)
+
+  const handleGenerateAgentProfile = async () => {
+    setAgentError('')
+    setAgentLoading(true)
+    try {
+      // 预检配置，失败信息更清晰
+      getProfileAgentId()
+      const result = await generateProfileAgentAnalysis()
+      setAgentMarkdown(result.markdown)
+      setAgentMeta({
+        archiveDocCount: result.archiveDocCount,
+        localRecordCount: result.localRecordCount,
+        agentId: result.agentId,
+      })
+      toast.success('已生成个人画像解读（仅使用您手机号文件夹材料）')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '生成失败'
+      setAgentError(msg)
+      toast.error(msg)
+    } finally {
+      setAgentLoading(false)
+    }
+  }
+
   return (
     <div className="page-enter mx-auto max-w-6xl">
       <ProfileHeroCard
@@ -62,6 +100,62 @@ export default function ProfilePage() {
       ) : null}
 
       <ComplianceBanner className="mt-5" />
+
+      <section className="surface-panel mt-5 space-y-4 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-nest-ink">智能画像解读</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-nest-muted">
+              由前端先按手机号隔离个人文件夹文档，再把摘要注入智能体；
+              <strong className="font-medium text-nest-pine">不把整库交给 Agent 检索</strong>
+              ，避免看到其他教师材料。
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-accent shrink-0"
+            disabled={agentLoading || !isLoggedIn || loading}
+            onClick={() => void handleGenerateAgentProfile()}
+          >
+            {agentLoading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" /> 生成中…
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} /> 生成智能画像
+              </>
+            )}
+          </button>
+        </div>
+
+        {!isLoggedIn && (
+          <p className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-900">
+            请先登录后再生成；系统需要手机号以定位您的个人成果文件夹。
+          </p>
+        )}
+
+        {agentMeta && (
+          <p className="text-xs text-nest-muted">
+            本次注入：成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入 {agentMeta.localRecordCount}{' '}
+            条 · 智能体 ID {agentMeta.agentId}
+          </p>
+        )}
+
+        {agentError && <p className="text-sm text-red-600">{agentError}</p>}
+
+        {agentMarkdown ? (
+          <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/30 p-4 md:p-5">
+            <ProfileAgentMarkdown text={agentMarkdown} />
+          </div>
+        ) : (
+          !agentLoading && (
+            <p className="text-sm text-nest-muted">
+              点击「生成智能画像」后，将仅基于您手机号文件夹与本地录入生成解读文案。
+            </p>
+          )
+        )}
+      </section>
 
       {loading ? (
         <div className="surface-panel mt-6 flex items-center justify-center gap-2 p-12 text-nest-muted">
