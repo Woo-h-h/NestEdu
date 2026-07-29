@@ -7,6 +7,7 @@ import {
   listArchiveChildFolderNames,
   resolveArchiveParentId,
   resolveTeacherArchiveFolders,
+  summarizeRawCategories,
 } from '@/lib/archiveTeacherScope'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
@@ -182,17 +183,20 @@ export async function fetchKnowledgeCategories(
     const categories = flattenKnowledgeCategories(bestList)
     debug.rawCount = bestList.length
     debug.mappedCount = categories.length
+    debug.sampleRaw = summarizeRawCategories(bestList, 5)
     debug.envelopeKeys =
       lastEnvelope && typeof lastEnvelope === 'object' ? Object.keys(lastEnvelope) : []
 
     console.warn('[Knowledge] category/list', debug)
 
-    if (categories.length === 0 && lastEnvelope) {
-      // 仍为空：用文档列表反推分类（教师成果库子文件夹常能从文档 category_* 字段还原）
+    // 映射失败时仍保留文档反推结果，并与已映射分类合并
+    if (categories.length < bestList.length) {
       const discovered = await discoverCategoriesFromDocuments(kid)
       debug.discoveredFromDocuments = discovered.length
       if (discovered.length > 0) {
-        return { categories: discovered, rawCount: discovered.length, debug }
+        const merged = mergeCategories(categories, discovered)
+        debug.mappedCount = merged.length
+        return { categories: merged, rawCount: bestList.length, debug }
       }
     }
 
@@ -351,6 +355,26 @@ function extractDocumentItems(raw: unknown): Record<string, unknown>[] {
     }
   }
   return []
+}
+
+function mergeCategories(
+  primary: KnowledgeCategory[],
+  secondary: KnowledgeCategory[]
+): KnowledgeCategory[] {
+  const byId = new Map<string, KnowledgeCategory>()
+  for (const item of [...primary, ...secondary]) {
+    const existing = byId.get(item.id)
+    if (!existing) {
+      byId.set(item.id, { ...item, childrenIds: [...item.childrenIds] })
+      continue
+    }
+    existing.childrenIds = [...new Set([...existing.childrenIds, ...item.childrenIds])]
+    if (!existing.key && item.key) existing.key = item.key
+    if ((!existing.parentId || existing.parentId === '0') && item.parentId !== '0') {
+      existing.parentId = item.parentId
+    }
+  }
+  return [...byId.values()]
 }
 
 /**

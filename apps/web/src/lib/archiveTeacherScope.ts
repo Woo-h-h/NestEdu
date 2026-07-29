@@ -8,17 +8,78 @@ export interface KnowledgeCategoryNode {
   childrenIds: string[]
 }
 
+/** 将平台分类条目映射为统一结构；兼容多种字段名与一层包装 */
 export function mapKnowledgeCategory(raw: Record<string, unknown>): KnowledgeCategoryNode | null {
-  const id = pickId(raw, ['id', 'category_id', 'categoryId'])
-  const name = pickText(raw, ['name', 'title', 'label', 'category_name'])
+  for (const src of unwrapCategorySources(raw)) {
+    const mapped = mapCategoryFields(src)
+    if (mapped) return mapped
+  }
+  return null
+}
+
+function unwrapCategorySources(raw: Record<string, unknown>): Record<string, unknown>[] {
+  const sources: Record<string, unknown>[] = [raw]
+  for (const wrap of ['category', 'node', 'item', 'data', 'record', 'info']) {
+    const inner = raw[wrap]
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+      sources.push(inner as Record<string, unknown>)
+    }
+  }
+  return sources
+}
+
+function mapCategoryFields(raw: Record<string, unknown>): KnowledgeCategoryNode | null {
+  const id = pickId(raw, [
+    'id',
+    'category_id',
+    'categoryId',
+    'value',
+    'key',
+    'folder_id',
+    'folderId',
+  ])
+  const name = pickText(raw, [
+    'name',
+    'title',
+    'label',
+    'category_name',
+    'categoryName',
+    'text',
+    'folder_name',
+    'folderName',
+    'display_name',
+    'displayName',
+  ])
   if (!id || !name) return null
+
+  // value/label 树节点里 key 可能是 custom_xxx，不能当 id；若 id 取自 key 且像 custom_，再尝试别的
+  const stableId =
+    /^custom_/i.test(id) && pickId(raw, ['id', 'category_id', 'categoryId', 'value', 'folder_id'])
+      ? pickId(raw, ['id', 'category_id', 'categoryId', 'value', 'folder_id']) || id
+      : id
+
   return {
-    id,
+    id: stableId,
     name,
-    parentId: pickId(raw, ['parent_id', 'parentId', 'pid', 'parent']) || '0',
-    key: pickText(raw, ['key', 'category_key', 'categoryKey', 'custom_key']),
+    parentId:
+      pickId(raw, ['parent_id', 'parentId', 'pid', 'parent_category_id', 'parentCategoryId']) ||
+      // parent 若是对象取 id；若是 0/数字已由 pickId 处理；避免把 name 字符串当 parentId
+      pickParentId(raw) ||
+      '0',
+    key: pickText(raw, ['category_key', 'categoryKey', 'custom_key', 'key']),
     childrenIds: pickIdList(raw, ['children_ids', 'childrenIds', 'child_ids', 'children']),
   }
+}
+
+function pickParentId(raw: Record<string, unknown>): string {
+  const parent = raw.parent
+  if (parent === 0 || parent === '0') return '0'
+  if (typeof parent === 'number' && Number.isFinite(parent)) return String(parent)
+  if (typeof parent === 'string' && /^\d+$/.test(parent.trim())) return parent.trim()
+  if (parent && typeof parent === 'object') {
+    return pickId(parent as Record<string, unknown>, ['id', 'category_id', 'categoryId', 'value'])
+  }
+  return ''
 }
 
 /**
@@ -30,8 +91,8 @@ export function flattenKnowledgeCategories(rawList: unknown[]): KnowledgeCategor
 
   const walk = (items: unknown[], inferredParentId: string) => {
     for (const item of items) {
-      if (!item || typeof item !== 'object') continue
-      const raw = item as Record<string, unknown>
+      const raw = coerceCategoryObject(item)
+      if (!raw) continue
       const mapped = mapKnowledgeCategory(raw)
       if (!mapped) continue
 
@@ -70,7 +131,7 @@ export function flattenKnowledgeCategories(rawList: unknown[]): KnowledgeCategor
   // 用父节点 children_ids 反推子节点 parentId（平台偶发子节点 parent_id 仍为 0）
   for (const node of byId.values()) {
     for (const childId of node.childrenIds) {
-      const child = byId.get(childId)
+      const child = byId.get(String(childId))
       if (!child) continue
       if (!child.parentId || child.parentId === '0') {
         child.parentId = node.id
@@ -79,6 +140,46 @@ export function flattenKnowledgeCategories(rawList: unknown[]): KnowledgeCategor
   }
 
   return [...byId.values()]
+}
+
+/** 调试：摘要原始分类条目，便于排查 mappedCount=0 */
+export function summarizeRawCategories(rawList: unknown[], limit = 3): unknown[] {
+  return rawList.slice(0, limit).map((item) => {
+    if (item == null) return { type: 'null' }
+    if (typeof item !== 'object') return { type: typeof item, value: item }
+    if (Array.isArray(item)) return { type: 'array', length: item.length }
+    const obj = item as Record<string, unknown>
+    const preview: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj).slice(0, 16)) {
+      if (value == null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        preview[key] = value
+      } else if (Array.isArray(value)) {
+        preview[key] = `array:${value.length}`
+      } else if (typeof value === 'object') {
+        preview[key] = `{keys:${Object.keys(value as object).join(',')}}`
+      } else {
+        preview[key] = typeof value
+      }
+    }
+    return { keys: Object.keys(obj), preview }
+  })
+}
+
+function coerceCategoryObject(item: unknown): Record<string, unknown> | null {
+  if (!item) return null
+  if (typeof item === 'string') {
+    try {
+      const parsed = JSON.parse(item) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
+  if (typeof item !== 'object' || Array.isArray(item)) return null
+  return item as Record<string, unknown>
 }
 
 /** 规范化文件夹名：去空白，便于手机号比对 */
@@ -108,12 +209,6 @@ export function resolveArchiveParentId(
 
 /**
  * 在「教师成果库」下，找出名称与手机号一致的文件夹，并包含其全部子孙分类。
- * 文件夹名须与登录手机号一致（如 17362955307）。
- *
- * 匹配策略（兼容平台两种树字段）：
- * 1. 从成果库节点的 children_ids 向下收集
- * 2. 再按 parent_id 链兜底
- * 3. 全库按手机号精确匹配文件夹名
  */
 export function resolveTeacherArchiveFolders(
   categories: KnowledgeCategoryNode[],
@@ -133,7 +228,6 @@ export function resolveTeacherArchiveFolders(
     (item) => item.id !== parent && normalizeFolderName(item.name) === phoneKey
   )
 
-  // 兜底：父子关系字段缺失时，仍按手机号精确匹配文件夹名（不会匹配其他老师号码）
   const roots =
     namedRoots.length > 0
       ? namedRoots
@@ -161,7 +255,7 @@ export function listArchiveChildFolderNames(
   const archiveNode = byId.get(parent)
   if (archiveNode && archiveNode.childrenIds.length > 0) {
     return archiveNode.childrenIds
-      .map((id) => byId.get(id)?.name || '')
+      .map((id) => byId.get(String(id))?.name || '')
       .filter(Boolean)
   }
   const under = collectUnderArchive(parent, byId, categories)
@@ -186,18 +280,16 @@ function collectUnderArchive(
   const under = new Map<string, KnowledgeCategoryNode>()
   const archiveNode = byId.get(archiveParentId)
 
-  // 优先：父节点 children_ids（平台 SPA 也是这样建树）
   if (archiveNode) {
     const directChildIds =
       archiveNode.childrenIds.length > 0
-        ? archiveNode.childrenIds
+        ? archiveNode.childrenIds.map(String)
         : categories.filter((item) => item.parentId === archiveParentId).map((item) => item.id)
     for (const childId of directChildIds) {
       collectSubtree(childId, byId, under)
     }
   }
 
-  // 兜底：按 parent_id 向上能走到成果库的节点
   for (const item of categories) {
     if (item.id === archiveParentId) continue
     if (under.has(item.id)) continue
@@ -234,14 +326,14 @@ function collectSubtree(
   byId: Map<string, KnowledgeCategoryNode>,
   selected: Map<string, KnowledgeCategoryNode>
 ) {
-  const root = byId.get(rootId)
-  if (!root || selected.has(rootId)) return
-  selected.set(rootId, root)
+  const root = byId.get(String(rootId))
+  if (!root || selected.has(root.id)) return
+  selected.set(root.id, root)
 
   const childIds =
     root.childrenIds.length > 0
-      ? root.childrenIds
-      : [...byId.values()].filter((item) => item.parentId === rootId).map((item) => item.id)
+      ? root.childrenIds.map(String)
+      : [...byId.values()].filter((item) => item.parentId === root.id).map((item) => item.id)
 
   for (const childId of childIds) {
     collectSubtree(childId, byId, selected)
@@ -249,7 +341,7 @@ function collectSubtree(
 }
 
 function uniqueIds(ids: string[]): string[] {
-  return [...new Set(ids.filter(Boolean))]
+  return [...new Set(ids.map(String).filter(Boolean))]
 }
 
 function pickText(item: Record<string, unknown>, keys: string[]): string {
@@ -257,12 +349,22 @@ function pickText(item: Record<string, unknown>, keys: string[]): string {
     const value = item[key]
     if (typeof value === 'string' && value.trim()) return value.trim()
     if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-    if (value && typeof value === 'object') {
-      const nested = pickText(value as Record<string, unknown>, [
+    if (typeof value === 'bigint') return String(value)
+  }
+  return ''
+}
+
+function pickId(item: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = item[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+    if (typeof value === 'bigint') return String(value)
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const nested = pickId(value as Record<string, unknown>, [
         'id',
         'category_id',
         'categoryId',
-        'name',
         'value',
       ])
       if (nested) return nested
@@ -271,20 +373,23 @@ function pickText(item: Record<string, unknown>, keys: string[]): string {
   return ''
 }
 
-function pickId(item: Record<string, unknown>, keys: string[]): string {
-  return pickText(item, keys)
-}
-
 function pickIdList(item: Record<string, unknown>, keys: string[]): string[] {
   for (const key of keys) {
     const value = item[key]
     if (!Array.isArray(value)) continue
-    // children 可能是对象数组而非 id 列表；仅抽取 id
+    // children 可能是对象数组；children_ids 一般是 id 列表
     const ids = value
       .map((entry) => {
-        if (typeof entry === 'string' || typeof entry === 'number') return String(entry)
+        if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'bigint') {
+          return String(entry)
+        }
         if (entry && typeof entry === 'object') {
-          return pickId(entry as Record<string, unknown>, ['id', 'category_id', 'categoryId', 'value'])
+          return pickId(entry as Record<string, unknown>, [
+            'id',
+            'category_id',
+            'categoryId',
+            'value',
+          ])
         }
         return ''
       })
