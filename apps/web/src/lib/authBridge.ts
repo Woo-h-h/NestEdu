@@ -122,7 +122,6 @@ export const authBridge = ai101Auth.authClient;
 
 /** 开发期：脱敏打印鉴权字段，便于核对 sub / bid 是否等于用户名 */
 function logAuthDebug(authInfo: ReturnType<typeof authBridge.getAuthInfo>, tag: string) {
-  if (!import.meta.env.DEV) return;
   if (!authInfo) {
     console.warn(`[NestAuth] ${tag}`, { loggedIn: false });
     return;
@@ -131,7 +130,6 @@ function logAuthDebug(authInfo: ReturnType<typeof authBridge.getAuthInfo>, tag: 
     authInfo.user && typeof authInfo.user === "object"
       ? (authInfo.user as Record<string, unknown>)
       : null;
-  // 用 warn：Vite 会把 client console.warn 转发到终端，便于协助排查
   console.warn(`[NestAuth] ${tag}`, {
     loggedIn: Boolean(authInfo.token),
     sub: authInfo.sub ?? null,
@@ -154,7 +152,9 @@ function logAuthDebug(authInfo: ReturnType<typeof authBridge.getAuthInfo>, tag: 
   });
 }
 
-if (import.meta.env.DEV && typeof window !== "undefined") {
+// 排查成果库匹配：生产/本地均可在控制台调用
+//   await window.__NEST_ARCHIVE_DEBUG__()
+if (typeof window !== "undefined") {
   ;(window as Window & {
     __NEST_AUTH__?: () => unknown
     __NEST_USER__?: () => Promise<unknown>
