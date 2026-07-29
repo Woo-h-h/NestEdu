@@ -34,6 +34,7 @@ import {
   countByCategory,
 } from '@/lib/growthCategories'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
+import { runArchiveDebug, type ArchiveDebugPayload } from '@/lib/archiveDebug'
 import {
   fetchKnowledgePlans,
   weeklyPlanKnowledgeScope,
@@ -75,6 +76,8 @@ export default function ArchivePage() {
   const [deleting, setDeleting] = useState(false)
   const [viewPlan, setViewPlan] = useState<TeachingPlan | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [debugPayload, setDebugPayload] = useState<ArchiveDebugPayload | null>(null)
+  const [debugLoading, setDebugLoading] = useState(false)
 
   const [activityCount, setActivityCount] = useState<number | null>(null)
   const [weeklyCount, setWeeklyCount] = useState<number | null>(null)
@@ -161,6 +164,23 @@ export default function ArchivePage() {
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '刷新失败')
+    }
+  }
+
+  const handleArchiveDebug = async () => {
+    setDebugLoading(true)
+    try {
+      const payload = await runArchiveDebug()
+      setDebugPayload(payload)
+      toast.success(
+        payload.archive?.folders?.length
+          ? `已匹配 ${payload.archive.folders.length} 个文件夹`
+          : '诊断完成：未匹配到个人文件夹（见下方详情）'
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '诊断失败')
+    } finally {
+      setDebugLoading(false)
     }
   }
 
@@ -332,11 +352,62 @@ export default function ArchivePage() {
               {kb.listHint?.trim()
                 ? kb.listHint
                 : `未找到与手机号「${kb.phone}」对应的文件夹。请在知识库「教师成果库」下创建同名文件夹后再刷新。`}
-              <div className="mt-2 text-xs text-amber-800/80">
-                若平台侧已能看到该文件夹，请打开控制台查看{' '}
-                <code className="rounded bg-white/80 px-1">[ArchiveKB]</code> 日志，或执行{' '}
-                <code className="rounded bg-white/80 px-1">await window.__NEST_ARCHIVE_DEBUG__()</code>。
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleArchiveDebug()}
+                  disabled={debugLoading}
+                  className="rounded-lg bg-amber-700 px-3 py-1.5 text-sm text-white hover:bg-amber-800 disabled:opacity-60"
+                >
+                  {debugLoading ? '诊断中...' : '一键诊断匹配问题'}
+                </button>
+                <span className="text-xs text-amber-800/80">
+                  若嵌入主站 iframe，控制台需切换到 NestEdu 子框架；优先用本按钮。
+                </span>
               </div>
+            </div>
+          )}
+
+          {debugPayload && (
+            <div className="rounded-xl border border-nest-leaf/20 bg-nest-mist/40 p-3.5 text-xs text-nest-ink">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">成果库诊断结果（可复制发给开发）</p>
+                <button
+                  type="button"
+                  className="rounded-lg border border-nest-leaf/30 bg-white px-2.5 py-1 text-nest-pine hover:bg-white/80"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(JSON.stringify(debugPayload, null, 2))
+                      toast.success('已复制诊断结果')
+                    } catch {
+                      toast.error('复制失败，请手动选中下方文本')
+                    }
+                  }}
+                >
+                  复制 JSON
+                </button>
+              </div>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white/80 p-3 font-mono leading-relaxed">
+                {JSON.stringify(
+                  {
+                    phone: debugPayload.phone,
+                    cachedUidHash: debugPayload.cachedUidHash,
+                    categoryCount: debugPayload.categoryCount,
+                    categoryError: debugPayload.categoryError,
+                    resolvedArchiveId: debugPayload.resolvedArchiveId,
+                    archiveChildNames: debugPayload.archiveChildNames,
+                    matchedFolders: debugPayload.archive?.folders?.map((f) => ({
+                      id: f.id,
+                      name: f.name,
+                      parentId: f.parentId,
+                    })),
+                    archiveError: debugPayload.archive?.error || null,
+                    categoryNames: debugPayload.categoryNames,
+                  },
+                  null,
+                  2
+                )}
+              </pre>
             </div>
           )}
 
@@ -361,6 +432,14 @@ export default function ArchivePage() {
                 >
                   <RefreshCw size={16} className={kb.isLoadingPlatform ? 'animate-spin' : ''} />
                   {kb.isLoadingPlatform ? '加载中...' : '刷新列表'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleArchiveDebug()}
+                  disabled={debugLoading || !isLoggedIn}
+                  className="btn-secondary"
+                >
+                  {debugLoading ? '诊断中...' : '诊断'}
                 </button>
                 <button
                   type="button"

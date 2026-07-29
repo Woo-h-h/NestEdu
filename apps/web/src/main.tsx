@@ -5,6 +5,9 @@ import './index.css'
 import App from './App.tsx'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { startAuthBridge } from '@/lib/authBridge'
+import { installArchiveDebugGlobals } from '@/lib/archiveDebug'
+
+installArchiveDebugGlobals()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
