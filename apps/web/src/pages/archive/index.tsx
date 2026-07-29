@@ -394,6 +394,7 @@ export default function ArchivePage() {
                     cachedUidHash: debugPayload.cachedUidHash,
                     categoryCount: debugPayload.categoryCount,
                     categoryError: debugPayload.categoryError,
+                    categoryDebug: debugPayload.categoryDebug,
                     resolvedArchiveId: debugPayload.resolvedArchiveId,
                     archiveChildNames: debugPayload.archiveChildNames,
                     matchedFolders: debugPayload.archive?.folders?.map((f) => ({

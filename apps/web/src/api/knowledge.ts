@@ -130,42 +130,110 @@ const PLATFORM_CATEGORY_LIST_PATH = '/api/knowledge/category/list'
 
 export async function fetchKnowledgeCategories(
   knowledgeId?: string
-): Promise<{ categories: KnowledgeCategory[]; error?: string; rawCount?: number }> {
+): Promise<{
+  categories: KnowledgeCategory[]
+  error?: string
+  rawCount?: number
+  debug?: Record<string, unknown>
+}> {
   const kid = (knowledgeId || getDefaultKnowledgeId()).trim()
   if (!kid) return { categories: [], error: 'knowledgeId is required', rawCount: 0 }
 
+  const debug: Record<string, unknown> = { knowledgeId: kid, attempts: [] as unknown[] }
+
   try {
-    // 生产同域反代 /api/knowledge；本地 Vite 代理到平台
-    // 与平台 SPA 一致：GET /api/knowledge/category/list?knowledge_id=
-    const envelope = await request.get<ApiEnvelope>(PLATFORM_CATEGORY_LIST_PATH, {
-      params: { knowledge_id: parseIdValue(kid) },
-    })
-    assertSuccess(envelope, '知识库分类列表失败')
-    const raw = envelope.result
-    const list = extractCategoryList(raw)
-    if (!Array.isArray(list)) {
-      return {
-        categories: [],
-        error: '知识库分类列表格式异常（result 非数组）',
-        rawCount: 0,
+    // 平台 SPA：GET /knowledge/category/list?knowledge_id=（axios baseURL 已含 /api）
+    // 部分网关对 GET 返回空 result，再试 POST
+    const attempts: Array<{ method: 'get' | 'post'; knowledgeId: string | number }> = [
+      { method: 'get', knowledgeId: parseIdValue(kid) },
+      { method: 'get', knowledgeId: kid },
+      { method: 'post', knowledgeId: parseIdValue(kid) },
+      { method: 'post', knowledgeId: kid },
+    ]
+
+    let bestList: unknown[] = []
+    let lastEnvelope: ApiEnvelope | null = null
+
+    for (const attempt of attempts) {
+      let envelope: ApiEnvelope
+      if (attempt.method === 'get') {
+        envelope = await request.get<ApiEnvelope>(PLATFORM_CATEGORY_LIST_PATH, {
+          params: { knowledge_id: attempt.knowledgeId },
+        })
+      } else {
+        envelope = await request.post<ApiEnvelope>(PLATFORM_CATEGORY_LIST_PATH, {
+          knowledge_id: attempt.knowledgeId,
+        })
+      }
+      assertSuccess(envelope, '知识库分类列表失败')
+      lastEnvelope = envelope
+      const list = extractCategoryListFromEnvelope(envelope)
+      ;(debug.attempts as unknown[]).push({
+        method: attempt.method,
+        knowledgeId: attempt.knowledgeId,
+        envelopeKeys: envelope && typeof envelope === 'object' ? Object.keys(envelope) : [],
+        resultType: envelope?.result === null ? 'null' : Array.isArray(envelope?.result) ? `array:${(envelope.result as unknown[]).length}` : typeof envelope?.result,
+        parsedCount: list.length,
+      })
+      if (list.length > bestList.length) bestList = list
+      if (list.length > 0) break
+    }
+
+    const categories = flattenKnowledgeCategories(bestList)
+    debug.rawCount = bestList.length
+    debug.mappedCount = categories.length
+    debug.envelopeKeys =
+      lastEnvelope && typeof lastEnvelope === 'object' ? Object.keys(lastEnvelope) : []
+
+    console.warn('[Knowledge] category/list', debug)
+
+    if (categories.length === 0 && lastEnvelope) {
+      // 仍为空：用文档列表反推分类（教师成果库子文件夹常能从文档 category_* 字段还原）
+      const discovered = await discoverCategoriesFromDocuments(kid)
+      debug.discoveredFromDocuments = discovered.length
+      if (discovered.length > 0) {
+        return { categories: discovered, rawCount: discovered.length, debug }
       }
     }
 
-    const categories = flattenKnowledgeCategories(list)
-    if (import.meta.env.DEV) {
-      console.warn('[Knowledge] category/list', {
-        knowledgeId: kid,
-        rawCount: list.length,
-        mappedCount: categories.length,
-        names: categories.map((c) => c.name),
-      })
-    }
-    return { categories, rawCount: list.length }
+    return { categories, rawCount: bestList.length, debug }
   } catch (err) {
     const msg = extractErrorMessage(err)
     console.warn('[Knowledge] 分类列表失败:', err)
-    return { categories: [], error: msg, rawCount: 0 }
+    debug.error = msg
+    // 分类接口失败时仍尝试文档反推
+    try {
+      const discovered = await discoverCategoriesFromDocuments(kid)
+      if (discovered.length > 0) {
+        return { categories: discovered, rawCount: discovered.length, debug, error: msg }
+      }
+    } catch {
+      // ignore
+    }
+    return { categories: [], error: msg, rawCount: 0, debug }
   }
+}
+
+function extractCategoryListFromEnvelope(envelope: ApiEnvelope): unknown[] {
+  const candidates: unknown[] = [
+    envelope.result,
+    (envelope as { data?: unknown }).data,
+    (envelope as { list?: unknown }).list,
+    (envelope as { categories?: unknown }).categories,
+  ]
+  // data 再包一层 result
+  const data = (envelope as { data?: unknown }).data
+  if (data && typeof data === 'object') {
+    const nested = data as Record<string, unknown>
+    candidates.push(nested.result, nested.list, nested.items, nested.data, nested.categories)
+  }
+  for (const candidate of candidates) {
+    const list = extractCategoryList(candidate)
+    if (list.length > 0) return list
+  }
+  // 明确空数组也返回
+  if (Array.isArray(envelope.result)) return envelope.result
+  return []
 }
 
 function extractCategoryList(raw: unknown): unknown[] {
@@ -175,6 +243,112 @@ function extractCategoryList(raw: unknown): unknown[] {
   for (const key of ['list', 'items', 'data', 'categories', 'rows', 'records']) {
     const value = obj[key]
     if (Array.isArray(value)) return value
+  }
+  return []
+}
+
+/**
+ * 当 category/list 返回空时，从文档列表的 category_id / category_name 反推分类树。
+ * 足以还原「教师成果库」下以手机号命名的个人文件夹。
+ */
+async function discoverCategoriesFromDocuments(
+  knowledgeId: string
+): Promise<KnowledgeCategory[]> {
+  const archiveId = getArchiveCategoryId()
+  const archiveKey = getArchiveCategoryKey()
+  const queries: Array<Record<string, unknown>> = [
+    {
+      knowledge_id: parseIdValue(knowledgeId),
+      current: 1,
+      pageSize: 100,
+    },
+  ]
+  if (archiveId) {
+    queries.push({
+      knowledge_id: parseIdValue(knowledgeId),
+      category_id: parseIdValue(archiveId),
+      category_key: archiveKey || undefined,
+      current: 1,
+      pageSize: 100,
+    })
+  }
+
+  const byId = new Map<string, KnowledgeCategory>()
+  if (archiveId) {
+    byId.set(archiveId, {
+      id: archiveId,
+      name: '教师成果库',
+      parentId: '0',
+      key: archiveKey,
+      childrenIds: [],
+    })
+  }
+
+  for (const body of queries) {
+    try {
+      const envelope = await request.post<ApiEnvelope>(PLATFORM_LIST_PATH, body)
+      assertSuccess(envelope, '知识库文档列表失败')
+      const items = extractDocumentItems(envelope.result)
+      for (const item of items) {
+        const id = pickString(item, ['category_id', 'categoryId', 'folder_id', 'folderId'])
+        const name = pickString(item, [
+          'category_name',
+          'categoryName',
+          'folder_name',
+          'folderName',
+          'dir_name',
+        ])
+        if (!id || !name) continue
+        const parentId =
+          pickString(item, ['parent_category_id', 'parentCategoryId', 'parent_id', 'parentId']) ||
+          archiveId ||
+          '0'
+        const key = pickString(item, ['category_key', 'categoryKey', 'custom_key'])
+        const existing = byId.get(id)
+        if (existing) {
+          if (!existing.key && key) existing.key = key
+          continue
+        }
+        byId.set(id, {
+          id,
+          name,
+          parentId,
+          key,
+          childrenIds: [],
+        })
+        const parent = byId.get(parentId)
+        if (parent && !parent.childrenIds.includes(id)) {
+          parent.childrenIds.push(id)
+        } else if (archiveId && parentId === archiveId) {
+          const archive = byId.get(archiveId)
+          if (archive && !archive.childrenIds.includes(id)) archive.childrenIds.push(id)
+        }
+      }
+    } catch (err) {
+      console.warn('[Knowledge] document discover categories failed:', err)
+    }
+  }
+
+  const list = [...byId.values()]
+  console.warn('[Knowledge] discovered categories from documents', {
+    count: list.length,
+    names: list.map((c) => c.name),
+  })
+  return list
+}
+
+function extractDocumentItems(raw: unknown): Record<string, unknown>[] {
+  if (raw == null) return []
+  if (Array.isArray(raw)) {
+    return raw.filter((item) => item && typeof item === 'object') as Record<string, unknown>[]
+  }
+  if (typeof raw !== 'object') return []
+  const obj = raw as Record<string, unknown>
+  for (const key of ['list', 'items', 'data', 'documents', 'records', 'rows']) {
+    const value = obj[key]
+    if (Array.isArray(value)) {
+      return value.filter((item) => item && typeof item === 'object') as Record<string, unknown>[]
+    }
   }
   return []
 }

@@ -12,6 +12,7 @@ export interface ArchiveDebugPayload {
   scope: ReturnType<typeof archiveKnowledgeScope>
   categoryCount: number
   categoryError: string | null
+  categoryDebug?: Record<string, unknown>
   archiveChildNames: string[]
   resolvedArchiveId: string
   categoryNames: Array<{
@@ -40,6 +41,7 @@ export async function runArchiveDebug(): Promise<ArchiveDebugPayload> {
     scope,
     categoryCount: cats.categories.length,
     categoryError: cats.error || null,
+    categoryDebug: cats.debug,
     archiveChildNames,
     resolvedArchiveId,
     categoryNames: cats.categories.map((c) => ({
