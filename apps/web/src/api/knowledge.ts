@@ -7,6 +7,9 @@ import {
   resolveArchiveParentId,
   resolveTeacherArchiveFolders,
 } from '@/lib/archiveTeacherScope'
+import {
+  NestEduKnowledgeCategoryCodec,
+} from '@/lib/knowledgeCategoryMap'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 
@@ -178,17 +181,14 @@ export async function fetchKnowledgeCategories(
       if (list.length > 0) break
     }
 
-    // 动态 import：分类映射必须落在独立 chunk，避免与 React minify 短名冲突
-    const { flattenKnowledgeCategories, summarizeRawCategories } = await import(
-      '@/lib/knowledgeCategoryMap'
-    )
-    const categories = flattenKnowledgeCategories(bestList)
+    // 通过引号属性调用，避免 minify 短名与 React 冲突
+    const categories = NestEduKnowledgeCategoryCodec['flattenKnowledgeCategories'](bestList)
     debug.rawCount = bestList.length
     debug.mappedCount = categories.length
-    debug.sampleRaw = summarizeRawCategories(bestList, 5)
+    debug.sampleRaw = NestEduKnowledgeCategoryCodec['summarizeRawCategories'](bestList, 5)
     debug.envelopeKeys =
       lastEnvelope && typeof lastEnvelope === 'object' ? Object.keys(lastEnvelope) : []
-    debug.mapperChunk = 'knowledgeCategoryMap(dynamic)'
+    debug.mapperChunk = 'NestEduKnowledgeCategoryCodec'
 
     if (bestList.length > 0 && categories.length === 0) {
       console.error('[Knowledge] category mapping produced 0 from non-empty list', {
