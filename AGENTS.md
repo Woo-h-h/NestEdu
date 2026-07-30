@@ -5,6 +5,7 @@
 详细展开看：
 
 - [README.md](README.md)
+- [CHANGELOG.md](CHANGELOG.md)（历史变更；每次实质更新须在顶部追加摘要）
 - [docs/mvp-template-usage-guide.md](docs/mvp-template-usage-guide.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/api-contract.md](docs/api-contract.md)
@@ -165,10 +166,11 @@ apps/api/internal/
 
 ### 协作与变更纪律
 
-1. 每一 Phase 开始前创建 OpenSpec change，在 `tasks.md` 勾选推进。  
-2. UI 以原型为准，但交互文案、路由名以本文件与产品确认为准。  
-3. 先契约（类型 + API）再铺大页面；统计与画像逻辑优先纯函数 + 单测。  
+1. 每一 Phase 开始前创建 OpenSpec change，在 `tasks.md` 勾选推进。 
+2. UI 以原型为准，但交互文案、路由名以本文件与产品确认为准。 
+3. 先契约（类型 + API）再铺大页面；统计与画像逻辑优先纯函数 + 单测。 
 4. 每阶段合并前：前端 `pnpm --filter ./apps/web build`；若有后端域改动：`cd apps/api && go test ./...`。
+5. 每次实质功能/修复/配置更新完成后，在 [CHANGELOG.md](CHANGELOG.md) **顶部**追加一条摘要（日期 + 业务/技术/验证）。
 
 ### 原型对照检查清单（实现自测）
 

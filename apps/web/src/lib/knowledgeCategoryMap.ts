@@ -48,15 +48,20 @@ function nestEduBuildCategoryCodec(): CategoryCodec {
     for (const src of sources) {
       // 平台 SPA 字段：id / name / parent_id / children_ids
       const idVal = src.id ?? src.category_id ?? src.categoryId ?? src.value ?? src.folder_id
+      // 平台 category/list 当前字段为 display_name / category_key（无 name）
       const nameVal =
         src.name ??
+        src.display_name ??
+        src.displayName ??
         src.category_name ??
         src.categoryName ??
         src.title ??
         src.label ??
         src.text ??
         src.folder_name ??
-        src.folderName
+        src.folderName ??
+        src.category_key ??
+        src.categoryKey
 
       if (idVal == null || idVal === '') continue
       if (nameVal == null || nameVal === '') continue
