@@ -13,6 +13,8 @@ interface ImportMetaEnv {
   readonly VITE_TEACHING_AGENT_ID?: string
   readonly VITE_WEEKLY_PLAN_AGENT_ID?: string
   readonly VITE_PROFILE_AGENT_ID?: string
+  readonly VITE_APP_VERSION?: string
+  readonly VITE_APP_BUILD_ID?: string
   readonly VITE_USE_BACKEND_API?: string
   readonly VITE_API_BASE_URL?: string
   readonly VITE_BASE_PATH?: string
