@@ -18,6 +18,7 @@ import {
   buildKnowledgeDocTitle,
   resolveOwnerIdentityForDocTitle,
 } from '@/lib/knowledgeDocTitle'
+import { buildTaxonomyContentPrefix } from '@/lib/planTaxonomy'
 import { authBridge } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
@@ -88,9 +89,10 @@ export default function WeeklyPlanCreateSection() {
         kind: 'weekly',
         planName: weeklyPlanUploadTitle(wp.currentPlan),
       })
+      const prefix = buildTaxonomyContentPrefix({ classLevel: wp.currentPlan.className })
       await uploadKnowledgeDocument({
         title,
-        content: serializeWeeklyPlanText(wp.currentPlan),
+        content: `${prefix}${serializeWeeklyPlanText(wp.currentPlan)}`,
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
         categoryKey: scope.categoryKey,

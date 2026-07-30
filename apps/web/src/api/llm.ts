@@ -205,7 +205,11 @@ export async function generateWeeklyPlan(
   }
 }
 
-function normalizeTeachingPlans(raw: unknown, themeName: string): TeachingPlan[] {
+function normalizeTeachingPlans(
+  raw: unknown,
+  themeName: string,
+  className?: string
+): TeachingPlan[] {
   let list: unknown[] = []
   if (Array.isArray(raw)) {
     list = raw
@@ -222,7 +226,7 @@ function normalizeTeachingPlans(raw: unknown, themeName: string): TeachingPlan[]
       id: typeof p.id === 'string' && p.id ? p.id : `ai_${now}_${i}`,
       title: String(p.title || ''),
       domain: String(p.domain || ''),
-      gradeLevel: String(p.gradeLevel || '通用'),
+      gradeLevel: String(p.gradeLevel || className || '通用'),
       objectives: String(p.objectives || ''),
       content: String(p.content || ''),
       source: 'ai',
@@ -261,7 +265,7 @@ async function agentGenerateTeachingPlans(params: {
       { agentId: getTeachingAgentId(), timeoutMs: 90000 }
     )
     const parsed = JSON.parse(extractJson(content))
-    return normalizeTeachingPlans(parsed, params.themeName)
+    return normalizeTeachingPlans(parsed, params.themeName, params.className)
   }
 
   try {

@@ -8,6 +8,7 @@ import {
   resolveTeacherArchiveFolders,
 } from '@/lib/archiveTeacherScope'
 import { NestEduKnowledgeCategoryCodec } from '@/lib/knowledgeCategoryMap'
+import { enrichPlanTaxonomy } from '@/lib/planTaxonomy'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 
@@ -556,7 +557,7 @@ function truncate(text: string, max: number): string {
 }
 
 function mapTeachingPlan(plan: Partial<TeachingPlan> & Record<string, unknown>): TeachingPlan {
-  return {
+  return enrichPlanTaxonomy({
     id: String(plan.id || ''),
     title: String(plan.title || ''),
     domain: String(plan.domain || '综合'),
@@ -565,7 +566,7 @@ function mapTeachingPlan(plan: Partial<TeachingPlan> & Record<string, unknown>):
     content: String(plan.content || ''),
     source: (plan.source as TeachingPlan['source']) || 'platform',
     knowledgeId: plan.knowledgeId ? String(plan.knowledgeId) : undefined,
-  }
+  })
 }
 
 function mapPlanMaps(items: Record<string, unknown>[], knowledgeId: string): TeachingPlan[] {
@@ -590,20 +591,23 @@ function mapPlanMaps(items: Record<string, unknown>[], knowledgeId: string): Tea
     if (!content) content = objectives
     if (!objectives) objectives = truncate(content, 100)
 
-    plans.push({
-      id,
-      title,
-      domain:
-        pickString(item, ['domain', 'subject', 'category_name', 'display_name', 'knowledge_tag']) ||
-        '综合',
-      gradeLevel:
-        pickString(item, ['gradeLevel', 'grade_level', 'grade', 'class_name']) || '通用',
-      objectives,
-      content,
-      source: 'platform',
-      knowledgeId:
-        pickString(item, ['knowledge_id', 'knowledgeId']) || knowledgeId || undefined,
-    })
+    // 不要把知识库分类文件夹名误当成五领域
+    const rawDomain = pickString(item, ['domain', 'subject', 'knowledge_tag'])
+    const rawGrade = pickString(item, ['gradeLevel', 'grade_level', 'grade', 'class_name'])
+
+    plans.push(
+      enrichPlanTaxonomy({
+        id,
+        title,
+        domain: rawDomain || '综合',
+        gradeLevel: rawGrade || '通用',
+        objectives,
+        content,
+        source: 'platform',
+        knowledgeId:
+          pickString(item, ['knowledge_id', 'knowledgeId']) || knowledgeId || undefined,
+      })
+    )
   }
   return plans
 }

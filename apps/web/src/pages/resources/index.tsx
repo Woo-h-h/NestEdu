@@ -370,6 +370,7 @@ export default function ResourcesPage() {
             plans={res.platformPlans}
             loading={res.isLoadingPlatform}
             sourceHint={res.listHint}
+            taxonomy="activity"
             emptyHint={
               isLoggedIn
                 ? '知识库暂无文档，可上传文件或到「活动方案生成」入库'

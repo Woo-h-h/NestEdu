@@ -151,6 +151,7 @@ export default function WeeklyPlanManageSection() {
           plans={kb.platformPlans}
           loading={kb.isLoadingPlatform}
           sourceHint={kb.listHint}
+          taxonomy="weekly"
           emptyHint="暂无周计划，可上传 docx 或从「周计划生成」入库"
           onView={(plan) => {
             setViewPlan(plan)

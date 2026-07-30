@@ -11,6 +11,7 @@ import {
   buildKnowledgeDocTitle,
   resolveOwnerIdentityForDocTitle,
 } from '@/lib/knowledgeDocTitle'
+import { buildTaxonomyContentPrefix, splitDomainTokens } from '@/lib/planTaxonomy'
 import { authBridge } from '@/lib/authBridge'
 import { isApiConfigured } from '@/api/weeklyPlan'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
@@ -109,16 +110,21 @@ export function useTeachingResources() {
         kind: 'activity',
         planName: plan.title,
       })
+      const body = [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title
+      const prefix = buildTaxonomyContentPrefix({
+        classLevel: plan.gradeLevel || className || '',
+        domains: splitDomainTokens(plan.domain),
+      })
       return {
         fileName: title,
         title,
-        content: [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title,
+        content: `${prefix}${body}`,
       }
     })
     setPendingUploads(items)
     setConfirmMode('generated')
     setConfirmOpen(true)
-  }, [])
+  }, [className])
 
   const prepareFileUpload = useCallback(async () => {
     const auth = authBridge.getAuthInfo()
