@@ -92,6 +92,15 @@ export function weeklyPlanKnowledgeScope() {
   }
 }
 
+/** 教案 / 活动方案知识库作用域（教案知识库管理 20806） */
+export function activityPlanKnowledgeScope() {
+  return {
+    knowledgeId: getDefaultKnowledgeId(),
+    categoryId: getDefaultCategoryId(),
+    categoryKey: getDefaultCategoryKey(),
+  }
+}
+
 export function getArchiveCategoryId(): string {
   return (
     (import.meta.env.VITE_ARCHIVE_KNOWLEDGE_CATEGORY_ID || '').trim() ||
@@ -806,12 +815,48 @@ export async function uploadKnowledgeDocument(params: {
   const knowledgeId = (params.knowledgeId || getDefaultKnowledgeId()).trim()
   const hasExplicitCategory =
     params.categoryId !== undefined || params.categoryKey !== undefined
-  const categoryId = (
+  let categoryId = (
     hasExplicitCategory ? params.categoryId || '' : getDefaultCategoryId()
   ).trim()
-  const categoryKey = (
+  let categoryKey = (
     hasExplicitCategory ? params.categoryKey || '' : getDefaultCategoryKey()
   ).trim()
+
+  // 标题含业务类型时，禁止误入教师成果库 / 手机号个人文件夹
+  const looksLikePhoneFolder = /^1\d{10}$/.test(categoryKey)
+  const isArchiveTarget =
+    categoryId === getArchiveCategoryId() ||
+    categoryKey === getArchiveCategoryKey() ||
+    looksLikePhoneFolder
+  if (/_活动方案_/.test(title) && isArchiveTarget) {
+    const activity = activityPlanKnowledgeScope()
+    console.warn('[Knowledge] 活动方案目标分类被纠正为教案库', {
+      from: { categoryId, categoryKey },
+      to: activity,
+    })
+    categoryId = activity.categoryId
+    categoryKey = activity.categoryKey
+  }
+  if (/_周计划_/.test(title) && isArchiveTarget) {
+    const weekly = weeklyPlanKnowledgeScope()
+    console.warn('[Knowledge] 周计划目标分类被纠正为周计划库', {
+      from: { categoryId, categoryKey },
+      to: weekly,
+    })
+    categoryId = weekly.categoryId
+    categoryKey = weekly.categoryKey
+  }
+
+  if (!categoryId && !categoryKey) {
+    throw new Error('上传失败：未指定知识库分类（教案库 / 周计划库 / 成果库）')
+  }
+
+  console.info('[Knowledge] upload', {
+    knowledgeId,
+    categoryId,
+    categoryKey,
+    title,
+  })
 
   let envelope: ApiEnvelope
   if (USE_BFF) {

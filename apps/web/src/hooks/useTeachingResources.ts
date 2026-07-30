@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ClassType, TeachingPlan } from '@/types/weeklyPlan'
 import { generateTeachingPlans } from '@/api/llm'
 import {
+  activityPlanKnowledgeScope,
   fetchKnowledgePlans,
   uploadKnowledgeDocument,
   deleteKnowledgeDocument,
@@ -43,13 +44,17 @@ export function useTeachingResources() {
   const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
     try {
+      const scope = activityPlanKnowledgeScope()
       const { plans: next, source, error } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
+        knowledgeId: scope.knowledgeId,
+        categoryId: scope.categoryId,
+        categoryKey: scope.categoryKey,
         limit: 50,
       })
       setPlatformPlans(next)
       if (source === 'platform') {
-        setListHint('平台知识库 · 10298')
+        setListHint(`教案知识库 · ${scope.knowledgeId} · 分类 ${scope.categoryId}`)
       } else if (source === 'preset') {
         setListHint(error ? `本地预设（平台失败：${error}）` : '本地预设')
       } else {
@@ -179,12 +184,16 @@ export function useTeachingResources() {
     else setIsUploading(true)
 
     try {
+      const scope = activityPlanKnowledgeScope()
       const uploaded: TeachingPlan[] = []
       for (const item of pendingUploads) {
         uploaded.push(
           await uploadKnowledgeDocument({
             title: item.title,
             content: item.content,
+            knowledgeId: scope.knowledgeId,
+            categoryId: scope.categoryId,
+            categoryKey: scope.categoryKey,
           })
         )
       }

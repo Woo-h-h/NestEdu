@@ -698,6 +698,11 @@ export default function ArchivePage() {
         uploading={kb.isUploading}
         onCancel={kb.cancelPendingUpload}
         onConfirm={() => void handleConfirmUpload()}
+        targetHint={
+          kb.uploadTarget
+            ? `将上传到教师成果库个人文件夹「${kb.uploadTarget.name}」（分类 ${kb.uploadTarget.id}）。`
+            : '将上传到教师成果库个人文件夹。'
+        }
       />
 
       <PlanDetailDialog plan={viewPlan} open={detailOpen} onOpenChange={setDetailOpen} />

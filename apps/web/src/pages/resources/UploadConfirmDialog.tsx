@@ -21,6 +21,8 @@ interface Props {
   uploading?: boolean
   onConfirm: () => void
   onCancel: () => void
+  /** 入库目标说明，避免误传到教师成果库 */
+  targetHint?: string
 }
 
 export default function UploadConfirmDialog({
@@ -29,6 +31,7 @@ export default function UploadConfirmDialog({
   uploading = false,
   onConfirm,
   onCancel,
+  targetHint = '将上传到知识库「教案知识库管理」（分类 20806）。请确认下列文件无误后再提交。',
 }: Props) {
   return (
     <Dialog
@@ -40,9 +43,7 @@ export default function UploadConfirmDialog({
       <DialogContent className="max-w-lg sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>确认上传到平台知识库</DialogTitle>
-          <DialogDescription>
-            将上传到知识库 10298（分类 20806）。请确认下列文件无误后再提交。
-          </DialogDescription>
+          <DialogDescription>{targetHint}</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">

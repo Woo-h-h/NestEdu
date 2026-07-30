@@ -5,7 +5,7 @@ import {
   aiModifyPlan,
   isApiConfigured,
 } from '@/api/weeklyPlan'
-import { fetchKnowledgePlans } from '@/api/knowledge'
+import { activityPlanKnowledgeScope, fetchKnowledgePlans } from '@/api/knowledge'
 import {
   loadTeachingContext,
   saveTeachingContext,
@@ -143,9 +143,11 @@ export function useWeeklyPlan() {
   const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
     try {
+      // 教案候选池来自「教案知识库管理」20806，不是教师成果库
       const { plans, source, error } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
         limit: 50,
+        ...activityPlanKnowledgeScope(),
       })
       setCandidatePlans((prev) => {
         const keepAi = prev.filter((p) => p.source === 'ai')
@@ -154,8 +156,8 @@ export function useWeeklyPlan() {
       setPoolSourceHint(
         source === 'platform'
           ? keyword?.trim()
-            ? `平台知识库 · 检索「${keyword.trim()}」`
-            : '平台知识库 · 10298'
+            ? `教案知识库 · 检索「${keyword.trim()}」`
+            : '教案知识库 · 20806'
           : source === 'preset'
             ? error
               ? `本地预设（平台失败：${error}）`

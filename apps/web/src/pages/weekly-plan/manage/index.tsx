@@ -185,6 +185,7 @@ export default function WeeklyPlanManageSection() {
         uploading={kb.isUploading}
         onCancel={kb.cancelPendingUpload}
         onConfirm={() => void handleConfirmUpload()}
+        targetHint={`将上传到「周计划管理」（分类 ${kb.scope.categoryId}）。请确认下列文件无误后再提交。`}
       />
 
       <PlanDetailDialog plan={viewPlan} open={detailOpen} onOpenChange={setDetailOpen} />
