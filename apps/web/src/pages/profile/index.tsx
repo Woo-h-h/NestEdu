@@ -61,13 +61,12 @@ export default function ProfilePage() {
   }, [platformDisplayName, authInfo])
 
   const isLoggedIn = Boolean(authInfo?.token)
+  const profileAgentId = getProfileAgentId()
 
   const handleGenerateAgentProfile = async () => {
     setAgentError('')
     setAgentLoading(true)
     try {
-      // 预检配置，失败信息更清晰
-      getProfileAgentId()
       const result = await generateProfileAgentAnalysis()
       setAgentMarkdown(result.markdown)
       setAgentMeta({
@@ -106,7 +105,16 @@ export default function ProfilePage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">智能画像解读</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-nest-muted">
-              由前端先按手机号隔离个人文件夹文档，再把摘要注入智能体；
+              已接入平台智能体{' '}
+              <a
+                href={`https://www.zcat.cn/teach/agent/config/${profileAgentId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-nest-pine underline-offset-2 hover:underline"
+              >
+                #{profileAgentId}
+              </a>
+              ：由前端先按手机号隔离个人文件夹文档，再把摘要注入智能体；
               <strong className="font-medium text-nest-pine">不把整库交给 Agent 检索</strong>
               ，避免看到其他教师材料。
             </p>
@@ -138,7 +146,15 @@ export default function ProfilePage() {
         {agentMeta && (
           <p className="text-xs text-nest-muted">
             本次注入：成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入 {agentMeta.localRecordCount}{' '}
-            条 · 智能体 ID {agentMeta.agentId}
+            条 · 智能体{' '}
+            <a
+              href={`https://www.zcat.cn/teach/agent/config/${agentMeta.agentId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-nest-pine underline-offset-2 hover:underline"
+            >
+              #{agentMeta.agentId}
+            </a>
           </p>
         )}
 
@@ -151,7 +167,8 @@ export default function ProfilePage() {
         ) : (
           !agentLoading && (
             <p className="text-sm text-nest-muted">
-              点击「生成智能画像」后，将仅基于您手机号文件夹与本地录入生成解读文案。
+              点击「生成智能画像」后，将调用智能体 #{profileAgentId}
+              ，仅基于您手机号文件夹与本地录入生成解读文案。
             </p>
           )
         )}
