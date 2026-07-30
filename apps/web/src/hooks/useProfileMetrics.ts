@@ -78,7 +78,7 @@ function resolvePlatformDisplayName(user: {
   return ''
 }
 
-export function useProfileMetrics(initialSystemStats: SystemStats = {}) {
+export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM_STATS) {
   const [records, setRecords] = useState<GrowthRecord[]>([])
   const [systemStats, setSystemStats] = useState<SystemStats>(initialSystemStats)
   const [displayName, setDisplayName] = useState('')
@@ -152,6 +152,8 @@ export function useProfileMetrics(initialSystemStats: SystemStats = {}) {
         ...localRecords.filter((item) => !seen.has(item.id) && !item.id.startsWith('kb_')),
       ]
       setRecords(merged)
+      // initialSystemStats 默认必须是稳定常量 EMPTY_SYSTEM_STATS；
+      // 若写成 `= {}`，每次渲染新引用 → load 重建 → effect 死循环闪烁
       setSystemStats({ ...initialSystemStats, ...nextStats })
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败')
@@ -169,9 +171,12 @@ export function useProfileMetrics(initialSystemStats: SystemStats = {}) {
     [records, systemStats]
   )
 
+  // actionSeeds 每次 build 都是新数组；按 id 签名避免无意义 setState
+  const actionSeedsKey = summary.actionSeeds.map((item) => item.id).join('|')
   useEffect(() => {
     setActions(mergeActionSeeds(summary.actionSeeds))
-  }, [summary.actionSeeds])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖 actionSeedsKey
+  }, [actionSeedsKey])
 
   const updateAction = useCallback(
     (id: string, patch: Partial<{ checked: boolean; status: ActionStatus; date: string; progress: number }>) => {
