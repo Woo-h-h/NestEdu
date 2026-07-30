@@ -14,6 +14,10 @@ import {
   weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
 import { serializeWeeklyPlanText, weeklyPlanUploadTitle } from '@/lib/weeklyPlanText'
+import {
+  buildKnowledgeDocTitle,
+  resolveOwnerIdentityForDocTitle,
+} from '@/lib/knowledgeDocTitle'
 import { authBridge } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
@@ -78,15 +82,21 @@ export default function WeeklyPlanCreateSection() {
 
     setIsUploading(true)
     try {
+      const owner = await resolveOwnerIdentityForDocTitle()
+      const title = buildKnowledgeDocTitle({
+        ...owner,
+        kind: 'weekly',
+        planName: weeklyPlanUploadTitle(wp.currentPlan),
+      })
       await uploadKnowledgeDocument({
-        title: weeklyPlanUploadTitle(wp.currentPlan),
+        title,
         content: serializeWeeklyPlanText(wp.currentPlan),
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
         categoryKey: scope.categoryKey,
       })
       wp.setIsModified(false)
-      toast.success('已上传到周计划知识库')
+      toast.success(`已上传到周计划知识库：${title}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
     } finally {
@@ -216,6 +226,21 @@ export default function WeeklyPlanCreateSection() {
           loading={wp.isLoadingPlatform}
           sourceHint={wp.poolSourceHint}
           emptyHint="暂无活动方案，可点击右上角刷新，或到活动方案页上传/生成"
+          onSearch={async (keyword) => {
+            try {
+              const plans = await wp.loadPlatformPlans(keyword)
+              toast.success(
+                keyword
+                  ? `检索「${keyword}」：${plans.length} 份`
+                  : plans.length > 0
+                    ? `已刷新 ${plans.length} 份教案`
+                    : '暂无教案'
+              )
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : '搜寻失败')
+            }
+          }}
+          searchPlaceholder="搜寻活动方案（可用姓名、手机号、方案名）"
         />
 
         <div className="border-t border-nest-leaf/10 pt-5 text-center">

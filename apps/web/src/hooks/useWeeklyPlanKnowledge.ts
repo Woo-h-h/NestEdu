@@ -7,6 +7,10 @@ import {
   weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
 import { parseDocxFiles } from '@/lib/parse-docx'
+import {
+  buildKnowledgeDocTitle,
+  resolveOwnerIdentityForDocTitle,
+} from '@/lib/knowledgeDocTitle'
 import { authBridge } from '@/lib/authBridge'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
 
@@ -58,16 +62,25 @@ export function useWeeklyPlanKnowledge() {
 
     setIsPreparingUpload(true)
     try {
+      const owner = await resolveOwnerIdentityForDocTitle()
       const parsed = await parseDocxFiles(uploadFiles)
       if (parsed.length === 0) {
         throw new Error('未能解析出有效文本，请确认文件为有效 docx')
       }
       setPendingUploads(
-        parsed.map((file) => ({
-          fileName: file.name,
-          title: file.name.replace(/\.(docx|doc)$/i, ''),
-          content: file.content,
-        }))
+        parsed.map((file) => {
+          const baseName = file.name.replace(/\.(docx|doc)$/i, '')
+          const title = buildKnowledgeDocTitle({
+            ...owner,
+            kind: 'weekly',
+            planName: baseName,
+          })
+          return {
+            fileName: file.name,
+            title,
+            content: file.content,
+          }
+        })
       )
       setConfirmOpen(true)
     } finally {

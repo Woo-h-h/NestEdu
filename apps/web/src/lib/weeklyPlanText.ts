@@ -1,4 +1,5 @@
 import type { DayPlan, TeachingPlan, WeeklyPlan } from '@/types/weeklyPlan'
+import { stripKnowledgeDocDecorations } from '@/lib/knowledgeDocTitle'
 
 /** 导出 / 上传文件名：如「小四班第7周计划.docx」 */
 export function weeklyPlanFileName(plan: Pick<WeeklyPlan, 'className' | 'weekNumber'>): string {
@@ -7,7 +8,7 @@ export function weeklyPlanFileName(plan: Pick<WeeklyPlan, 'className' | 'weekNum
   return `${cls}第${week}周计划.docx`
 }
 
-/** 知识库文档标题（与导出文件名主体一致，无扩展名） */
+/** 周计划方案名主体（不含教师前缀；入库时再套规范标题） */
 export function weeklyPlanUploadTitle(plan: Pick<WeeklyPlan, 'className' | 'weekNumber' | 'themeName'>): string {
   const cls = String(plan.className || '').trim()
   const week = Number(plan.weekNumber) > 0 ? Number(plan.weekNumber) : 1
@@ -56,7 +57,7 @@ function emptyDays(): DayPlan[] {
 }
 
 function pickMetaFromTitle(title: string): Partial<WeeklyPlan> {
-  const t = title.trim()
+  const t = stripKnowledgeDocDecorations(title)
   // 小四班第7周计划 / 小班第7周计划
   const m1 = t.match(/^(.+?)第\s*(\d+)\s*周计划$/)
   if (m1) {

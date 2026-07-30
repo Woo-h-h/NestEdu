@@ -7,6 +7,10 @@ import {
   deleteKnowledgeDocument,
 } from '@/api/knowledge'
 import { parseDocxFiles } from '@/lib/parse-docx'
+import {
+  buildKnowledgeDocTitle,
+  resolveOwnerIdentityForDocTitle,
+} from '@/lib/knowledgeDocTitle'
 import { authBridge } from '@/lib/authBridge'
 import { isApiConfigured } from '@/api/weeklyPlan'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
@@ -93,16 +97,24 @@ export function useTeachingResources() {
     [themeName, className, focusDomains, notes]
   )
 
-  const prepareGeneratedUpload = useCallback((plans: TeachingPlan[]) => {
+  const prepareGeneratedUpload = useCallback(async (plans: TeachingPlan[]) => {
     const auth = authBridge.getAuthInfo()
     if (!auth?.token) throw new Error('请先登录平台后再上传')
     if (plans.length === 0) throw new Error('请先勾选要上传的教案')
 
-    const items: PendingUploadItem[] = plans.map((plan) => ({
-      fileName: plan.title,
-      title: plan.title,
-      content: [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title,
-    }))
+    const owner = await resolveOwnerIdentityForDocTitle()
+    const items: PendingUploadItem[] = plans.map((plan) => {
+      const title = buildKnowledgeDocTitle({
+        ...owner,
+        kind: 'activity',
+        planName: plan.title,
+      })
+      return {
+        fileName: title,
+        title,
+        content: [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title,
+      }
+    })
     setPendingUploads(items)
     setConfirmMode('generated')
     setConfirmOpen(true)
@@ -120,16 +132,25 @@ export function useTeachingResources() {
 
     setIsPreparingUpload(true)
     try {
+      const owner = await resolveOwnerIdentityForDocTitle()
       const parsed = await parseDocxFiles(uploadFiles)
       if (parsed.length === 0) {
         throw new Error('未能解析出有效文本，请确认文件为有效 docx')
       }
       setPendingUploads(
-        parsed.map((file) => ({
-          fileName: file.name,
-          title: file.name.replace(/\.(docx|doc)$/i, ''),
-          content: file.content,
-        }))
+        parsed.map((file) => {
+          const baseName = file.name.replace(/\.(docx|doc)$/i, '')
+          const title = buildKnowledgeDocTitle({
+            ...owner,
+            kind: 'activity',
+            planName: baseName,
+          })
+          return {
+            fileName: file.name,
+            title,
+            content: file.content,
+          }
+        })
       )
       setConfirmMode('files')
       setConfirmOpen(true)

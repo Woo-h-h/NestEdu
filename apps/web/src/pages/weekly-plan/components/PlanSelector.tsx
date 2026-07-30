@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Loader2, Trash2 } from 'lucide-react'
+import { Check, Loader2, Search, Trash2 } from 'lucide-react'
+import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
 
 interface Props {
   plans: TeachingPlan[]
@@ -11,6 +12,9 @@ interface Props {
   emptyHint?: string
   onDelete?: (plan: TeachingPlan) => void | Promise<void>
   deleting?: boolean
+  /** 提交关键词时回调（可触发平台检索）；本地仍会即时过滤 */
+  onSearch?: (keyword: string) => void | Promise<void>
+  searchPlaceholder?: string
 }
 
 const sourceTag: Record<string, string> = {
@@ -28,8 +32,11 @@ export default function PlanSelector({
   emptyHint = '暂无候选教案，请先从上方来源生成或加载',
   onDelete,
   deleting = false,
+  onSearch,
+  searchPlaceholder = '搜索方案名、内容关键词…',
 }: Props) {
   const [domain, setDomain] = useState('全部')
+  const [query, setQuery] = useState('')
 
   const domains = [
     '全部',
@@ -42,7 +49,10 @@ export default function PlanSelector({
     ),
   ]
 
-  const filtered = domain === '全部' ? plans : plans.filter((p) => p.domain.includes(domain))
+  const filtered = useMemo(() => {
+    const byDomain = domain === '全部' ? plans : plans.filter((p) => p.domain.includes(domain))
+    return filterPlansByKeyword(byDomain, query)
+  }, [plans, domain, query])
 
   const toggle = (plan: TeachingPlan) => {
     onChange(
@@ -50,6 +60,10 @@ export default function PlanSelector({
         ? selected.filter((p) => p.id !== plan.id)
         : [...selected, plan]
     )
+  }
+
+  const submitSearch = () => {
+    void onSearch?.(query.trim())
   }
 
   return (
@@ -68,6 +82,34 @@ export default function PlanSelector({
         )}
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-nest-muted"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submitSearch()
+              }
+            }}
+            placeholder={searchPlaceholder}
+            className="field-input w-full !py-2 pl-9 text-sm"
+            aria-label="搜索教案候选池"
+          />
+        </div>
+        {onSearch && (
+          <button type="button" onClick={submitSearch} disabled={loading} className="btn-secondary !px-3 !py-2 text-xs">
+            搜寻
+          </button>
+        )}
+      </div>
+
       {loading && (
         <div className="mb-3 flex items-center gap-2 text-sm text-nest-muted">
           <Loader2 size={14} className="animate-spin text-nest-leaf" /> 正在加载教案...
@@ -76,6 +118,10 @@ export default function PlanSelector({
 
       {!loading && plans.length === 0 && (
         <p className="mb-3 text-sm text-nest-muted/80">{emptyHint}</p>
+      )}
+
+      {!loading && plans.length > 0 && filtered.length === 0 && (
+        <p className="mb-3 text-sm text-nest-muted/80">没有匹配「{query.trim() || domain}」的方案</p>
       )}
 
       {plans.length > 0 && (

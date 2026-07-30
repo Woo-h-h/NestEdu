@@ -91,11 +91,13 @@ export default function ResourcesPage() {
     }
   }
   const handlePrepareGeneratedUpload = () => {
-    try {
-      res.prepareGeneratedUpload(res.uploadSelection)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '无法准备上传')
-    }
+    void (async () => {
+      try {
+        await res.prepareGeneratedUpload(res.uploadSelection)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '无法准备上传')
+      }
+    })()
   }
   const handlePrepareFileUpload = async () => {
     try {
@@ -303,6 +305,7 @@ export default function ResourcesPage() {
               onView={handleView}
               onDelete={handleDelete}
               deleting={res.isDeleting}
+              showSearch={false}
             />
           )}
         </div>
@@ -375,6 +378,21 @@ export default function ResourcesPage() {
             onView={handleView}
             onDelete={handleDelete}
             deleting={res.isDeleting}
+            searchPlaceholder="搜寻活动方案（姓名、手机号、方案名）"
+            onSearch={async (keyword) => {
+              try {
+                const plans = await res.loadPlatformPlans(keyword)
+                toast.success(
+                  keyword
+                    ? `检索「${keyword}」：${plans.length} 份`
+                    : plans.length > 0
+                      ? `已加载 ${plans.length} 份文档`
+                      : '知识库暂无文档'
+                )
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : '搜寻失败')
+              }
+            }}
           />
         </div>
       )}

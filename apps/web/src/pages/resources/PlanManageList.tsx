@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Download, Eye, Loader2, Trash2 } from 'lucide-react'
+import { Check, Download, Eye, Loader2, Search, Trash2 } from 'lucide-react'
+import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
 
 interface Props {
   plans: TeachingPlan[]
@@ -17,6 +18,10 @@ interface Props {
   deleting?: boolean
   exporting?: boolean
   title?: string
+  onSearch?: (keyword: string) => void | Promise<void>
+  searchPlaceholder?: string
+  /** 生成结果勾选列表等场景可关掉搜索框 */
+  showSearch?: boolean
 }
 
 const sourceTag: Record<string, string> = {
@@ -39,8 +44,12 @@ export default function PlanManageList({
   deleting = false,
   exporting = false,
   title = '教案列表',
+  onSearch,
+  searchPlaceholder = '搜索方案名、手机号、内容关键词…',
+  showSearch = true,
 }: Props) {
   const [domain, setDomain] = useState('全部')
+  const [query, setQuery] = useState('')
 
   const domains = [
     '全部',
@@ -53,7 +62,10 @@ export default function PlanManageList({
     ),
   ]
 
-  const filtered = domain === '全部' ? plans : plans.filter((p) => p.domain.includes(domain))
+  const filtered = useMemo(() => {
+    const byDomain = domain === '全部' ? plans : plans.filter((p) => p.domain.includes(domain))
+    return filterPlansByKeyword(byDomain, query)
+  }, [plans, domain, query])
 
   const toggle = (plan: TeachingPlan) => {
     if (!selectable || !onChange) return
@@ -68,13 +80,18 @@ export default function PlanManageList({
     onView?.(plan)
   }
 
+  const submitSearch = () => {
+    void onSearch?.(query.trim())
+  }
+
   return (
     <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/25 p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2 font-medium text-nest-ink">
         <span className="font-display">{title}</span>
         {plans.length > 0 && (
           <span className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted">
-            共 {plans.length} 份
+            共 {filtered.length}
+            {filtered.length !== plans.length ? ` / ${plans.length}` : ''} 份
           </span>
         )}
         {selectable && selected.length > 0 && (
@@ -89,6 +106,41 @@ export default function PlanManageList({
         )}
       </div>
 
+      {showSearch && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <div className="relative min-w-[220px] flex-1">
+            <Search
+              size={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-nest-muted"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  submitSearch()
+                }
+              }}
+              placeholder={searchPlaceholder}
+              className="field-input w-full !py-2 pl-9 text-sm"
+              aria-label="搜索知识库列表"
+            />
+          </div>
+          {onSearch && (
+            <button
+              type="button"
+              onClick={submitSearch}
+              disabled={loading}
+              className="btn-secondary !px-3 !py-2 text-xs"
+            >
+              搜寻
+            </button>
+          )}
+        </div>
+      )}
+
       {loading && (
         <div className="mb-3 flex items-center gap-2 text-sm text-nest-muted">
           <Loader2 size={14} className="animate-spin text-nest-leaf" /> 正在加载...
@@ -97,6 +149,10 @@ export default function PlanManageList({
 
       {!loading && plans.length === 0 && (
         <p className="mb-3 text-sm text-nest-muted/80">{emptyHint}</p>
+      )}
+
+      {!loading && plans.length > 0 && filtered.length === 0 && (
+        <p className="mb-3 text-sm text-nest-muted/80">没有匹配「{query.trim() || domain}」的文档</p>
       )}
 
       {plans.length > 0 && (

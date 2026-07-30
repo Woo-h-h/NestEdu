@@ -160,6 +160,21 @@ export default function WeeklyPlanManageSection() {
           onDelete={handleDelete}
           deleting={kb.isDeleting}
           exporting={exporting}
+          searchPlaceholder="搜寻周计划（姓名、手机号、班级周次）"
+          onSearch={async (keyword) => {
+            try {
+              const plans = await kb.loadPlatformPlans(keyword)
+              toast.success(
+                keyword
+                  ? `检索「${keyword}」：${plans.length} 份`
+                  : plans.length > 0
+                    ? `已加载 ${plans.length} 份`
+                    : '暂无周计划'
+              )
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : '搜寻失败')
+            }
+          }}
         />
       </div>
 

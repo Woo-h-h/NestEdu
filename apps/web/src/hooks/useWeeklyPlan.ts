@@ -140,17 +140,22 @@ export function useWeeklyPlan() {
     return ctx
   }, [])
 
-  const loadPlatformPlans = useCallback(async () => {
+  const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
     try {
-      const { plans, source, error } = await fetchKnowledgePlans({ limit: 50 })
+      const { plans, source, error } = await fetchKnowledgePlans({
+        keyword: keyword?.trim() || undefined,
+        limit: 50,
+      })
       setCandidatePlans((prev) => {
         const keepAi = prev.filter((p) => p.source === 'ai')
         return mergePlans(keepAi, plans)
       })
       setPoolSourceHint(
         source === 'platform'
-          ? '平台知识库 · 10298'
+          ? keyword?.trim()
+            ? `平台知识库 · 检索「${keyword.trim()}」`
+            : '平台知识库 · 10298'
           : source === 'preset'
             ? error
               ? `本地预设（平台失败：${error}）`
