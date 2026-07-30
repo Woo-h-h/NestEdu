@@ -137,6 +137,7 @@
 - 非流式：`POST /v1/text/generate`，body `{ "agent_id": <id>, "text": "..." }`
 - 教案智能体：[teach/agent/config/14317](https://www.zcat.cn/teach/agent/config/14317)（`VITE_TEACHING_AGENT_ID`，默认 `14317`）
 - 周计划智能体：[teach/agent/config/14332](https://www.zcat.cn/teach/agent/config/14332)（`VITE_WEEKLY_PLAN_AGENT_ID`，默认 `14332`）
+- 教师画像智能体：[teach/agent/config/14372](https://www.zcat.cn/teach/agent/config/14372)（`VITE_PROFILE_AGENT_ID`，默认 `14372`；勿挂整库检索）
 - 周计划生成会注入：已勾选教案全文 + 知识库 10298 检索摘要
 - 本地开发：Vite 代理 `/v1` → `VITE_PLATFORM_API_BASE_URL`
 

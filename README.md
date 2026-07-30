@@ -335,6 +335,7 @@ VITE_ARCHIVE_KNOWLEDGE_CATEGORY_ID=20895
 VITE_ARCHIVE_KNOWLEDGE_CATEGORY_KEY=custom_1785116184487
 VITE_TEACHING_AGENT_ID=14317
 VITE_WEEKLY_PLAN_AGENT_ID=14332
+VITE_PROFILE_AGENT_ID=14372
 VITE_PLATFORM_API_BASE_URL=https://api.zcat.cn
 ```
 
@@ -385,7 +386,7 @@ pnpm run ci         # 统一 CI 脚本（scripts/ci.sh）
 | `VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_*` | 周计划分类 20807 及 category_key |
 | `VITE_ARCHIVE_KNOWLEDGE_CATEGORY_*` | 教师成果库分类 20895 及 category_key |
 | `VITE_TEACHING_AGENT_ID` / `VITE_WEEKLY_PLAN_AGENT_ID` | 教案 14317 / 周计划 14332 |
-| `VITE_PROFILE_AGENT_ID` | 教师画像智能体；由前端注入本人手机号文件夹摘要，勿挂整库检索 |
+| `VITE_PROFILE_AGENT_ID` | 教师画像智能体 14372；前端注入本人手机号文件夹摘要，勿挂整库检索 |
 | `VITE_PLATFORM_API_BASE_URL` / `VITE_PLATFORM_REFERER` | 平台 API 与代理 Referer |
 | `VITE_AI101_*` | 登录、父窗口白名单、换票 |
 | `VITE_BASE_PATH` | 前端部署子路径（默认同域根路径） |
