@@ -27,21 +27,6 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    build: {
-      // 避免 minify 短名与 React 运行时冲突（曾导致分类映射 mappedCount=0）
-      rolldownOptions: {
-        output: {
-          codeSplitting: {
-            groups: [
-              {
-                name: 'knowledge-category-map',
-                test: /knowledgeCategoryMap/,
-              },
-            ],
-          },
-        },
-      },
-    },
     server: {
       port: 3005,
       strictPort: true,
