@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listGrowthRecords } from '@/api/growth'
-import {
-  fetchArchivePlansForOwnerFolder,
-  fetchKnowledgePlans,
-  weeklyPlanKnowledgeScope,
-} from '@/api/knowledge'
+import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
 import {
   fetchPlatformUserSelf,
   getCurrentTeacherPhone,
   resolvePhoneFromUserSelf,
 } from '@/api/platformUser'
+import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
 import {
   mergeActionSeeds,
@@ -97,20 +94,15 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       const localPromise = listGrowthRecords().catch(() => [] as GrowthRecord[])
       const statsPromise = (async (): Promise<SystemStats> => {
         try {
-          const weekly = weeklyPlanKnowledgeScope()
-          const [activityRes, weeklyRes] = await Promise.allSettled([
-            fetchKnowledgePlans({ limit: 50, fallbackPreset: false }),
-            fetchKnowledgePlans({ limit: 50, fallbackPreset: false, ...weekly }),
-          ])
+          const auth = authBridge.getAuthInfo()
+          if (!auth?.token) return {}
+          const phone = (await getCurrentTeacherPhone()).trim()
+          if (!phone) return {}
+          const stats = await fetchTeacherGeneratedDocStats(phone)
+          if (!stats) return { activityPlans: 0, weeklyPlans: 0 }
           return {
-            activityPlans:
-              activityRes.status === 'fulfilled' && activityRes.value.source === 'platform'
-                ? activityRes.value.plans.length
-                : undefined,
-            weeklyPlans:
-              weeklyRes.status === 'fulfilled' && weeklyRes.value.source === 'platform'
-                ? weeklyRes.value.plans.length
-                : undefined,
+            activityPlans: stats.activity,
+            weeklyPlans: stats.weekly,
           }
         } catch {
           return {}

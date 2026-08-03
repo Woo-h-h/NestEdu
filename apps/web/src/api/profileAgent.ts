@@ -1,14 +1,11 @@
 import { generateAgentText, getProfileAgentId } from '@/api/agent'
 import { listGrowthRecords } from '@/api/growth'
-import {
-  fetchArchivePlansForOwnerFolder,
-  fetchKnowledgePlans,
-  weeklyPlanKnowledgeScope,
-} from '@/api/knowledge'
+import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
 import {
   getCurrentTeacherDisplayName,
   getCurrentTeacherPhone,
 } from '@/api/platformUser'
+import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
 import { buildProfileAgentUserMessage } from '@/lib/profileAgentPrompt'
 import type { GrowthRecord } from '@/types/growth'
@@ -66,16 +63,10 @@ export async function generateProfileAgentAnalysis(options?: {
   let activityPlanCount: number | undefined
   let weeklyPlanCount: number | undefined
   try {
-    const weekly = weeklyPlanKnowledgeScope()
-    const [activityRes, weeklyRes] = await Promise.allSettled([
-      fetchKnowledgePlans({ limit: 50, fallbackPreset: false }),
-      fetchKnowledgePlans({ limit: 50, fallbackPreset: false, ...weekly }),
-    ])
-    if (activityRes.status === 'fulfilled' && activityRes.value.source === 'platform') {
-      activityPlanCount = activityRes.value.plans.length
-    }
-    if (weeklyRes.status === 'fulfilled' && weeklyRes.value.source === 'platform') {
-      weeklyPlanCount = weeklyRes.value.plans.length
+    const stats = await fetchTeacherGeneratedDocStats(phone)
+    if (stats) {
+      activityPlanCount = stats.activity
+      weeklyPlanCount = stats.weekly
     }
   } catch {
     // 系统统计失败不阻断画像生成

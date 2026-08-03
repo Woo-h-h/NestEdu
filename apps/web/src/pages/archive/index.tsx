@@ -35,10 +35,8 @@ import {
 } from '@/lib/growthCategories'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import { runArchiveDebug, type ArchiveDebugPayload } from '@/lib/archiveDebug'
-import {
-  fetchKnowledgePlans,
-  weeklyPlanKnowledgeScope,
-} from '@/api/knowledge'
+import { getCurrentTeacherPhone } from '@/api/platformUser'
+import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
@@ -104,26 +102,30 @@ export default function ArchivePage() {
     const loadStats = async () => {
       setStatsLoading(true)
       try {
-        const weekly = weeklyPlanKnowledgeScope()
-        const [activityRes, weeklyRes] = await Promise.allSettled([
-          fetchKnowledgePlans({ limit: 50, fallbackPreset: false }),
-          fetchKnowledgePlans({
-            limit: 50,
-            fallbackPreset: false,
-            ...weekly,
-          }),
-        ])
+        if (!isLoggedIn) {
+          if (!cancelled) {
+            setActivityCount(null)
+            setWeeklyCount(null)
+          }
+          return
+        }
+        const phone = (await getCurrentTeacherPhone()).trim()
+        if (!phone) {
+          if (!cancelled) {
+            setActivityCount(null)
+            setWeeklyCount(null)
+          }
+          return
+        }
+        const stats = await fetchTeacherGeneratedDocStats(phone)
         if (cancelled) return
-        setActivityCount(
-          activityRes.status === 'fulfilled' && activityRes.value.source === 'platform'
-            ? activityRes.value.plans.length
-            : null
-        )
-        setWeeklyCount(
-          weeklyRes.status === 'fulfilled' && weeklyRes.value.source === 'platform'
-            ? weeklyRes.value.plans.length
-            : null
-        )
+        if (!stats) {
+          setActivityCount(0)
+          setWeeklyCount(0)
+          return
+        }
+        setActivityCount(stats.activity)
+        setWeeklyCount(stats.weekly)
       } finally {
         if (!cancelled) setStatsLoading(false)
       }
@@ -239,13 +241,25 @@ export default function ArchivePage() {
         <SummaryStat
           label="活动方案"
           value={formatCount(activityCount)}
-          hint={activityCount === null ? '需登录平台' : '知识库 · 教案分类'}
+          hint={
+            activityCount === null
+              ? '需登录平台'
+              : statsLoading
+                ? '统计中…'
+                : '本人入库 · MySQL'
+          }
           muted={activityCount === null}
         />
         <SummaryStat
           label="周计划"
           value={formatCount(weeklyCount)}
-          hint={weeklyCount === null ? '需登录平台' : '知识库 · 周计划分类'}
+          hint={
+            weeklyCount === null
+              ? '需登录平台'
+              : statsLoading
+                ? '统计中…'
+                : '本人入库 · MySQL'
+          }
           muted={weeklyCount === null}
         />
         <SummaryStat

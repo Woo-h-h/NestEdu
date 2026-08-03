@@ -10,7 +10,8 @@ import {
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listGrowthRecords } from '@/api/growth'
-import { fetchKnowledgePlans, weeklyPlanKnowledgeScope } from '@/api/knowledge'
+import { getCurrentTeacherPhone } from '@/api/platformUser'
+import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
 
 const quickEntries = [
@@ -98,53 +99,38 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false
 
-    void Promise.allSettled([
-      listGrowthRecords(),
-      fetchKnowledgePlans({ limit: 50, fallbackPreset: false }),
-      fetchKnowledgePlans({ limit: 50, fallbackPreset: false, ...weeklyPlanKnowledgeScope() }),
-    ]).then(([growthResult, activityResult, weeklyResult]) => {
-      if (cancelled) return
-
+    void (async () => {
+      const isLoggedIn = Boolean(authBridge.getAuthInfo()?.token)
       let growthCount: CountState = 0
       let representativeCount: CountState = 0
-      if (growthResult.status === 'fulfilled') {
-        growthCount = growthResult.value.length
-        representativeCount = growthResult.value.filter((r) => r.representative).length
-      }
-
-      const isLoggedIn = Boolean(authBridge.getAuthInfo()?.token)
-      let kbNeedsLogin = false
       let activityCount: CountState = null
       let weeklyCount: CountState = null
+      let kbNeedsLogin = !isLoggedIn
 
-      if (activityResult.status === 'fulfilled') {
-        const { plans, error } = activityResult.value
-        if (error && /登录|未授权|401|token/i.test(error)) {
-          kbNeedsLogin = true
-          activityCount = null
-        } else {
-          activityCount = plans.length
+      try {
+        const growth = await listGrowthRecords()
+        growthCount = growth.length
+        representativeCount = growth.filter((r) => r.representative).length
+      } catch {
+        // ignore
+      }
+
+      if (isLoggedIn) {
+        try {
+          const phone = (await getCurrentTeacherPhone()).trim()
+          if (phone) {
+            const stats = await fetchTeacherGeneratedDocStats(phone)
+            activityCount = stats?.activity ?? 0
+            weeklyCount = stats?.weekly ?? 0
+            kbNeedsLogin = false
+          }
+        } catch {
+          activityCount = 0
+          weeklyCount = 0
         }
-      } else if (!isLoggedIn) {
-        kbNeedsLogin = true
       }
 
-      if (weeklyResult.status === 'fulfilled') {
-        const { plans, error } = weeklyResult.value
-        if (error && /登录|未授权|401|token/i.test(error)) {
-          kbNeedsLogin = true
-          weeklyCount = null
-        } else {
-          weeklyCount = plans.length
-        }
-      } else if (!isLoggedIn) {
-        kbNeedsLogin = true
-      }
-
-      if (!isLoggedIn && activityCount === null && weeklyCount === null) {
-        kbNeedsLogin = true
-      }
-
+      if (cancelled) return
       setStats({
         activityCount,
         weeklyCount,
@@ -153,7 +139,7 @@ export default function DashboardPage() {
         kbNeedsLogin,
         loading: false,
       })
-    })
+    })()
 
     return () => {
       cancelled = true
