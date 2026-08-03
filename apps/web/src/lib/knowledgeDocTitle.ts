@@ -58,17 +58,27 @@ export function buildKnowledgeDocTitle(params: {
   return `${name}_${kindLabel}_${planName}.md`
 }
 
-/** 正文头部归属信息（可检索；不触发平台按手机号文件夹智能分类） */
+/** 正文头部归属信息（可检索）。
+ * 默认不写完整手机号：平台会按正文中的 11 位号「智能分类」进教师成果库手机号文件夹。
+ * 归属手机号以 MySQL teacher_generated_docs 为准。
+ */
 export function buildOwnerContentPrefix(params: {
   displayName: string
   phone: string
+  /** 仅成果库等场景需要在正文保留完整手机号时开启 */
+  includePhone?: boolean
 }): string {
   const name = sanitizeDocTitleSegment(params.displayName, 40)
   const phone = sanitizeDocTitleSegment(params.phone, 20).replace(/\s+/g, '')
   if (!name && !phone) return ''
   const parts: string[] = []
   if (name) parts.push(`姓名：${name}`)
-  if (phone) parts.push(`手机号：${phone}`)
+  if (params.includePhone && phone) {
+    parts.push(`手机号：${phone}`)
+  } else if (phone && phone.length >= 7) {
+    // 仅留尾号，避免连续 11 位触发平台按文件夹名匹配
+    parts.push(`教师尾号：${phone.slice(-4)}`)
+  }
   return `【归属】${parts.join('；')}\n\n`
 }
 

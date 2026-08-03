@@ -122,7 +122,8 @@ func (s *KnowledgeService) UploadDocument(
 
 	categoryID := strings.TrimSpace(input.CategoryID)
 	categoryKey := strings.TrimSpace(input.CategoryKey)
-	// 与前端一致：标题含业务类型时强制写入教案库 / 周计划库，避免落到教师成果库手机号文件夹
+	contentOut := content
+	// 与前端一致：标题含业务类型时强制写入教案库 / 周计划库，并清洗正文手机号
 	if strings.Contains(title, "_活动方案_") {
 		if id := strings.TrimSpace(s.cfg.ActivityCategoryID); id != "" {
 			categoryID = id
@@ -130,6 +131,7 @@ func (s *KnowledgeService) UploadDocument(
 		if key := strings.TrimSpace(s.cfg.ActivityCategoryKey); key != "" {
 			categoryKey = key
 		}
+		contentOut = scrubElevenDigitPhones(contentOut)
 	} else if strings.Contains(title, "_周计划_") {
 		if id := strings.TrimSpace(s.cfg.WeeklyCategoryID); id != "" {
 			categoryID = id
@@ -137,14 +139,15 @@ func (s *KnowledgeService) UploadDocument(
 		if key := strings.TrimSpace(s.cfg.WeeklyCategoryKey); key != "" {
 			categoryKey = key
 		}
+		contentOut = scrubElevenDigitPhones(contentOut)
 	}
 
 	body := map[string]any{
 		"knowledge_id": parseIDValue(knowledgeID),
 		"name":         title,
 		"title":        title,
-		"text":         content,
-		"content":      content,
+		"text":         contentOut,
+		"content":      contentOut,
 	}
 	if categoryID != "" {
 		body["category_id"] = parseIDValue(categoryID)
@@ -438,4 +441,30 @@ func parseIDValue(id string) any {
 		return n
 	}
 	return id
+}
+
+// scrubElevenDigitPhones 避免正文完整手机号触发平台智能分类进成果库手机号文件夹。
+func scrubElevenDigitPhones(text string) string {
+	var b strings.Builder
+	b.Grow(len(text))
+	runes := []rune(text)
+	for i := 0; i < len(runes); {
+		if runes[i] == '1' && i+11 <= len(runes) {
+			ok := true
+			for j := 1; j < 11; j++ {
+				if runes[i+j] < '0' || runes[i+j] > '9' {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				b.WriteString(string(runes[i:i+3]) + "****" + string(runes[i+7:i+11]))
+				i += 11
+				continue
+			}
+		}
+		b.WriteRune(runes[i])
+		i++
+	}
+	return b.String()
 }

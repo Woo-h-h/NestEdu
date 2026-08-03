@@ -84,16 +84,22 @@ export function useArchiveKnowledge() {
             limit: 50,
           }
         )
-        setPlatformPlans(next)
+        // 成果库不展示误入的活动方案/周计划（那些应在教案库/周计划库）
+        const archiveOnly = next.filter(
+          (plan) => !/_活动方案_/.test(plan.title || '') && !/_周计划_/.test(plan.title || '')
+        )
+        setPlatformPlans(archiveOnly)
         setTeacherFolders(folders)
         if (source === 'platform') {
+          const skipped = next.length - archiveOnly.length
           setListHint(
-            `仅显示手机号「${currentPhone}」· ${folders.length} 个文件夹 · 知识库 ${scope.knowledgeId}`
+            `仅显示手机号「${currentPhone}」· ${folders.length} 个文件夹 · 知识库 ${scope.knowledgeId}` +
+              (skipped > 0 ? `（已隐藏 ${skipped} 份误入的活动方案/周计划）` : '')
           )
         } else {
           setListHint(error || `手机号「${currentPhone}」下暂无成果文档`)
         }
-        return next
+        return archiveOnly
       } finally {
         setIsLoadingPlatform(false)
       }

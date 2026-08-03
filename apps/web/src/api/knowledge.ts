@@ -107,7 +107,7 @@ function normalizeCategoryLabel(name: string): string {
 
 /**
  * 从平台分类树按显示名解析真实 category_id / category_key。
- * 避免仅依赖 env 时 ID 漂移，或上传字段与平台树不一致导致「未匹配到有效分类」。
+ * 命中树节点时只用该节点自己的 key，绝不与 env 旧 key 混用（混用会触发「未匹配到有效分类」）。
  */
 export async function resolveLiveBusinessCategory(
   kind: 'activity' | 'weekly'
@@ -127,16 +127,18 @@ export async function resolveLiveBusinessCategory(
       const want = normalizeCategoryLabel(label)
       const hit = categories.find((c) => normalizeCategoryLabel(c.name) === want)
       if (hit?.id) {
+        const liveKey = (hit.key || '').trim()
         console.info('[Knowledge] resolveLiveBusinessCategory', {
           kind,
           matchedName: hit.name,
           categoryId: hit.id,
-          categoryKey: hit.key || fallback.categoryKey,
+          categoryKey: liveKey || '(omit)',
         })
         return {
           knowledgeId: fallback.knowledgeId,
           categoryId: hit.id,
-          categoryKey: (hit.key || '').trim() || fallback.categoryKey,
+          // 空 key 宁可不传，也不要拿 env 旧 key 拼到新 id 上
+          categoryKey: liveKey,
         }
       }
     }
@@ -146,7 +148,7 @@ export async function resolveLiveBusinessCategory(
       return {
         knowledgeId: fallback.knowledgeId,
         categoryId: byId.id,
-        categoryKey: (byId.key || '').trim() || fallback.categoryKey,
+        categoryKey: (byId.key || '').trim(),
       }
     }
   } catch (err) {
@@ -861,7 +863,7 @@ export async function uploadKnowledgeDocument(params: {
   forceKind?: 'activity' | 'weekly' | 'archive'
 }): Promise<TeachingPlan> {
   const title = params.title.trim()
-  const content = params.content.trim()
+  let content = params.content.trim()
   if (!title) throw new Error('文档标题不能为空')
   if (!content) throw new Error('文档内容不能为空')
   if (content.length > MAX_UPLOAD_TEXT_CHARS) {
@@ -881,61 +883,48 @@ export async function uploadKnowledgeDocument(params: {
     hasExplicitCategory ? params.categoryKey || '' : getDefaultCategoryKey()
   ).trim()
 
-  const looksLikePhoneFolder =
-    /^1\d{10}$/.test(categoryKey) || /^1\d{10}$/.test(categoryId)
-  const isArchiveTarget =
-    categoryId === getArchiveCategoryId() ||
-    categoryKey === getArchiveCategoryKey() ||
-    looksLikePhoneFolder
-
   const titleIsActivity = /_活动方案_/.test(title)
   const titleIsWeekly = /_周计划_/.test(title)
-  // forceKind=archive：成果库入库，不因标题含「活动方案」被改道
   const forceKind =
     params.forceKind ||
     (titleIsActivity ? 'activity' : titleIsWeekly ? 'weekly' : undefined)
 
-  // 活动方案 / 周计划：无论调用方传了什么分类，都强制纠正到业务库
-  // （防止误传成果库、手机号文件夹）
+  // 成果库页禁止上传活动方案/周计划（即使用户选了成果库确认上传）
+  if (forceKind === 'archive' && (titleIsActivity || titleIsWeekly)) {
+    throw new Error(
+      '活动方案 / 周计划请到「活动方案」或「周计划」页入库，不能上传到教师成果库'
+    )
+  }
+
+  // 活动方案 / 周计划：强制纠正到业务库，并清洗正文中的 11 位手机号
   if (forceKind === 'activity' || (forceKind !== 'archive' && titleIsActivity)) {
     const activity = await resolveLiveBusinessCategory('activity')
-    if (
-      categoryId !== activity.categoryId ||
-      categoryKey !== activity.categoryKey ||
-      isArchiveTarget
-    ) {
-      console.warn('[Knowledge] 活动方案强制写入教案知识库管理', {
-        from: { categoryId, categoryKey },
-        to: activity,
-        forceKind,
-        title,
-      })
-    }
+    console.warn('[Knowledge] 活动方案目标分类', {
+      from: { categoryId, categoryKey },
+      to: activity,
+      forceKind,
+      title,
+    })
     categoryId = activity.categoryId
     categoryKey = activity.categoryKey
+    content = scrubElevenDigitPhones(content)
   } else if (forceKind === 'weekly' || (forceKind !== 'archive' && titleIsWeekly)) {
     const weekly = await resolveLiveBusinessCategory('weekly')
-    if (
-      categoryId !== weekly.categoryId ||
-      categoryKey !== weekly.categoryKey ||
-      isArchiveTarget
-    ) {
-      console.warn('[Knowledge] 周计划强制写入周计划管理', {
-        from: { categoryId, categoryKey },
-        to: weekly,
-        forceKind,
-        title,
-      })
-    }
+    console.warn('[Knowledge] 周计划目标分类', {
+      from: { categoryId, categoryKey },
+      to: weekly,
+      forceKind,
+      title,
+    })
     categoryId = weekly.categoryId
     categoryKey = weekly.categoryKey
+    content = scrubElevenDigitPhones(content)
   }
 
   if (!categoryId && !categoryKey) {
     throw new Error('上传失败：未指定知识库分类（教案库 / 周计划库 / 成果库）')
   }
 
-  // 终检：活动/周计划绝不能落到手机号文件夹或成果库（成果库显式 forceKind=archive 除外）
   const mustGuardBusinessLib =
     forceKind === 'activity' ||
     forceKind === 'weekly' ||
@@ -955,7 +944,7 @@ export async function uploadKnowledgeDocument(params: {
   console.info('[Knowledge] upload', {
     knowledgeId,
     categoryId,
-    categoryKey,
+    categoryKey: categoryKey || '(omit)',
     forceKind: forceKind || null,
     title,
   })
@@ -978,32 +967,88 @@ export async function uploadKnowledgeDocument(params: {
       content,
     }
     if (categoryId) body.category_id = parseIdValue(categoryId)
+    // 无 key 时不传，避免与 category_id 组成无效配对
     if (categoryKey) body.category_key = categoryKey
     envelope = await request.post<ApiEnvelope>(PLATFORM_UPLOAD_PATH, body)
   }
 
   assertSuccess(envelope, '上传知识库失败')
   const plans = mapPlatformResult(envelope.result, knowledgeId)
-  if (plans[0]) {
-    return {
-      ...plans[0],
-      title: plans[0].title || title,
-      content: plans[0].content || content,
-      objectives: plans[0].objectives || truncate(content, 100),
-      source: 'platform',
-      knowledgeId,
-    }
+  const uploaded: TeachingPlan = plans[0]
+    ? {
+        ...plans[0],
+        title: plans[0].title || title,
+        content: plans[0].content || content,
+        objectives: plans[0].objectives || truncate(content, 100),
+        source: 'platform',
+        knowledgeId,
+      }
+    : {
+        id: `upload_${Date.now()}`,
+        title,
+        domain: '综合',
+        gradeLevel: '通用',
+        objectives: truncate(content, 100),
+        content,
+        source: 'platform',
+        knowledgeId,
+      }
+
+  if (forceKind === 'activity' || forceKind === 'weekly') {
+    await assertNotLandedInArchiveFolder(uploaded, title)
   }
 
-  return {
-    id: `upload_${Date.now()}`,
-    title,
-    domain: '综合',
-    gradeLevel: '通用',
-    objectives: truncate(content, 100),
-    content,
-    source: 'platform',
-    knowledgeId,
+  return uploaded
+}
+
+/** 避免正文完整手机号触发平台智能分类进成果库手机号文件夹 */
+function scrubElevenDigitPhones(text: string): string {
+  return text.replace(/1\d{10}/g, (m) => `${m.slice(0, 3)}****${m.slice(-4)}`)
+}
+
+/**
+ * 上传后抽查：若文档已出现在教师成果库手机号文件夹，立即删除并报错，
+ * 避免「成功入库」假象（平台忽略分类后默认落到个人文件夹）。
+ */
+async function assertNotLandedInArchiveFolder(
+  plan: TeachingPlan,
+  title: string
+): Promise<void> {
+  try {
+    const { getCurrentTeacherPhone } = await import('@/api/platformUser')
+    const phone = (await getCurrentTeacherPhone()).trim()
+    if (!phone) return
+
+    // 给平台一点索引时间
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    const archive = await fetchArchivePlansForOwnerFolder(phone, {
+      keyword: title.replace(/\.md$/i, '').slice(0, 40),
+      limit: 30,
+    })
+    const hit = archive.plans.find(
+      (item) =>
+        (plan.id && item.id && item.id === plan.id) ||
+        (item.title || '').trim() === title.trim()
+    )
+    if (!hit) return
+
+    console.error('[Knowledge] 上传误入教师成果库手机号文件夹', {
+      title,
+      docId: hit.id,
+      phone,
+    })
+    try {
+      if (hit.id) await deleteKnowledgeDocument(hit.id)
+    } catch (err) {
+      console.warn('[Knowledge] 撤回误入成果库文档失败', err)
+    }
+    throw new Error(
+      '平台未把文档写入教案/周计划库，而是分到了「教师成果库」手机号文件夹（已尝试撤回）。请确认知识库「教案知识库管理 / 周计划管理」可写入，且不要点击「建议智能分类」，然后重试。'
+    )
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('教师成果库')) throw err
+    console.warn('[Knowledge] assertNotLandedInArchiveFolder skipped', err)
   }
 }
 
