@@ -288,3 +288,27 @@ Query 筛选（均可选）：
 ### 18) 删除
 
 - `DELETE /api/v1/teacher-generated-docs/:knowledgeDocId`
+
+## 教师生成文档统计 API
+
+记录教师本人成功入库的活动方案 / 周计划，供成果库与画像按人统计（不再用全平台知识库列表长度）。
+
+### 16) 按手机号统计
+
+- `GET /api/v1/teacher-generated-docs/stats?phone=13800138000`
+
+响应 `result`:
+
+```json
+{ "phone": "13800138000", "activity": 3, "weekly": 1, "total": 4 }
+```
+
+### 17) 保存（按 knowledgeDocId upsert）
+
+- `POST /api/v1/teacher-generated-docs`
+
+请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId`。
+
+### 18) 删除
+
+- `DELETE /api/v1/teacher-generated-docs/:knowledgeDocId`

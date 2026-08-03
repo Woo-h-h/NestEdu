@@ -30,9 +30,26 @@ class DefaultErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
 
-  // 记录错误信息
+  // 记录错误信息；部署后旧入口引用失效 chunk 时自动刷新一次
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('PageLazy Error Boundary caught an error:', error, errorInfo);
+    const msg = error?.message || '';
+    if (
+      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(
+        msg
+      )
+    ) {
+      try {
+        const key = 'nestedu_chunk_reload_at';
+        const last = Number(sessionStorage.getItem(key) || '0');
+        if (!Number.isFinite(last) || Date.now() - last > 15_000) {
+          sessionStorage.setItem(key, String(Date.now()));
+          window.location.reload();
+        }
+      } catch {
+        window.location.reload();
+      }
+    }
   }
 
   // 重置错误状态的方法

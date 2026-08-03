@@ -6,7 +6,9 @@ import App from './App.tsx'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { startAuthBridge } from '@/lib/authBridge'
 import { installArchiveDebugGlobals } from '@/lib/archiveDebug'
+import { installChunkLoadRecovery } from '@/lib/chunkLoadRecovery'
 
+installChunkLoadRecovery()
 installArchiveDebugGlobals()
 
 createRoot(document.getElementById('root')!).render(

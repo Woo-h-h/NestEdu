@@ -22,6 +22,10 @@ func registerWebStatic(r *gin.Engine, dir, basePath string) {
 	}
 
 	serveIndex := func(c *gin.Context) {
+		// index.html 必须每次向服务器确认，避免部署后仍用旧入口引用已删除的 /assets/*.js
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
 		c.File(indexPath)
 	}
 
@@ -34,7 +38,16 @@ func registerWebStatic(r *gin.Engine, dir, basePath string) {
 		r.GET(basePath+"/", serveIndex)
 	}
 
+	// hashed 静态资源可长期缓存；路径含内容 hash，部署换文件名即可
 	if exists(filepath.Join(dir, "assets")) {
+		assetRoot := assetsPath
+		r.Use(func(c *gin.Context) {
+			p := c.Request.URL.Path
+			if p == assetRoot || strings.HasPrefix(p, assetRoot+"/") {
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			}
+			c.Next()
+		})
 		r.Static(assetsPath, filepath.Join(dir, "assets"))
 	}
 	if exists(filepath.Join(dir, "favicon.ico")) {

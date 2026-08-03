@@ -55,7 +55,13 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 
 	id := strings.TrimSpace(payload.ID)
 	if id == "" {
-		id = fmt.Sprintf("tgd_%s_%d", phone, time.Now().UnixMilli())
+		id = fmt.Sprintf("tgd_%s_%s", phone, knowledgeDocID)
+		if len(id) > 64 {
+			id = fmt.Sprintf("tgd_%d_%s", time.Now().UnixNano(), knowledgeDocID)
+			if len(id) > 64 {
+				id = id[:64]
+			}
+		}
 	}
 	owner := strings.TrimSpace(ownerID)
 	if owner == "" {
