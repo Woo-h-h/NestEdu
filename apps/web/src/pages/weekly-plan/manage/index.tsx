@@ -159,6 +159,7 @@ export default function WeeklyPlanManageSection() {
           }}
           onExport={(plan) => void handleExport(plan)}
           onDelete={handleDelete}
+          onRefresh={() => kb.loadPlatformPlans()}
           deleting={kb.isDeleting}
           exporting={exporting}
           searchPlaceholder="搜寻周计划（姓名、手机号、班级周次）"

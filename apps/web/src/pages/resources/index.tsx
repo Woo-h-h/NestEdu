@@ -378,6 +378,7 @@ export default function ResourcesPage() {
             }
             onView={handleView}
             onDelete={handleDelete}
+            onRefresh={() => res.loadPlatformPlans()}
             deleting={res.isDeleting}
             searchPlaceholder="搜寻活动方案（姓名、手机号、方案名）"
             onSearch={async (keyword) => {

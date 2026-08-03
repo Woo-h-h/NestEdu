@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Download, Eye, Loader2, Search, Trash2 } from 'lucide-react'
+import { Check, Download, Eye, Loader2, Search, Trash2, Wrench } from 'lucide-react'
 import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
 import {
   ACTIVITY_DOMAINS,
@@ -13,6 +13,9 @@ import {
 import { authBridge } from '@/lib/authBridge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { listTeacherGeneratedDocs } from '@/api/teacherGeneratedDocs'
+import { fetchKnowledgePlanById } from '@/api/knowledge'
+import { relocateMissingMineDocs } from '@/api/relocateTeacherDocs'
+import { toast } from 'sonner'
 
 export type PlanListTaxonomy = 'activity' | 'weekly' | 'none'
 type OwnershipFilter = '全部' | '我的'
@@ -29,6 +32,8 @@ interface Props {
   onDelete?: (plan: TeachingPlan) => void | Promise<void>
   onView?: (plan: TeachingPlan) => void
   onExport?: (plan: TeachingPlan) => void | Promise<void>
+  /** 「我的」纠正入库后刷新父级列表 */
+  onRefresh?: () => void | Promise<void>
   deleting?: boolean
   exporting?: boolean
   title?: string
@@ -110,6 +115,7 @@ export default function PlanManageList({
   onDelete,
   onView,
   onExport,
+  onRefresh,
   deleting = false,
   exporting = false,
   title = '教案列表',
@@ -125,14 +131,19 @@ export default function PlanManageList({
   const [minePhone, setMinePhone] = useState('')
   const [mineDocIds, setMineDocIds] = useState<Set<string>>(() => new Set())
   const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
+  const [mineExtraPlans, setMineExtraPlans] = useState<TeachingPlan[]>([])
   const [mineLoading, setMineLoading] = useState(false)
   const [mineError, setMineError] = useState('')
+  const [relocating, setRelocating] = useState(false)
 
   const showTaxonomy = taxonomy === 'activity' || taxonomy === 'weekly'
   const mineDocType = taxonomy === 'activity' ? 'activity' : taxonomy === 'weekly' ? 'weekly' : null
 
   useEffect(() => {
-    if (!showTaxonomy || ownership !== '我的' || !mineDocType) return
+    if (!showTaxonomy || ownership !== '我的' || !mineDocType) {
+      setMineExtraPlans([])
+      return
+    }
     let cancelled = false
     const loadMine = async () => {
       setMineLoading(true)
@@ -143,6 +154,7 @@ export default function PlanManageList({
             setMinePhone('')
             setMineDocIds(new Set())
             setMineTitles(new Set())
+            setMineExtraPlans([])
             setMineError('请先登录后再查看「我的」文档')
           }
           return
@@ -154,14 +166,44 @@ export default function PlanManageList({
             setMinePhone('')
             setMineDocIds(new Set())
             setMineTitles(new Set())
+            setMineExtraPlans([])
           }
           return
         }
         const rows = await listTeacherGeneratedDocs(phone, mineDocType)
         if (cancelled) return
+        const docIds = new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean))
+        const titles = new Set(rows.map((r) => r.title.trim()).filter(Boolean))
         setMinePhone(phone)
-        setMineDocIds(new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean)))
-        setMineTitles(new Set(rows.map((r) => r.title.trim()).filter(Boolean)))
+        setMineDocIds(docIds)
+        setMineTitles(titles)
+
+        // 教案库分类列表里没有的「我的」文档：按 ID 从平台详情拉取（常为误入成果库）
+        const presentIds = new Set(
+          plans.map((p) => (p.id || '').trim()).filter(Boolean)
+        )
+        const missingIds = [...docIds].filter((id) => !presentIds.has(id))
+        if (missingIds.length === 0) {
+          setMineExtraPlans([])
+          return
+        }
+        const fetched = await Promise.all(
+          missingIds.map(async (id) => {
+            const plan = await fetchKnowledgePlanById(id)
+            if (plan) return plan
+            const row = rows.find((r) => r.knowledgeDocId === id)
+            return {
+              id,
+              title: row?.title || id,
+              domain: '综合',
+              gradeLevel: '通用',
+              objectives: '（文档不在当前教案/周计划分类中，可能误入教师成果库）',
+              content: '',
+              source: 'platform' as const,
+            } satisfies TeachingPlan
+          })
+        )
+        if (!cancelled) setMineExtraPlans(fetched.filter(Boolean))
       } catch (err) {
         if (!cancelled) {
           setMineError(err instanceof Error ? err.message : '加载「我的」记录失败')
@@ -174,18 +216,27 @@ export default function PlanManageList({
     return () => {
       cancelled = true
     }
-  }, [showTaxonomy, ownership, mineDocType])
+  }, [showTaxonomy, ownership, mineDocType, plans])
 
   const normalizedPlans = useMemo(() => plans.map(enrichPlanTaxonomy), [plans])
+  const normalizedExtra = useMemo(
+    () => mineExtraPlans.map(enrichPlanTaxonomy),
+    [mineExtraPlans]
+  )
 
   const filtered = useMemo(() => {
     let next = normalizedPlans
     if (ownership === '我的') {
-      next = filterPlansByMine(next, {
+      const fromCategory = filterPlansByMine(next, {
         phone: minePhone,
         docIds: mineDocIds,
         titles: mineTitles,
       })
+      const byId = new Set(fromCategory.map((p) => p.id))
+      next = [
+        ...fromCategory,
+        ...normalizedExtra.filter((p) => p.id && !byId.has(p.id)),
+      ]
     }
     if (taxonomy === 'activity' || taxonomy === 'weekly') {
       next = filterPlansByTaxonomy(next, {
@@ -196,6 +247,7 @@ export default function PlanManageList({
     return filterPlansByKeyword(next, query)
   }, [
     normalizedPlans,
+    normalizedExtra,
     taxonomy,
     classLevel,
     domain,
@@ -205,6 +257,35 @@ export default function PlanManageList({
     mineDocIds,
     mineTitles,
   ])
+
+  const misroutedCount = ownership === '我的' ? mineExtraPlans.length : 0
+
+  const handleRelocate = async () => {
+    if (!mineDocType || relocating) return
+    setRelocating(true)
+    try {
+      const presentIds = new Set(plans.map((p) => (p.id || '').trim()).filter(Boolean))
+      const { moved, failed } = await relocateMissingMineDocs({
+        kind: mineDocType,
+        presentIds,
+      })
+      if (moved > 0) {
+        toast.success(`已纠正 ${moved} 份到${mineDocType === 'activity' ? '教案库' : '周计划库'}`)
+        setMineExtraPlans([])
+        await onRefresh?.()
+      }
+      if (failed.length > 0) {
+        toast.error(failed.slice(0, 2).join('；'))
+      }
+      if (moved === 0 && failed.length === 0) {
+        toast.message('没有需要纠正的文档')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '纠正失败')
+    } finally {
+      setRelocating(false)
+    }
+  }
 
   const toggle = (plan: TeachingPlan) => {
     if (!selectable || !onChange) return
@@ -303,15 +384,39 @@ export default function PlanManageList({
             />
           )}
           {ownership === '我的' && (
-            <p className="mt-2 text-[11px] leading-relaxed text-nest-muted">
-              「我的」按 MySQL 本人入库记录匹配（文档 ID / 标题）；手机号已不写在标题中。
-              {minePhone ? ` 当前：${minePhone}` : ''}
-              {mineLoading ? ' 加载中…' : ''}
-              {mineError ? ` ${mineError}` : ''}
-              {!mineLoading && !mineError
-                ? ` 已映射 ${mineDocIds.size || mineTitles.size} 条入库记录。`
-                : ''}
-            </p>
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px] leading-relaxed text-nest-muted">
+                「我的」按 MySQL 本人入库记录匹配；若文档误入成果库，会按文档 ID 补拉并提示纠正。
+                {minePhone ? ` 当前：${minePhone}` : ''}
+                {mineLoading ? ' 加载中…' : ''}
+                {mineError ? ` ${mineError}` : ''}
+                {!mineLoading && !mineError
+                  ? ` 已映射 ${mineDocIds.size || mineTitles.size} 条入库记录。`
+                  : ''}
+              </p>
+              {misroutedCount > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <span>
+                    有 {misroutedCount} 份本人文档不在当前
+                    {taxonomy === 'weekly' ? '周计划库' : '教案库'}
+                    分类中（多半误入教师成果库）。
+                  </span>
+                  <button
+                    type="button"
+                    disabled={relocating}
+                    onClick={() => void handleRelocate()}
+                    className="inline-flex items-center gap-1 rounded-md bg-amber-700 px-2.5 py-1 font-medium text-white hover:bg-amber-800 disabled:opacity-60"
+                  >
+                    {relocating ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Wrench size={12} />
+                    )}
+                    纠正到{taxonomy === 'weekly' ? '周计划库' : '教案库'}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -322,15 +427,19 @@ export default function PlanManageList({
         </div>
       )}
 
-      {!loading && plans.length === 0 && (
+      {!loading && plans.length === 0 && ownership !== '我的' && (
         <p className="mb-3 text-sm text-nest-muted/80">{emptyHint}</p>
       )}
 
-      {!loading && plans.length > 0 && filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <p className="mb-3 text-sm text-nest-muted/80">
           {ownership === '我的'
-            ? '「我的」下暂无匹配文档（需本人入库成功并写入 MySQL 后才会出现）'
-            : '当前分类下没有匹配文档'}
+            ? mineDocIds.size > 0
+              ? 'MySQL 有入库记录，但平台暂未返回可展示文档（可能仍在成果库且详情拉取失败）。可点上方「纠正到教案库」。'
+              : '「我的」下暂无入库记录（需本人入库成功并写入 MySQL 后才会出现）'
+            : plans.length === 0
+              ? emptyHint
+              : '当前分类下没有匹配文档'}
           {query.trim() ? `（关键词「${query.trim()}」）` : ''}
         </p>
       )}
