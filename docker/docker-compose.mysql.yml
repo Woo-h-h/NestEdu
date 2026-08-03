@@ -1,0 +1,35 @@
+# NestEdu 本地 MySQL（仅数据库容器）
+# 用法（仓库根目录）：
+#   docker compose -f docker/docker-compose.mysql.yml up -d
+# 停掉：
+#   docker compose -f docker/docker-compose.mysql.yml down
+# 删库数据（慎用）：
+#   docker compose -f docker/docker-compose.mysql.yml down -v
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nestedu-mysql
+    restart: unless-stopped
+    ports:
+      # 宿主机 3306 -> 容器 3306；本机 Go/IDE 用 127.0.0.1:3306 连接
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: mvp_db
+      MYSQL_CHARSET: utf8mb4
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=caching_sha2_password
+    volumes:
+      - nestedu_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  nestedu_mysql_data:

@@ -29,6 +29,10 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	growthService := service.NewGrowthService(growthStore)
 	growthHandler := newGrowthHandler(growthService)
 
+	profileSnapshotStore := store.NewProfileSnapshotStore(cfg.DB)
+	profileSnapshotService := service.NewProfileSnapshotService(profileSnapshotStore)
+	profileSnapshotHandler := newProfileSnapshotHandler(profileSnapshotService)
+
 	platformClient := service.NewPlatformClient(cfg.Platform)
 	llmService := service.NewLLMService(cfg.LLM, platformClient)
 	aiHandler := newAIHandler(llmService)
@@ -47,6 +51,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	sampleHandler.registerRoutes(api)
 	weeklyPlanHandler.registerRoutes(api)
 	growthHandler.registerRoutes(api)
+	profileSnapshotHandler.registerRoutes(api)
 	aiHandler.registerRoutes(api)
 	knowledgeHandler.registerRoutes(api)
 

@@ -233,3 +233,34 @@ Query 筛选（均可选）：
 - `DELETE /api/v1/growth-records/:id`
 
 响应 `result`: `{ "deleted": true }`
+
+## 教师画像快照 API
+
+同一手机号仅保留一份智能画像文案；`POST` 保存时会删除旧记录再写入新记录。
+
+### 13) 按手机号获取
+
+- `GET /api/v1/profile-snapshots?phone=13800138000`
+
+| 情况 | 响应 |
+|------|------|
+| 有记录 | `result`: `ProfileSnapshotPayload` |
+| 无记录 | `404`，`errorMessage: profile snapshot not found` |
+
+### 14) 保存（覆盖）
+
+- `POST /api/v1/profile-snapshots`
+
+请求体：
+
+- `phone`（必填，11 位大陆手机号）
+- `markdown`（必填，智能体生成文案）
+- `displayName`, `agentId`, `archiveDocCount`, `localRecordCount`, `folderIds`, `generatedAt`（可选）
+
+响应 `result`: 最新 `ProfileSnapshotPayload`。
+
+### 15) 按手机号删除
+
+- `DELETE /api/v1/profile-snapshots?phone=13800138000`
+
+响应 `result`: `{ "deleted": true }`

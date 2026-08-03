@@ -16,6 +16,7 @@ import PathCards from '@/components/profile/PathCards'
 import AnnualReportModal from '@/components/profile/AnnualReportModal'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
+import { getProfileSnapshotByPhone, saveProfileSnapshot } from '@/api/profileSnapshot'
 import { getProfileAgentId } from '@/api/agent'
 
 const REPORT_YEAR = new Date().getFullYear()
@@ -26,6 +27,7 @@ export default function ProfilePage() {
   const [agentLoading, setAgentLoading] = useState(false)
   const [agentError, setAgentError] = useState('')
   const [agentMarkdown, setAgentMarkdown] = useState('')
+  const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [agentMeta, setAgentMeta] = useState<{
     archiveDocCount: number
     localRecordCount: number
@@ -53,15 +55,46 @@ export default function ProfilePage() {
     load,
   } = useProfileMetrics()
 
+  const isLoggedIn = Boolean(authInfo?.token)
+  const profileAgentId = getProfileAgentId()
+
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
+
+  // 登录后按手机号加载已保存的智能画像（MySQL）
+  useEffect(() => {
+    if (!isLoggedIn || !phone) {
+      setAgentMarkdown('')
+      setAgentMeta(null)
+      return
+    }
+    let cancelled = false
+    setSnapshotLoading(true)
+    void getProfileSnapshotByPhone(phone)
+      .then((snap) => {
+        if (cancelled || !snap) return
+        setAgentMarkdown(snap.markdown)
+        setAgentMeta({
+          archiveDocCount: snap.archiveDocCount,
+          localRecordCount: snap.localRecordCount,
+          agentId: snap.agentId || getProfileAgentId(),
+        })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('[profile] load snapshot failed', err)
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isLoggedIn, phone])
 
   const displayName = useMemo(() => {
     if (platformDisplayName.trim()) return platformDisplayName.trim()
     return resolveProfileDisplayName(authInfo)
   }, [platformDisplayName, authInfo])
-
-  const isLoggedIn = Boolean(authInfo?.token)
-  const profileAgentId = getProfileAgentId()
 
   const handleGenerateAgentProfile = async () => {
     setAgentError('')
@@ -74,7 +107,21 @@ export default function ProfilePage() {
         localRecordCount: result.localRecordCount,
         agentId: result.agentId,
       })
-      toast.success('已生成个人画像解读（仅使用您手机号文件夹材料）')
+      try {
+        await saveProfileSnapshot({
+          phone: result.phone,
+          displayName: result.displayName || displayName,
+          agentId: result.agentId,
+          markdown: result.markdown,
+          archiveDocCount: result.archiveDocCount,
+          localRecordCount: result.localRecordCount,
+          folderIds: result.folderIds,
+        })
+        toast.success('已生成并保存到个人画像（同一手机号仅保留最新一份）')
+      } catch (saveErr) {
+        const saveMsg = saveErr instanceof Error ? saveErr.message : '保存失败'
+        toast.warning(`画像已生成，但保存到数据库失败：${saveMsg}`)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '生成失败'
       setAgentError(msg)
@@ -155,6 +202,14 @@ export default function ProfilePage() {
             >
               #{agentMeta.agentId}
             </a>
+            。画像文案按手机号保存在 MySQL，重新生成会覆盖旧版。
+          </p>
+        )}
+
+        {snapshotLoading && !agentMarkdown && (
+          <p className="flex items-center gap-2 text-sm text-nest-muted">
+            <Loader2 size={14} className="animate-spin" />
+            正在加载已保存的智能画像…
           </p>
         )}
 
@@ -165,10 +220,11 @@ export default function ProfilePage() {
             <ProfileAgentMarkdown text={agentMarkdown} />
           </div>
         ) : (
-          !agentLoading && (
+          !agentLoading &&
+          !snapshotLoading && (
             <p className="text-sm text-nest-muted">
               点击「生成智能画像」后，将调用智能体 #{profileAgentId}
-              ，仅基于您手机号文件夹与本地录入生成解读文案。
+              ，仅基于您手机号文件夹与本地录入生成解读文案，并保存到数据库供下次登录查看。
             </p>
           )
         )}

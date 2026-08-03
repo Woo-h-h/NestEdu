@@ -19,6 +19,12 @@
 
 ---
 
+## 2026-08-03 — 教师智能画像落库 MySQL（按手机号覆盖）
+
+- **业务**：生成「智能画像解读」后写入 MySQL；登录进入教师画像页自动回显；同一手机号重新生成会删除旧画像只保留最新一份。
+- **技术**：表 `profile_snapshots`（`phone` 唯一索引）；BFF `/api/v1/profile-snapshots`；前端 `api/profileSnapshot.ts` + 画像页加载/保存。
+- **影响 / 验证**：需后端连上 MySQL 且 `DB_AUTO_MIGRATE=true`（或已建表）；本地可 `docker compose -f docker/docker-compose.mysql.yml up -d`。
+
 ## 2026-07-30 — 修复活动方案误入教师成果库
 
 - **业务**：生成的活动方案曾出现在「教师成果库」手机号文件夹下，应进入「教案知识库管理」。
