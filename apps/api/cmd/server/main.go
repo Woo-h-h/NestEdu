@@ -51,11 +51,15 @@ func main() {
 			MVP:     cfg.Platform.MVP,
 		},
 		Knowledge: service.KnowledgeConfig{
-			ListPath:   cfg.Platform.KnowledgeListPath,
-			DetailPath: cfg.Platform.KnowledgeDetailPath,
-			UploadPath: cfg.Platform.KnowledgeUploadPath,
-			DeletePath: cfg.Platform.KnowledgeDeletePath,
-			DefaultID:  cfg.Platform.DefaultKnowledgeID,
+			ListPath:            cfg.Platform.KnowledgeListPath,
+			DetailPath:          cfg.Platform.KnowledgeDetailPath,
+			UploadPath:          cfg.Platform.KnowledgeUploadPath,
+			DeletePath:          cfg.Platform.KnowledgeDeletePath,
+			DefaultID:           cfg.Platform.DefaultKnowledgeID,
+			ActivityCategoryID:  cfg.Platform.ActivityCategoryID,
+			ActivityCategoryKey: cfg.Platform.ActivityCategoryKey,
+			WeeklyCategoryID:    cfg.Platform.WeeklyCategoryID,
+			WeeklyCategoryKey:   cfg.Platform.WeeklyCategoryKey,
 		},
 	})
 

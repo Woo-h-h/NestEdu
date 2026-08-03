@@ -198,6 +198,7 @@ export function useTeachingResources() {
             knowledgeId: scope.knowledgeId,
             categoryId: scope.categoryId,
             categoryKey: scope.categoryKey,
+            forceKind: 'activity',
           })
         )
       }

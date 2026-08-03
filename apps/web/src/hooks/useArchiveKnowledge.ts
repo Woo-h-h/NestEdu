@@ -164,6 +164,7 @@ export function useArchiveKnowledge() {
             knowledgeId: scope.knowledgeId,
             categoryId: uploadTarget.id,
             categoryKey: uploadTarget.key,
+            forceKind: 'archive',
           })
         )
       }

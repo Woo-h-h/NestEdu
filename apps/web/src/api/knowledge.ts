@@ -800,6 +800,11 @@ export async function uploadKnowledgeDocument(params: {
   knowledgeId?: string
   categoryId?: string
   categoryKey?: string
+  /**
+   * 强制业务库，避免误入教师成果库 / 手机号文件夹。
+   * 活动方案 / 周计划入库应显式传入。
+   */
+  forceKind?: 'activity' | 'weekly' | 'archive'
 }): Promise<TeachingPlan> {
   const title = params.title.trim()
   const content = params.content.trim()
@@ -822,27 +827,52 @@ export async function uploadKnowledgeDocument(params: {
     hasExplicitCategory ? params.categoryKey || '' : getDefaultCategoryKey()
   ).trim()
 
-  // 标题含业务类型时，禁止误入教师成果库 / 手机号个人文件夹
-  const looksLikePhoneFolder = /^1\d{10}$/.test(categoryKey)
+  const looksLikePhoneFolder =
+    /^1\d{10}$/.test(categoryKey) || /^1\d{10}$/.test(categoryId)
   const isArchiveTarget =
     categoryId === getArchiveCategoryId() ||
     categoryKey === getArchiveCategoryKey() ||
     looksLikePhoneFolder
-  if (/_活动方案_/.test(title) && isArchiveTarget) {
+
+  const titleIsActivity = /_活动方案_/.test(title)
+  const titleIsWeekly = /_周计划_/.test(title)
+  // forceKind=archive：成果库入库，不因标题含「活动方案」被改道
+  const forceKind =
+    params.forceKind ||
+    (titleIsActivity ? 'activity' : titleIsWeekly ? 'weekly' : undefined)
+
+  // 活动方案 / 周计划：无论调用方传了什么分类，都强制纠正到业务库
+  // （防止误传成果库、手机号文件夹）
+  if (forceKind === 'activity' || (forceKind !== 'archive' && titleIsActivity)) {
     const activity = activityPlanKnowledgeScope()
-    console.warn('[Knowledge] 活动方案目标分类被纠正为教案库', {
-      from: { categoryId, categoryKey },
-      to: activity,
-    })
+    if (
+      categoryId !== activity.categoryId ||
+      categoryKey !== activity.categoryKey ||
+      isArchiveTarget
+    ) {
+      console.warn('[Knowledge] 活动方案强制写入教案知识库管理', {
+        from: { categoryId, categoryKey },
+        to: activity,
+        forceKind,
+        title,
+      })
+    }
     categoryId = activity.categoryId
     categoryKey = activity.categoryKey
-  }
-  if (/_周计划_/.test(title) && isArchiveTarget) {
+  } else if (forceKind === 'weekly' || (forceKind !== 'archive' && titleIsWeekly)) {
     const weekly = weeklyPlanKnowledgeScope()
-    console.warn('[Knowledge] 周计划目标分类被纠正为周计划库', {
-      from: { categoryId, categoryKey },
-      to: weekly,
-    })
+    if (
+      categoryId !== weekly.categoryId ||
+      categoryKey !== weekly.categoryKey ||
+      isArchiveTarget
+    ) {
+      console.warn('[Knowledge] 周计划强制写入周计划管理', {
+        from: { categoryId, categoryKey },
+        to: weekly,
+        forceKind,
+        title,
+      })
+    }
     categoryId = weekly.categoryId
     categoryKey = weekly.categoryKey
   }
@@ -851,10 +881,28 @@ export async function uploadKnowledgeDocument(params: {
     throw new Error('上传失败：未指定知识库分类（教案库 / 周计划库 / 成果库）')
   }
 
+  // 终检：活动/周计划绝不能落到手机号文件夹或成果库（成果库显式 forceKind=archive 除外）
+  const mustGuardBusinessLib =
+    forceKind === 'activity' ||
+    forceKind === 'weekly' ||
+    (forceKind !== 'archive' && (titleIsActivity || titleIsWeekly))
+  if (
+    mustGuardBusinessLib &&
+    (/^1\d{10}$/.test(categoryId) ||
+      /^1\d{10}$/.test(categoryKey) ||
+      categoryId === getArchiveCategoryId() ||
+      categoryKey === getArchiveCategoryKey())
+  ) {
+    throw new Error(
+      '上传目标异常：活动方案/周计划不能写入教师成果库或手机号文件夹，请检查分类配置后重试'
+    )
+  }
+
   console.info('[Knowledge] upload', {
     knowledgeId,
     categoryId,
     categoryKey,
+    forceKind: forceKind || null,
     title,
   })
 

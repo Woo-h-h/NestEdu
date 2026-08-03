@@ -96,6 +96,7 @@ export default function WeeklyPlanCreateSection() {
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
         categoryKey: scope.categoryKey,
+        forceKind: 'weekly',
       })
       const { recordTeacherGeneratedUpload } = await import('@/api/teacherGeneratedDocs')
       await recordTeacherGeneratedUpload({

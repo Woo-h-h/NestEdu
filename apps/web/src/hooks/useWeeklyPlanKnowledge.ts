@@ -111,6 +111,7 @@ export function useWeeklyPlanKnowledge() {
             knowledgeId: scope.knowledgeId,
             categoryId: scope.categoryId,
             categoryKey: scope.categoryKey,
+            forceKind: 'weekly',
           })
         )
       }
@@ -155,6 +156,7 @@ export function useWeeklyPlanKnowledge() {
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
         categoryKey: scope.categoryKey,
+        forceKind: 'weekly',
       })
       await recordTeacherGeneratedUpload({
         docType: 'weekly',

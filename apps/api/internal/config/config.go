@@ -37,6 +37,10 @@ type PlatformConfig struct {
 	KnowledgeUploadPath string
 	KnowledgeDeletePath string
 	DefaultKnowledgeID  string
+	ActivityCategoryID  string
+	ActivityCategoryKey string
+	WeeklyCategoryID    string
+	WeeklyCategoryKey   string
 }
 
 type Config struct {
@@ -86,6 +90,10 @@ func Load() (Config, error) {
 			KnowledgeUploadPath: getEnv("KNOWLEDGE_UPLOAD_PATH", "/api/knowledge/document/text"),
 			KnowledgeDeletePath: getEnv("KNOWLEDGE_DELETE_PATH", "/api/knowledge/document/delete"),
 			DefaultKnowledgeID:  getEnv("DEFAULT_KNOWLEDGE_ID", "10298"),
+			ActivityCategoryID:  getEnv("DEFAULT_KNOWLEDGE_CATEGORY_ID", "20806"),
+			ActivityCategoryKey: getEnv("DEFAULT_KNOWLEDGE_CATEGORY_KEY", "custom_1784259353619"),
+			WeeklyCategoryID:    getEnv("WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID", "20807"),
+			WeeklyCategoryKey:   getEnv("WEEKLY_PLAN_KNOWLEDGE_CATEGORY_KEY", "custom_1784275664825"),
 		},
 		WebStaticDir: strings.TrimSpace(os.Getenv("WEB_STATIC_DIR")),
 		WebBasePath:  NormalizeWebBasePath(os.Getenv("WEB_BASE_PATH")),

@@ -17,6 +17,11 @@ type KnowledgeConfig struct {
 	UploadPath string
 	DeletePath string
 	DefaultID  string
+	// 教案 / 周计划分类（上传时按标题强制纠正，避免误入教师成果库）
+	ActivityCategoryID  string
+	ActivityCategoryKey string
+	WeeklyCategoryID    string
+	WeeklyCategoryKey   string
 }
 
 type UploadDocumentInput struct {
@@ -115,6 +120,25 @@ func (s *KnowledgeService) UploadDocument(
 		uploadPath = "/api/knowledge/document/text"
 	}
 
+	categoryID := strings.TrimSpace(input.CategoryID)
+	categoryKey := strings.TrimSpace(input.CategoryKey)
+	// 与前端一致：标题含业务类型时强制写入教案库 / 周计划库，避免落到教师成果库手机号文件夹
+	if strings.Contains(title, "_活动方案_") {
+		if id := strings.TrimSpace(s.cfg.ActivityCategoryID); id != "" {
+			categoryID = id
+		}
+		if key := strings.TrimSpace(s.cfg.ActivityCategoryKey); key != "" {
+			categoryKey = key
+		}
+	} else if strings.Contains(title, "_周计划_") {
+		if id := strings.TrimSpace(s.cfg.WeeklyCategoryID); id != "" {
+			categoryID = id
+		}
+		if key := strings.TrimSpace(s.cfg.WeeklyCategoryKey); key != "" {
+			categoryKey = key
+		}
+	}
+
 	body := map[string]any{
 		"knowledge_id": parseIDValue(knowledgeID),
 		"name":         title,
@@ -122,11 +146,11 @@ func (s *KnowledgeService) UploadDocument(
 		"text":         content,
 		"content":      content,
 	}
-	if cat := strings.TrimSpace(input.CategoryID); cat != "" {
-		body["category_id"] = parseIDValue(cat)
+	if categoryID != "" {
+		body["category_id"] = parseIDValue(categoryID)
 	}
-	if key := strings.TrimSpace(input.CategoryKey); key != "" {
-		body["category_key"] = key
+	if categoryKey != "" {
+		body["category_key"] = categoryKey
 	}
 
 	var envelope struct {
