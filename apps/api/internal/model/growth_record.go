@@ -5,22 +5,22 @@ import "time"
 var GrowthRecordTableName = "growth_records"
 
 type GrowthRecord struct {
-	ID             string    `json:"id" gorm:"column:id;primaryKey;type:text"`
-	OwnerID        string    `json:"-" gorm:"column:owner_id;type:text;not null;index"`
-	Name           string    `json:"name" gorm:"column:name;type:text;not null"`
+	ID             string    `json:"id" gorm:"column:id;primaryKey;type:varchar(64)"`
+	OwnerID        string    `json:"-" gorm:"column:owner_id;type:varchar(128);not null;index"`
+	Name           string    `json:"name" gorm:"column:name;type:varchar(512);not null"`
 	Year           int       `json:"year" gorm:"column:year;not null;index"`
-	Category       string    `json:"category" gorm:"column:category;type:text;not null;index"`
-	Subtype        string    `json:"subtype" gorm:"column:subtype;type:text"`
-	Date           string    `json:"date" gorm:"column:date;type:text"`
-	Level          string    `json:"level" gorm:"column:level;type:text"`
-	Role           string    `json:"role" gorm:"column:role;type:text"`
-	Org            string    `json:"org" gorm:"column:org;type:text"`
-	Intro          string    `json:"intro" gorm:"column:intro;type:text"`
-	Keywords       string    `json:"-" gorm:"column:keywords;type:text"`
-	Status         string    `json:"status" gorm:"column:status;type:text"`
+	Category       string    `json:"category" gorm:"column:category;type:varchar(64);not null;index"`
+	Subtype        string    `json:"subtype" gorm:"column:subtype;type:varchar(128)"`
+	Date           string    `json:"date" gorm:"column:date;type:varchar(32)"`
+	Level          string    `json:"level" gorm:"column:level;type:varchar(64)"`
+	Role           string    `json:"role" gorm:"column:role;type:varchar(128)"`
+	Org            string    `json:"org" gorm:"column:org;type:varchar(256)"`
+	Intro          string    `json:"intro" gorm:"column:intro;type:longtext"`
+	Keywords       string    `json:"-" gorm:"column:keywords;type:longtext"`
+	Status         string    `json:"status" gorm:"column:status;type:varchar(64)"`
 	Representative bool      `json:"representative" gorm:"column:representative;not null;default:false"`
-	Extra          string    `json:"-" gorm:"column:extra;type:text"`
-	Files          string    `json:"-" gorm:"column:files;type:text"`
+	Extra          string    `json:"-" gorm:"column:extra;type:longtext"`
+	Files          string    `json:"-" gorm:"column:files;type:longtext"`
 	CreatedAt      time.Time `json:"createdAt" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt      time.Time `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`
 }

@@ -8,5 +8,6 @@ func DomainModels() []any {
 		&model.WeeklyPlan{},
 		&model.GrowthRecord{},
 		&model.ProfileSnapshot{},
+		&model.TeacherGeneratedDoc{},
 	}
 }

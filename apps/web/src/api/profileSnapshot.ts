@@ -1,4 +1,6 @@
 import { request } from '@/api/client'
+import { getApiErrorMessage } from '@/lib/apiError'
+import axios from 'axios'
 
 export interface ProfileSnapshot {
   id: string
@@ -53,23 +55,26 @@ export async function getProfileSnapshotByPhone(phone: string): Promise<ProfileS
     })
     return unwrapResult(data)
   } catch (err) {
-    const status = (err as { response?: { status?: number } })?.response?.status
-    if (status === 404) return null
-    throw err
+    if (axios.isAxiosError(err) && err.response?.status === 404) return null
+    throw new Error(getApiErrorMessage(err, '加载已保存画像失败'))
   }
 }
 
 /** 保存画像；同一手机号会覆盖旧记录。 */
 export async function saveProfileSnapshot(input: ProfileSnapshotInput): Promise<ProfileSnapshot> {
-  const data = await request.post<ApiEnvelope<ProfileSnapshot>>('/api/v1/profile-snapshots', {
-    phone: input.phone.trim(),
-    displayName: input.displayName ?? '',
-    agentId: input.agentId ?? 0,
-    markdown: input.markdown,
-    archiveDocCount: input.archiveDocCount ?? 0,
-    localRecordCount: input.localRecordCount ?? 0,
-    folderIds: input.folderIds ?? [],
-    generatedAt: input.generatedAt ?? new Date().toISOString(),
-  })
-  return unwrapResult(data)
+  try {
+    const data = await request.post<ApiEnvelope<ProfileSnapshot>>('/api/v1/profile-snapshots', {
+      phone: input.phone.trim(),
+      displayName: input.displayName ?? '',
+      agentId: input.agentId ?? 0,
+      markdown: input.markdown,
+      archiveDocCount: input.archiveDocCount ?? 0,
+      localRecordCount: input.localRecordCount ?? 0,
+      folderIds: input.folderIds ?? [],
+      generatedAt: input.generatedAt ?? new Date().toISOString(),
+    })
+    return unwrapResult(data)
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err, '保存画像到数据库失败（请确认已启动 pnpm dev:backend）'))
+  }
 }

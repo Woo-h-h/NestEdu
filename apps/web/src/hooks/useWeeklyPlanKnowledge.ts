@@ -6,6 +6,10 @@ import {
   deleteKnowledgeDocument,
   weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
+import {
+  deleteTeacherGeneratedDocRecord,
+  recordTeacherGeneratedUpload,
+} from '@/api/teacherGeneratedDocs'
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
   buildKnowledgeDocTitle,
@@ -110,6 +114,15 @@ export function useWeeklyPlanKnowledge() {
           })
         )
       }
+      await Promise.all(
+        uploaded.map((plan) =>
+          recordTeacherGeneratedUpload({
+            docType: 'weekly',
+            plan,
+            categoryId: scope.categoryId,
+          })
+        )
+      )
       setConfirmOpen(false)
       setPendingUploads([])
       setUploadFiles([])
@@ -127,6 +140,7 @@ export function useWeeklyPlanKnowledge() {
     setIsDeleting(true)
     try {
       await deleteKnowledgeDocument(plan.id)
+      await deleteTeacherGeneratedDocRecord(plan.id)
       setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
     } finally {
       setIsDeleting(false)
@@ -135,13 +149,19 @@ export function useWeeklyPlanKnowledge() {
 
   const uploadWeeklyPlanDocument = useCallback(
     async (title: string, content: string) => {
-      return uploadKnowledgeDocument({
+      const plan = await uploadKnowledgeDocument({
         title,
         content,
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
         categoryKey: scope.categoryKey,
       })
+      await recordTeacherGeneratedUpload({
+        docType: 'weekly',
+        plan,
+        categoryId: scope.categoryId,
+      })
+      return plan
     },
     [scope]
   )

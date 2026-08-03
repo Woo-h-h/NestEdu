@@ -7,6 +7,10 @@ import {
   uploadKnowledgeDocument,
   deleteKnowledgeDocument,
 } from '@/api/knowledge'
+import {
+  deleteTeacherGeneratedDocRecord,
+  recordTeacherGeneratedUpload,
+} from '@/api/teacherGeneratedDocs'
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
   buildKnowledgeDocTitle,
@@ -197,6 +201,15 @@ export function useTeachingResources() {
           })
         )
       }
+      await Promise.all(
+        uploaded.map((plan) =>
+          recordTeacherGeneratedUpload({
+            docType: 'activity',
+            plan,
+            categoryId: scope.categoryId,
+          })
+        )
+      )
 
       setConfirmOpen(false)
       setPendingUploads([])
@@ -227,6 +240,7 @@ export function useTeachingResources() {
         return
       }
       await deleteKnowledgeDocument(plan.id)
+      await deleteTeacherGeneratedDocRecord(plan.id)
       setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
     } finally {
       setIsDeleting(false)

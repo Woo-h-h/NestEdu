@@ -90,12 +90,19 @@ export default function WeeklyPlanCreateSection() {
         planName: weeklyPlanUploadTitle(wp.currentPlan),
       })
       const prefix = buildTaxonomyContentPrefix({ classLevel: wp.currentPlan.className })
-      await uploadKnowledgeDocument({
+      const plan = await uploadKnowledgeDocument({
         title,
         content: `${prefix}${serializeWeeklyPlanText(wp.currentPlan)}`,
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
         categoryKey: scope.categoryKey,
+      })
+      const { recordTeacherGeneratedUpload } = await import('@/api/teacherGeneratedDocs')
+      await recordTeacherGeneratedUpload({
+        docType: 'weekly',
+        plan,
+        categoryId: scope.categoryId,
+        phone: owner.phone,
       })
       wp.setIsModified(false)
       toast.success(`已上传到周计划知识库：${title}`)

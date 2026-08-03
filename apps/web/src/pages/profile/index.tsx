@@ -62,11 +62,14 @@ export default function ProfilePage() {
 
   // 登录后按手机号加载已保存的智能画像（MySQL）
   useEffect(() => {
-    if (!isLoggedIn || !phone) {
+    if (!isLoggedIn) {
       setAgentMarkdown('')
       setAgentMeta(null)
       return
     }
+    // phone 尚未从平台解析出来时不要清空已有文案，避免刷新闪空
+    if (!phone) return
+
     let cancelled = false
     setSnapshotLoading(true)
     void getProfileSnapshotByPhone(phone)
