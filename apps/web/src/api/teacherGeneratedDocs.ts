@@ -38,6 +38,18 @@ function unwrapResult<T>(data: ApiEnvelope<T> | T): T {
   return data as T
 }
 
+export interface TeacherGeneratedDoc {
+  id: string
+  phone: string
+  docType: TeacherGeneratedDocType
+  knowledgeDocId: string
+  title: string
+  knowledgeId?: string
+  categoryId?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export async function fetchTeacherGeneratedDocStats(
   phone: string
 ): Promise<TeacherGeneratedDocStats | null> {
@@ -52,6 +64,31 @@ export async function fetchTeacherGeneratedDocStats(
   } catch (err) {
     console.warn('[teacher-generated-docs] stats failed', err)
     return null
+  }
+}
+
+/** 列出本人入库记录（用于知识库「我的」筛选）。 */
+export async function listTeacherGeneratedDocs(
+  phone: string,
+  docType?: TeacherGeneratedDocType
+): Promise<TeacherGeneratedDoc[]> {
+  const trimmed = phone.trim()
+  if (!trimmed) return []
+  try {
+    const data = await request.get<ApiEnvelope<TeacherGeneratedDoc[]>>(
+      '/api/v1/teacher-generated-docs',
+      {
+        params: {
+          phone: trimmed,
+          ...(docType ? { docType } : {}),
+        },
+      }
+    )
+    const rows = unwrapResult(data)
+    return Array.isArray(rows) ? rows : []
+  } catch (err) {
+    console.warn('[teacher-generated-docs] list failed', err)
+    return []
   }
 }
 

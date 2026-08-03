@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 import { Check, Download, Eye, Loader2, Search, Trash2 } from 'lucide-react'
 import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
@@ -10,8 +10,12 @@ import {
   type ActivityDomain,
   type ClassLevel,
 } from '@/lib/planTaxonomy'
+import { authBridge } from '@/lib/authBridge'
+import { getCurrentTeacherPhone } from '@/api/platformUser'
+import { listTeacherGeneratedDocs } from '@/api/teacherGeneratedDocs'
 
 export type PlanListTaxonomy = 'activity' | 'weekly' | 'none'
+type OwnershipFilter = '全部' | '我的'
 
 interface Props {
   plans: TeachingPlan[]
@@ -33,8 +37,8 @@ interface Props {
   /** 生成结果勾选列表等场景可关掉搜索框 */
   showSearch?: boolean
   /**
-   * activity：一级大班/中班/小班 + 二级五领域
-   * weekly：仅一级大班/中班/小班
+   * activity：一级大班/中班/小班 + 二级五领域 +「我的」
+   * weekly：仅一级大班/中班/小班 +「我的」
    */
   taxonomy?: PlanListTaxonomy
 }
@@ -43,6 +47,21 @@ const sourceTag: Record<string, string> = {
   ai: '主题生成',
   platform: '平台',
   preset: '预设',
+}
+
+function filterPlansByMine(
+  plans: TeachingPlan[],
+  opts: { phone: string; docIds: Set<string>; titles: Set<string> }
+): TeachingPlan[] {
+  const phone = opts.phone.trim()
+  return plans.filter((plan) => {
+    const id = (plan.id || '').trim()
+    if (id && opts.docIds.has(id)) return true
+    const title = (plan.title || '').trim()
+    if (title && opts.titles.has(title)) return true
+    if (phone && title.includes(phone)) return true
+    return false
+  })
 }
 
 function ChipRow<T extends string>({
@@ -101,12 +120,73 @@ export default function PlanManageList({
 }: Props) {
   const [classLevel, setClassLevel] = useState<ClassLevel | '全部'>('全部')
   const [domain, setDomain] = useState<ActivityDomain | '全部'>('全部')
+  const [ownership, setOwnership] = useState<OwnershipFilter>('全部')
   const [query, setQuery] = useState('')
+  const [minePhone, setMinePhone] = useState('')
+  const [mineDocIds, setMineDocIds] = useState<Set<string>>(() => new Set())
+  const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
+  const [mineLoading, setMineLoading] = useState(false)
+  const [mineError, setMineError] = useState('')
+
+  const showTaxonomy = taxonomy === 'activity' || taxonomy === 'weekly'
+  const mineDocType = taxonomy === 'activity' ? 'activity' : taxonomy === 'weekly' ? 'weekly' : null
+
+  useEffect(() => {
+    if (!showTaxonomy || ownership !== '我的' || !mineDocType) return
+    let cancelled = false
+    const loadMine = async () => {
+      setMineLoading(true)
+      setMineError('')
+      try {
+        if (!authBridge.getAuthInfo()?.token) {
+          if (!cancelled) {
+            setMinePhone('')
+            setMineDocIds(new Set())
+            setMineTitles(new Set())
+            setMineError('请先登录后再查看「我的」文档')
+          }
+          return
+        }
+        const phone = (await getCurrentTeacherPhone()).trim()
+        if (!phone) {
+          if (!cancelled) {
+            setMineError('未获取到手机号，无法映射本人入库记录')
+            setMinePhone('')
+            setMineDocIds(new Set())
+            setMineTitles(new Set())
+          }
+          return
+        }
+        const rows = await listTeacherGeneratedDocs(phone, mineDocType)
+        if (cancelled) return
+        setMinePhone(phone)
+        setMineDocIds(new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean)))
+        setMineTitles(new Set(rows.map((r) => r.title.trim()).filter(Boolean)))
+      } catch (err) {
+        if (!cancelled) {
+          setMineError(err instanceof Error ? err.message : '加载「我的」记录失败')
+        }
+      } finally {
+        if (!cancelled) setMineLoading(false)
+      }
+    }
+    void loadMine()
+    return () => {
+      cancelled = true
+    }
+  }, [showTaxonomy, ownership, mineDocType])
 
   const normalizedPlans = useMemo(() => plans.map(enrichPlanTaxonomy), [plans])
 
   const filtered = useMemo(() => {
     let next = normalizedPlans
+    if (ownership === '我的') {
+      next = filterPlansByMine(next, {
+        phone: minePhone,
+        docIds: mineDocIds,
+        titles: mineTitles,
+      })
+    }
     if (taxonomy === 'activity' || taxonomy === 'weekly') {
       next = filterPlansByTaxonomy(next, {
         classLevel,
@@ -114,7 +194,17 @@ export default function PlanManageList({
       })
     }
     return filterPlansByKeyword(next, query)
-  }, [normalizedPlans, taxonomy, classLevel, domain, query])
+  }, [
+    normalizedPlans,
+    taxonomy,
+    classLevel,
+    domain,
+    query,
+    ownership,
+    minePhone,
+    mineDocIds,
+    mineTitles,
+  ])
 
   const toggle = (plan: TeachingPlan) => {
     if (!selectable || !onChange) return
@@ -193,6 +283,12 @@ export default function PlanManageList({
       {(taxonomy === 'activity' || taxonomy === 'weekly') && plans.length > 0 && (
         <div className="mb-4 rounded-xl border border-nest-leaf/10 bg-white/70 p-3">
           <ChipRow
+            label="归属"
+            options={['我的'] as const}
+            value={ownership}
+            onChange={(next) => setOwnership(next === '全部' ? '全部' : '我的')}
+          />
+          <ChipRow
             label="班级分类"
             options={CLASS_LEVELS}
             value={classLevel}
@@ -205,6 +301,17 @@ export default function PlanManageList({
               value={domain}
               onChange={setDomain}
             />
+          )}
+          {ownership === '我的' && (
+            <p className="mt-2 text-[11px] leading-relaxed text-nest-muted">
+              「我的」按手机号映射 MySQL 本人入库记录（文档 ID / 标题 / 标题中的手机号）。
+              {minePhone ? ` 当前：${minePhone}` : ''}
+              {mineLoading ? ' 加载中…' : ''}
+              {mineError ? ` ${mineError}` : ''}
+              {!mineLoading && !mineError
+                ? ` 已映射 ${mineDocIds.size || mineTitles.size} 条入库记录。`
+                : ''}
+            </p>
           )}
         </div>
       )}
@@ -221,7 +328,9 @@ export default function PlanManageList({
 
       {!loading && plans.length > 0 && filtered.length === 0 && (
         <p className="mb-3 text-sm text-nest-muted/80">
-          当前分类下没有匹配文档
+          {ownership === '我的'
+            ? '「我的」下暂无匹配文档（需本人入库成功并写入 MySQL 后才会出现）'
+            : '当前分类下没有匹配文档'}
           {query.trim() ? `（关键词「${query.trim()}」）` : ''}
         </p>
       )}
