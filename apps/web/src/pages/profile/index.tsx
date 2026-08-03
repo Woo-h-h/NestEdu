@@ -8,11 +8,7 @@ import ProfileHeroCard, { resolveProfileDisplayName } from '@/components/profile
 import ProfileAgentMarkdown from '@/components/profile/ProfileAgentMarkdown'
 import DimensionCards from '@/components/profile/DimensionCards'
 import RadarChart from '@/components/profile/RadarChart'
-import TrendChart from '@/components/profile/TrendChart'
 import DonutChart from '@/components/profile/DonutChart'
-import StrengthGapPanel from '@/components/profile/StrengthGapPanel'
-import ActionPlanList from '@/components/profile/ActionPlanList'
-import PathCards from '@/components/profile/PathCards'
 import AnnualReportModal from '@/components/profile/AnnualReportModal'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
@@ -50,8 +46,6 @@ export default function ProfilePage() {
     paths,
     representatives,
     actions,
-    updateAction,
-    toggleChecked,
     load,
   } = useProfileMetrics()
 
@@ -264,26 +258,6 @@ export default function ProfilePage() {
             <ChartPanel title="录入类别分布" desc="教师录入三类成果占比">
               <DonutChart items={categoryCounts} />
             </ChartPanel>
-          </section>
-
-          <section className="surface-panel p-5">
-            <SectionHead title="年度趋势" desc="各成长维度按年度的记录量变化" />
-            <TrendChart series={trend} />
-          </section>
-
-          <section>
-            <SectionHead title="优势与待发展" desc="基于可解释规则引擎分析，非 AI 生成排名" />
-            <StrengthGapPanel strengths={analysis.strengths} gaps={analysis.gaps} />
-          </section>
-
-          <section className="surface-panel p-5">
-            <SectionHead title="行动建议" desc="勾选、设定计划日期与进度，数据保存在本地浏览器" />
-            <ActionPlanList actions={actions} onToggle={toggleChecked} onUpdate={updateAction} />
-          </section>
-
-          <section>
-            <SectionHead title="路径与主题" desc="成长路径匹配度仅供个人参考" />
-            <PathCards paths={paths} wordCloud={wordCloud} />
           </section>
 
           {representatives.length > 0 && (
