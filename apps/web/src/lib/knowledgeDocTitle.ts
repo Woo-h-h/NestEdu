@@ -21,18 +21,24 @@ export function sanitizeDocTitleSegment(raw: string, maxLen = 80): string {
   return cleaned.length <= maxLen ? cleaned : `${cleaned.slice(0, maxLen)}…`
 }
 
-/** 去掉已有「姓名（手机号）_类型_」前缀与末尾 .md，便于再拼或解析元数据 */
+/** 去掉已有「姓名（手机号）_类型_」或「姓名_类型_」前缀与末尾 .md */
 export function stripKnowledgeDocDecorations(title: string): string {
   let t = String(title || '').trim()
   t = t.replace(/\.md$/i, '')
-  t = t.replace(/^.+?[（(]\d{11}[）)]_(?:活动方案|周计划)_/, '')
+  // 旧格式：姓名（手机号）_活动方案_
+  t = t.replace(/^.+?[（(]\d{11}[）)]\s*_(?:活动方案|周计划)_/, '')
+  // 新格式：姓名_活动方案_（标题不再含手机号，避免平台智能分类进成果库手机号文件夹）
+  t = t.replace(/^.+?_(?:活动方案|周计划)_/, '')
   return t.trim() || String(title || '').trim().replace(/\.md$/i, '')
 }
 
 /**
- * 规范入库标题：
- * `王焕（17362955307）_活动方案_方案名.md`
- * `王焕（17362955307）_周计划_周计划名.md`
+ * 规范入库标题（不含连续 11 位手机号）：
+ * `王焕_活动方案_方案名.md`
+ * `王焕_周计划_周计划名.md`
+ *
+ * 手机号改写入正文【归属】行，避免 AI101「智能分类」按标题手机号匹配到
+ * 「教师成果库 / 17362955307」文件夹。
  */
 export function buildKnowledgeDocTitle(params: {
   displayName: string
@@ -41,17 +47,29 @@ export function buildKnowledgeDocTitle(params: {
   planName: string
 }): string {
   const name = sanitizeDocTitleSegment(params.displayName, 40)
-  const phone = sanitizeDocTitleSegment(params.phone, 20).replace(/\s+/g, '')
   const kindLabel = KIND_LABEL[params.kind]
   const planName =
     sanitizeDocTitleSegment(stripKnowledgeDocDecorations(params.planName), 100) || '未命名'
 
-  if (!name || !phone) {
-    // 缺少身份时仍返回可读标题，调用方应优先保证已登录并拿到资料
+  if (!name) {
     return `${planName}.md`
   }
 
-  return `${name}（${phone}）_${kindLabel}_${planName}.md`
+  return `${name}_${kindLabel}_${planName}.md`
+}
+
+/** 正文头部归属信息（可检索；不触发平台按手机号文件夹智能分类） */
+export function buildOwnerContentPrefix(params: {
+  displayName: string
+  phone: string
+}): string {
+  const name = sanitizeDocTitleSegment(params.displayName, 40)
+  const phone = sanitizeDocTitleSegment(params.phone, 20).replace(/\s+/g, '')
+  if (!name && !phone) return ''
+  const parts: string[] = []
+  if (name) parts.push(`姓名：${name}`)
+  if (phone) parts.push(`手机号：${phone}`)
+  return `【归属】${parts.join('；')}\n\n`
 }
 
 export async function resolveOwnerIdentityForDocTitle(): Promise<{
@@ -63,7 +81,7 @@ export async function resolveOwnerIdentityForDocTitle(): Promise<{
     getCurrentTeacherPhone(),
   ])
   if (!phone) {
-    throw new Error('未能获取手机号，请先登录平台后再上传（文件名需要「姓名（手机号）」前缀）')
+    throw new Error('未能获取手机号，请先登录平台后再上传')
   }
   if (!displayName) {
     throw new Error('未能获取用户姓名，请先登录平台后再上传')

@@ -16,6 +16,7 @@ import {
 import { serializeWeeklyPlanText, weeklyPlanUploadTitle } from '@/lib/weeklyPlanText'
 import {
   buildKnowledgeDocTitle,
+  buildOwnerContentPrefix,
   resolveOwnerIdentityForDocTitle,
 } from '@/lib/knowledgeDocTitle'
 import { buildTaxonomyContentPrefix } from '@/lib/planTaxonomy'
@@ -89,7 +90,9 @@ export default function WeeklyPlanCreateSection() {
         kind: 'weekly',
         planName: weeklyPlanUploadTitle(wp.currentPlan),
       })
-      const prefix = buildTaxonomyContentPrefix({ classLevel: wp.currentPlan.className })
+      const prefix = `${buildOwnerContentPrefix(owner)}${buildTaxonomyContentPrefix({
+        classLevel: wp.currentPlan.className,
+      })}`
       const plan = await uploadKnowledgeDocument({
         title,
         content: `${prefix}${serializeWeeklyPlanText(wp.currentPlan)}`,

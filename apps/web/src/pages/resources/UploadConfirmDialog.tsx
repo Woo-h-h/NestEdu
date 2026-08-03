@@ -31,7 +31,7 @@ export default function UploadConfirmDialog({
   uploading = false,
   onConfirm,
   onCancel,
-  targetHint = '将上传到知识库「教案知识库管理」（分类 20806）。请确认下列文件无误后再提交。',
+  targetHint = '将上传到「教案知识库管理」。标题不再含手机号（避免平台智能分类进成果库）；请确认下列文件无误后再提交。',
 }: Props) {
   return (
     <Dialog

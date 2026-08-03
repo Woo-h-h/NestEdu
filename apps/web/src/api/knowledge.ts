@@ -101,6 +101,60 @@ export function activityPlanKnowledgeScope() {
   }
 }
 
+function normalizeCategoryLabel(name: string): string {
+  return name.trim().replace(/\s+/g, '')
+}
+
+/**
+ * 从平台分类树按显示名解析真实 category_id / category_key。
+ * 避免仅依赖 env 时 ID 漂移，或上传字段与平台树不一致导致「未匹配到有效分类」。
+ */
+export async function resolveLiveBusinessCategory(
+  kind: 'activity' | 'weekly'
+): Promise<{ knowledgeId: string; categoryId: string; categoryKey: string }> {
+  const fallback =
+    kind === 'activity' ? activityPlanKnowledgeScope() : weeklyPlanKnowledgeScope()
+  const preferredNames =
+    kind === 'activity'
+      ? ['教案知识库管理', '教案知识库', '课程资源库']
+      : ['周计划管理', '周计划知识库', '周计划']
+
+  try {
+    const { categories } = await fetchKnowledgeCategories(fallback.knowledgeId)
+    if (categories.length === 0) return fallback
+
+    for (const label of preferredNames) {
+      const want = normalizeCategoryLabel(label)
+      const hit = categories.find((c) => normalizeCategoryLabel(c.name) === want)
+      if (hit?.id) {
+        console.info('[Knowledge] resolveLiveBusinessCategory', {
+          kind,
+          matchedName: hit.name,
+          categoryId: hit.id,
+          categoryKey: hit.key || fallback.categoryKey,
+        })
+        return {
+          knowledgeId: fallback.knowledgeId,
+          categoryId: hit.id,
+          categoryKey: (hit.key || '').trim() || fallback.categoryKey,
+        }
+      }
+    }
+
+    const byId = categories.find((c) => c.id === fallback.categoryId)
+    if (byId) {
+      return {
+        knowledgeId: fallback.knowledgeId,
+        categoryId: byId.id,
+        categoryKey: (byId.key || '').trim() || fallback.categoryKey,
+      }
+    }
+  } catch (err) {
+    console.warn('[Knowledge] resolveLiveBusinessCategory failed, use env fallback', err)
+  }
+  return fallback
+}
+
 export function getArchiveCategoryId(): string {
   return (
     (import.meta.env.VITE_ARCHIVE_KNOWLEDGE_CATEGORY_ID || '').trim() ||
@@ -844,7 +898,7 @@ export async function uploadKnowledgeDocument(params: {
   // 活动方案 / 周计划：无论调用方传了什么分类，都强制纠正到业务库
   // （防止误传成果库、手机号文件夹）
   if (forceKind === 'activity' || (forceKind !== 'archive' && titleIsActivity)) {
-    const activity = activityPlanKnowledgeScope()
+    const activity = await resolveLiveBusinessCategory('activity')
     if (
       categoryId !== activity.categoryId ||
       categoryKey !== activity.categoryKey ||
@@ -860,7 +914,7 @@ export async function uploadKnowledgeDocument(params: {
     categoryId = activity.categoryId
     categoryKey = activity.categoryKey
   } else if (forceKind === 'weekly' || (forceKind !== 'archive' && titleIsWeekly)) {
-    const weekly = weeklyPlanKnowledgeScope()
+    const weekly = await resolveLiveBusinessCategory('weekly')
     if (
       categoryId !== weekly.categoryId ||
       categoryKey !== weekly.categoryKey ||

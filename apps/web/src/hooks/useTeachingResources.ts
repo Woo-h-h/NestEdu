@@ -14,6 +14,7 @@ import {
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
   buildKnowledgeDocTitle,
+  buildOwnerContentPrefix,
   resolveOwnerIdentityForDocTitle,
 } from '@/lib/knowledgeDocTitle'
 import { buildTaxonomyContentPrefix, splitDomainTokens } from '@/lib/planTaxonomy'
@@ -120,10 +121,10 @@ export function useTeachingResources() {
         planName: plan.title,
       })
       const body = [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title
-      const prefix = buildTaxonomyContentPrefix({
+      const prefix = `${buildOwnerContentPrefix(owner)}${buildTaxonomyContentPrefix({
         classLevel: plan.gradeLevel || className || '',
         domains: splitDomainTokens(plan.domain),
-      })
+      })}`
       return {
         fileName: title,
         title,
@@ -163,7 +164,7 @@ export function useTeachingResources() {
           return {
             fileName: file.name,
             title,
-            content: file.content,
+            content: `${buildOwnerContentPrefix(owner)}${file.content}`,
           }
         })
       )

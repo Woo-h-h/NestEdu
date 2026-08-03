@@ -13,6 +13,7 @@ import {
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
   buildKnowledgeDocTitle,
+  buildOwnerContentPrefix,
   resolveOwnerIdentityForDocTitle,
 } from '@/lib/knowledgeDocTitle'
 import { authBridge } from '@/lib/authBridge'
@@ -82,7 +83,7 @@ export function useWeeklyPlanKnowledge() {
           return {
             fileName: file.name,
             title,
-            content: file.content,
+            content: `${buildOwnerContentPrefix(owner)}${file.content}`,
           }
         })
       )

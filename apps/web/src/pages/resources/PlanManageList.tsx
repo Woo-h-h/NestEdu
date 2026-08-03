@@ -304,7 +304,7 @@ export default function PlanManageList({
           )}
           {ownership === '我的' && (
             <p className="mt-2 text-[11px] leading-relaxed text-nest-muted">
-              「我的」按手机号映射 MySQL 本人入库记录（文档 ID / 标题 / 标题中的手机号）。
+              「我的」按 MySQL 本人入库记录匹配（文档 ID / 标题）；手机号已不写在标题中。
               {minePhone ? ` 当前：${minePhone}` : ''}
               {mineLoading ? ' 加载中…' : ''}
               {mineError ? ` ${mineError}` : ''}

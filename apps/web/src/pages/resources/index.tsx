@@ -403,7 +403,7 @@ export default function ResourcesPage() {
         uploading={res.isUploading || res.isUploadingGenerated}
         onConfirm={() => void handleConfirmUpload()}
         onCancel={res.cancelPendingUpload}
-        targetHint="将上传到「教案知识库管理」（分类 20806），不是教师成果库。请确认下列文件无误后再提交。"
+        targetHint="将上传到「教案知识库管理」，不是教师成果库。标题不含手机号，避免平台智能分类误入成果库。"
       />
       <PlanDetailDialog
         plan={viewPlan}
