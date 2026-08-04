@@ -65,6 +65,7 @@ ENV SERVER_ADDR=:8088
 ENV WEB_STATIC_DIR=/app/bin/dist
 ENV WEB_BASE_PATH=
 ENV GIN_MODE=release
+# 默认 SQLite 仅作无外部库时的兜底；生产请用编排/云效注入 DB_DRIVER+DB_DSN（推荐 Postgres RDS）
 ENV DB_DRIVER=sqlite
 ENV DB_DSN=/app/data/mvp.db
 ENV DB_AUTO_MIGRATE=true
