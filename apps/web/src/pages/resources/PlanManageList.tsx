@@ -137,6 +137,8 @@ export default function PlanManageList({
   const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
   const [mineMappedCount, setMineMappedCount] = useState<number | null>(null)
   const [mineMysqlCount, setMineMysqlCount] = useState(0)
+  const [mineInCategoryCount, setMineInCategoryCount] = useState(0)
+  const [mineMisroutedCount, setMineMisroutedCount] = useState(0)
   const [mineExtraPlans, setMineExtraPlans] = useState<TeachingPlan[]>([])
   const [mineLoading, setMineLoading] = useState(false)
   const [mineError, setMineError] = useState('')
@@ -151,6 +153,8 @@ export default function PlanManageList({
       setMineExtraPlans([])
       setMineMappedCount(null)
       setMineMysqlCount(0)
+      setMineInCategoryCount(0)
+      setMineMisroutedCount(0)
       return
     }
     let cancelled = false
@@ -165,6 +169,8 @@ export default function PlanManageList({
             setMineTitles(new Set())
             setMineMappedCount(null)
             setMineMysqlCount(0)
+            setMineInCategoryCount(0)
+            setMineMisroutedCount(0)
             setMineExtraPlans([])
             if (ownership === '我的') {
               setMineError('请先登录后再查看「我的」文档')
@@ -181,6 +187,8 @@ export default function PlanManageList({
             setMineTitles(new Set())
             setMineMappedCount(null)
             setMineMysqlCount(0)
+            setMineInCategoryCount(0)
+            setMineMisroutedCount(0)
             setMineExtraPlans([])
           }
           return
@@ -189,20 +197,41 @@ export default function PlanManageList({
         if (cancelled) return
         const docIds = new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean))
         const titles = new Set(rows.map((r) => r.title.trim()).filter(Boolean))
+        const presentIds = new Set(
+          plans.map((p) => (p.id || '').trim()).filter(Boolean)
+        )
+        const presentTitles = new Set(
+          plans.map((p) => (p.title || '').trim()).filter(Boolean)
+        )
+
+        let mysqlCount = 0
+        let inCategoryCount = 0
+        let misroutedCount = 0
+        for (const row of rows) {
+          if ((row.storage || 'platform') === 'mysql') {
+            mysqlCount += 1
+            continue
+          }
+          const id = (row.knowledgeDocId || '').trim()
+          const title = (row.title || '').trim()
+          const inList =
+            (id && presentIds.has(id)) || (title && presentTitles.has(title))
+          if (inList) inCategoryCount += 1
+          else misroutedCount += 1
+        }
+
         setMinePhone(phone)
         setMineDocIds(docIds)
         setMineTitles(titles)
         setMineMappedCount(rows.length)
-        setMineMysqlCount(rows.filter((r) => (r.storage || 'platform') === 'mysql').length)
+        setMineMysqlCount(mysqlCount)
+        setMineInCategoryCount(inCategoryCount)
+        setMineMisroutedCount(misroutedCount)
 
         if (ownership !== '我的') {
           setMineExtraPlans([])
           return
         }
-
-        const presentIds = new Set(
-          plans.map((p) => (p.id || '').trim()).filter(Boolean)
-        )
 
         // 1) MySQL-only 文档：直接用库内全文展示
         const mysqlPlans = rows
@@ -295,10 +324,7 @@ export default function PlanManageList({
     mineTitles,
   ])
 
-  const misroutedCount =
-    ownership === '我的'
-      ? mineExtraPlans.filter((p) => p.source !== 'mysql').length
-      : 0
+  const misroutedCount = mineMisroutedCount
 
   const handleRelocate = async () => {
     if (!mineDocType || relocating) return
@@ -354,13 +380,16 @@ export default function PlanManageList({
   const totalEntryCount =
     typeof kbTotal === 'number' && kbTotal >= 0 ? kbTotal : plans.length
   const mineEntryCount = mineMappedCount
-  const pageLoadedCount = plans.length
   const showStats = showTaxonomy
   const sourceHintIsError = Boolean(
     sourceHint &&
       (/失败|错误|登录|暂无|预设|未配置|无法/.test(sourceHint) ||
         sourceHint.includes('平台失败'))
   )
+  const mineLabel =
+    mineEntryCount === null ? (mineLoading ? '…' : '—') : String(mineEntryCount)
+  const inCategoryLabel =
+    mineEntryCount === null ? (mineLoading ? '…' : '—') : String(mineInCategoryCount)
 
   return (
     <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/25 p-5">
@@ -372,22 +401,27 @@ export default function PlanManageList({
               className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted"
               title="本人入库记录数 / 知识库分类文档合计"
             >
-              {mineEntryCount === null ? (mineLoading ? '…' : '—') : mineEntryCount} /{' '}
-              {totalEntryCount}
+              {mineLabel} / {totalEntryCount}
               <span className="ml-1 text-[10px] text-nest-muted/80">我的/总录入</span>
             </span>
             <span
               className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted"
-              title="当前筛选结果数 / 本页已加载文档数"
+              title="当前分类内本人文档 / 本人入库总数"
             >
-              {filtered.length} / {pageLoadedCount}
-              <span className="ml-1 text-[10px] text-nest-muted/80">本页/已加载</span>
+              {inCategoryLabel} / {mineLabel}
+              <span className="ml-1 text-[10px] text-nest-muted/80">分类内/我的</span>
             </span>
-            <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
-              仅本人 {mineMysqlCount}
+            <span
+              className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf"
+              title="仅保存在 MySQL、未上传平台知识库的文档数"
+            >
+              本地可见 {mineMysqlCount}
             </span>
-            <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
-              {misroutedCount > 0 ? `待纠正 ${misroutedCount}` : `知识库合计 ${totalEntryCount}`}
+            <span
+              className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf"
+              title="本人入库但未出现在当前教案/周计划分类中的文档数"
+            >
+              待纠正 {mineMisroutedCount}
             </span>
           </>
         ) : plans.length > 0 ? (
@@ -613,16 +647,22 @@ export default function PlanManageList({
                     {plan.gradeLevel}
                   </span>
                 )}
-                {plan.domain.split('、').map((d) => (
+                {plan.domain
+                  .split('、')
+                  .map((d) => d.replace(/\uFFFD/g, '').trim())
+                  .filter(Boolean)
+                  .map((d) => (
                   <span
                     key={d}
                     className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
                   >
-                    {d.trim()}
+                    {d}
                   </span>
                 ))}
               </div>
-              <p className="line-clamp-2 text-xs text-nest-muted/80">{plan.objectives}</p>
+              <p className="line-clamp-2 text-xs text-nest-muted/80">
+                {(plan.objectives || '').replace(/\uFFFD+/g, '').trim()}
+              </p>
               {onView && !selectable && (
                 <p className="mt-2 text-[11px] text-nest-leaf">点击查看完整内容</p>
               )}

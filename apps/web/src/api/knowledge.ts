@@ -1012,7 +1012,9 @@ export async function uploadKnowledgeDocument(params: {
       title,
       content,
       categoryId: categoryId || undefined,
-      categoryKey: categoryKey || undefined,
+      // 空 key 不传，避免 BFF/平台拼出无效 id+key
+      ...(categoryKey ? { categoryKey } : {}),
+      ...(forceKind ? { forceKind } : {}),
     })
   } else {
     const body: Record<string, unknown> = {
@@ -1070,42 +1072,50 @@ async function assertNotLandedInArchiveFolder(
   plan: TeachingPlan,
   title: string
 ): Promise<void> {
+  const { getCurrentTeacherPhone } = await import('@/api/platformUser')
+  let phone = ''
   try {
-    const { getCurrentTeacherPhone } = await import('@/api/platformUser')
-    const phone = (await getCurrentTeacherPhone()).trim()
-    if (!phone) return
+    phone = (await getCurrentTeacherPhone()).trim()
+  } catch (err) {
+    console.warn('[Knowledge] assert: 无法获取手机号，跳过成果库抽查', err)
+    return
+  }
+  if (!phone) return
 
-    // 给平台一点索引时间
-    await new Promise((resolve) => setTimeout(resolve, 600))
+  // 给平台一点索引时间；误入时宁可晚一点发现也不要假成功
+  await new Promise((resolve) => setTimeout(resolve, 900))
 
-    const archive = await fetchArchivePlansForOwnerFolder(phone, {
+  let archive: Awaited<ReturnType<typeof fetchArchivePlansForOwnerFolder>>
+  try {
+    archive = await fetchArchivePlansForOwnerFolder(phone, {
       keyword: title.replace(/\.md$/i, '').slice(0, 40),
       limit: 30,
     })
-    const hit = archive.plans.find(
-      (item) =>
-        (plan.id && item.id && item.id === plan.id) ||
-        (item.title || '').trim() === title.trim()
-    )
-    if (!hit) return
-
-    console.error('[Knowledge] 上传误入教师成果库手机号文件夹', {
-      title,
-      docId: hit.id,
-      phone,
-    })
-    try {
-      if (hit.id) await deleteKnowledgeDocument(hit.id)
-    } catch (err) {
-      console.warn('[Knowledge] 撤回误入成果库文档失败', err)
-    }
-    throw new Error(
-      '平台未把文档写入教案/周计划库，而是分到了「教师成果库」手机号文件夹（已尝试撤回）。请确认知识库「教案知识库管理 / 周计划管理」可写入，且不要点击「建议智能分类」，然后重试。'
-    )
   } catch (err) {
-    if (err instanceof Error && err.message.includes('教师成果库')) throw err
-    console.warn('[Knowledge] assertNotLandedInArchiveFolder skipped', err)
+    console.warn('[Knowledge] assert: 成果库抽查失败（上传可能已误入，请手动确认分类）', err)
+    return
   }
+
+  const hit = archive.plans.find(
+    (item) =>
+      (plan.id && item.id && item.id === plan.id) ||
+      (item.title || '').trim() === title.trim()
+  )
+  if (!hit) return
+
+  console.error('[Knowledge] 上传误入教师成果库手机号文件夹', {
+    title,
+    docId: hit.id,
+    phone,
+  })
+  try {
+    if (hit.id) await deleteKnowledgeDocument(hit.id)
+  } catch (err) {
+    console.warn('[Knowledge] 撤回误入成果库文档失败', err)
+  }
+  throw new Error(
+    '平台未把文档写入教案/周计划库，而是分到了「教师成果库」手机号文件夹（已尝试撤回）。请确认知识库「教案知识库管理 / 周计划管理」可写入，且不要点击「建议智能分类」，然后重试。'
+  )
 }
 
 export async function deleteKnowledgeDocument(id: string): Promise<void> {

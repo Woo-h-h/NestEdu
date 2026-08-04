@@ -30,6 +30,8 @@ type UploadDocumentInput struct {
 	Content     string `json:"content"`
 	CategoryID  string `json:"categoryId"`
 	CategoryKey string `json:"categoryKey"`
+	// ForceKind: activity | weekly | archive；与标题标记一起决定是否清洗手机号、是否允许回退 env 分类
+	ForceKind string `json:"forceKind"`
 }
 
 type KnowledgeService struct {
@@ -120,25 +122,15 @@ func (s *KnowledgeService) UploadDocument(
 		uploadPath = "/api/knowledge/document/text"
 	}
 
-	categoryID := strings.TrimSpace(input.CategoryID)
-	categoryKey := strings.TrimSpace(input.CategoryKey)
+	categoryID, categoryKey, scrubPhones := resolveUploadCategory(
+		title,
+		input.ForceKind,
+		input.CategoryID,
+		input.CategoryKey,
+		s.cfg,
+	)
 	contentOut := content
-	// 与前端一致：标题含业务类型时强制写入教案库 / 周计划库，并清洗正文手机号
-	if strings.Contains(title, "_活动方案_") {
-		if id := strings.TrimSpace(s.cfg.ActivityCategoryID); id != "" {
-			categoryID = id
-		}
-		if key := strings.TrimSpace(s.cfg.ActivityCategoryKey); key != "" {
-			categoryKey = key
-		}
-		contentOut = scrubElevenDigitPhones(contentOut)
-	} else if strings.Contains(title, "_周计划_") {
-		if id := strings.TrimSpace(s.cfg.WeeklyCategoryID); id != "" {
-			categoryID = id
-		}
-		if key := strings.TrimSpace(s.cfg.WeeklyCategoryKey); key != "" {
-			categoryKey = key
-		}
+	if scrubPhones {
 		contentOut = scrubElevenDigitPhones(contentOut)
 	}
 
@@ -152,6 +144,7 @@ func (s *KnowledgeService) UploadDocument(
 	if categoryID != "" {
 		body["category_id"] = parseIDValue(categoryID)
 	}
+	// 无 key 时不传：勿把 env 旧 key 拼到前端 live id 上（会导致平台智能分类进成果库）
 	if categoryKey != "" {
 		body["category_key"] = categoryKey
 	}
@@ -466,6 +459,47 @@ func parseIDValue(id string) any {
 		return n
 	}
 	return id
+}
+
+// resolveUploadCategory 优先信任前端 live 解析的分类；仅在客户端未传 id 时回退 env。
+// 切勿把 env 旧 key 拼到客户端已提供的 id 上（无效配对会触发平台智能分类进教师成果库）。
+func resolveUploadCategory(
+	title string,
+	forceKind string,
+	clientID string,
+	clientKey string,
+	cfg KnowledgeConfig,
+) (categoryID string, categoryKey string, scrubPhones bool) {
+	categoryID = strings.TrimSpace(clientID)
+	categoryKey = strings.TrimSpace(clientKey)
+	kind := strings.TrimSpace(forceKind)
+	if kind == "" {
+		if strings.Contains(title, "_活动方案_") {
+			kind = "activity"
+		} else if strings.Contains(title, "_周计划_") {
+			kind = "weekly"
+		}
+	}
+
+	switch kind {
+	case "activity":
+		scrubPhones = true
+		if categoryID == "" {
+			categoryID = strings.TrimSpace(cfg.ActivityCategoryID)
+			if categoryKey == "" {
+				categoryKey = strings.TrimSpace(cfg.ActivityCategoryKey)
+			}
+		}
+	case "weekly":
+		scrubPhones = true
+		if categoryID == "" {
+			categoryID = strings.TrimSpace(cfg.WeeklyCategoryID)
+			if categoryKey == "" {
+				categoryKey = strings.TrimSpace(cfg.WeeklyCategoryKey)
+			}
+		}
+	}
+	return categoryID, categoryKey, scrubPhones
 }
 
 // scrubElevenDigitPhones 避免正文完整手机号触发平台智能分类进成果库手机号文件夹。
