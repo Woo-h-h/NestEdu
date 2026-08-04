@@ -10,6 +10,10 @@ import {
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listGrowthRecords } from '@/api/growth'
+import {
+  fetchKnowledgePlans,
+  resolveLiveBusinessCategory,
+} from '@/api/knowledge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
@@ -48,28 +52,56 @@ const growthLoopSteps = [
 type CountState = number | null
 
 interface DashboardStats {
-  activityCount: CountState
-  weeklyCount: CountState
+  activityMine: CountState
+  activityTotal: CountState
+  weeklyMine: CountState
+  weeklyTotal: CountState
   growthCount: CountState
   representativeCount: CountState
   kbNeedsLogin: boolean
+  growthError: string
   loading: boolean
 }
 
-function formatCount(value: CountState): string {
-  if (value === null) return '—'
-  return String(value)
+function formatRatio(mine: CountState, total: CountState): string {
+  if (mine === null && total === null) return '—'
+  const left = mine === null ? '—' : String(mine)
+  const right = total === null ? '—' : String(total)
+  return `${left}/${right}`
+}
+
+async function fetchCategoryTotal(kind: 'activity' | 'weekly'): Promise<number | null> {
+  try {
+    const scope = await resolveLiveBusinessCategory(kind)
+    const result = await fetchKnowledgePlans({
+      knowledgeId: scope.knowledgeId,
+      categoryId: scope.categoryId,
+      categoryKey: scope.categoryKey,
+      page: 1,
+      limit: 1,
+      fallbackPreset: false,
+    })
+    if (result.error) {
+      if (/登录|未授权|token|401|403/i.test(result.error)) return null
+      return typeof result.total === 'number' ? result.total : 0
+    }
+    return typeof result.total === 'number' ? result.total : result.plans.length
+  } catch {
+    return null
+  }
 }
 
 function StatCard({
   label,
   value,
   hint,
+  hintTone = 'muted',
   loading,
 }: {
   label: string
-  value: CountState
+  value: string
   hint?: string
+  hintTone?: 'muted' | 'warn'
   loading?: boolean
 }) {
   return (
@@ -78,65 +110,93 @@ function StatCard({
       <span
         className={`font-display text-2xl font-bold text-nest-ink ${loading ? 'animate-pulse text-nest-muted' : ''}`}
       >
-        {formatCount(value)}
+        {value}
       </span>
-      {hint ? <span className="text-[11px] text-amber-700">{hint}</span> : null}
+      {hint ? (
+        <span
+          className={`text-[11px] ${hintTone === 'warn' ? 'text-amber-700' : 'text-nest-muted'}`}
+        >
+          {hint}
+        </span>
+      ) : null}
     </div>
   )
 }
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const [authTick, setAuthTick] = useState(0)
   const [stats, setStats] = useState<DashboardStats>({
-    activityCount: null,
-    weeklyCount: null,
+    activityMine: null,
+    activityTotal: null,
+    weeklyMine: null,
+    weeklyTotal: null,
     growthCount: null,
     representativeCount: null,
     kbNeedsLogin: false,
+    growthError: '',
     loading: true,
   })
+
+  useEffect(() => authBridge.subscribe(() => setAuthTick((n) => n + 1)), [])
 
   useEffect(() => {
     let cancelled = false
 
     void (async () => {
+      setStats((prev) => ({ ...prev, loading: true }))
       const isLoggedIn = Boolean(authBridge.getAuthInfo()?.token)
+      let activityMine: CountState = null
+      let activityTotal: CountState = null
+      let weeklyMine: CountState = null
+      let weeklyTotal: CountState = null
       let growthCount: CountState = 0
       let representativeCount: CountState = 0
-      let activityCount: CountState = null
-      let weeklyCount: CountState = null
       let kbNeedsLogin = !isLoggedIn
+      let growthError = ''
+
+      // 先拉用户资料，写入 X-Uid-Hash，再读成果库，避免匿名 owner 导致恒为 0
+      if (isLoggedIn) {
+        try {
+          const phone = (await getCurrentTeacherPhone()).trim()
+          const [mineStats, activityKbTotal, weeklyKbTotal] = await Promise.all([
+            phone ? fetchTeacherGeneratedDocStats(phone) : Promise.resolve(null),
+            fetchCategoryTotal('activity'),
+            fetchCategoryTotal('weekly'),
+          ])
+          if (!cancelled) {
+            activityMine = mineStats?.activity ?? 0
+            weeklyMine = mineStats?.weekly ?? 0
+            activityTotal = activityKbTotal
+            weeklyTotal = weeklyKbTotal
+            kbNeedsLogin = activityKbTotal === null && weeklyKbTotal === null
+          }
+        } catch {
+          activityMine = 0
+          weeklyMine = 0
+        }
+      }
 
       try {
         const growth = await listGrowthRecords()
         growthCount = growth.length
         representativeCount = growth.filter((r) => r.representative).length
-      } catch {
-        // ignore
-      }
-
-      if (isLoggedIn) {
-        try {
-          const phone = (await getCurrentTeacherPhone()).trim()
-          if (phone) {
-            const stats = await fetchTeacherGeneratedDocStats(phone)
-            activityCount = stats?.activity ?? 0
-            weeklyCount = stats?.weekly ?? 0
-            kbNeedsLogin = false
-          }
-        } catch {
-          activityCount = 0
-          weeklyCount = 0
-        }
+      } catch (err) {
+        growthError = err instanceof Error ? err.message : '成果数据加载失败'
+        growthCount = null
+        representativeCount = null
       }
 
       if (cancelled) return
       setStats({
-        activityCount,
-        weeklyCount,
+        activityMine,
+        activityTotal,
+        weeklyMine,
+        weeklyTotal,
         growthCount,
         representativeCount,
         kbNeedsLogin,
+        growthError,
         loading: false,
       })
     })()
@@ -144,9 +204,15 @@ export default function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authTick])
 
   const kbHint = stats.kbNeedsLogin ? '需登录平台' : undefined
+  const activityValue = formatRatio(stats.activityMine, stats.activityTotal)
+  const weeklyValue = formatRatio(stats.weeklyMine, stats.weeklyTotal)
+  const growthValue =
+    stats.growthCount === null ? '—' : String(stats.growthCount)
+  const representativeValue =
+    stats.representativeCount === null ? '—' : String(stats.representativeCount)
 
   return (
     <div className="page-enter mx-auto max-w-5xl">
@@ -183,24 +249,42 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard
             label="活动方案（知识库）"
-            value={stats.activityCount}
-            hint={stats.activityCount === null ? kbHint : undefined}
+            value={activityValue}
+            hint={
+              stats.activityMine === null
+                ? kbHint
+                : stats.loading
+                  ? undefined
+                  : '我的录入 / 总录入'
+            }
+            hintTone={stats.activityMine === null ? 'warn' : 'muted'}
             loading={stats.loading}
           />
           <StatCard
             label="周计划（知识库）"
-            value={stats.weeklyCount}
-            hint={stats.weeklyCount === null ? kbHint : undefined}
+            value={weeklyValue}
+            hint={
+              stats.weeklyMine === null
+                ? kbHint
+                : stats.loading
+                  ? undefined
+                  : '我的录入 / 总录入'
+            }
+            hintTone={stats.weeklyMine === null ? 'warn' : 'muted'}
             loading={stats.loading}
           />
           <StatCard
             label="教师录入成果"
-            value={stats.growthCount}
+            value={growthValue}
+            hint={stats.growthError || undefined}
+            hintTone="warn"
             loading={stats.loading}
           />
           <StatCard
             label="代表成果"
-            value={stats.representativeCount}
+            value={representativeValue}
+            hint={stats.growthError || undefined}
+            hintTone="warn"
             loading={stats.loading}
           />
         </div>
@@ -224,7 +308,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <p className="mt-2 text-[11px] text-nest-muted">
-          系统自动统计活动方案与周计划；教师录入成果需手动补充。画像仅用于个人发展，不进行排名。
+          活动方案与周计划展示「我的 / 知识库合计」；教师录入与代表成果来自成长记录，画像仅用于个人发展，不进行排名。
         </p>
       </section>
 
@@ -265,7 +349,7 @@ export default function DashboardPage() {
               {stats.loading
                 ? '正在加载成果数据…'
                 : stats.growthCount !== null && stats.growthCount > 0
-                  ? `已录入 ${stats.growthCount} 条教师成长成果${stats.representativeCount ? `，其中 ${stats.representativeCount} 条代表成果` : ''}；活动方案与周计划由知识库自动统计。`
+                  ? `已录入 ${stats.growthCount} 条教师成长成果${stats.representativeCount ? `，其中 ${stats.representativeCount} 条代表成果` : ''}；活动方案与周计划按「我的/合计」统计。`
                   : '系统生成成果与教师录入成果在此汇集，可前往录入专业成长记录。'}
             </p>
           </div>

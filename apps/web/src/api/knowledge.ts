@@ -773,9 +773,23 @@ function isAuthError(message: string): boolean {
   return /401|403|token|未授权|登录|cookie|forbidden/i.test(message)
 }
 
+function pickEnvelopeTotal(envelope: ApiEnvelope, planCount: number): number {
+  if (typeof envelope.total === 'number' && Number.isFinite(envelope.total) && envelope.total >= 0) {
+    return envelope.total
+  }
+  if (envelope.result && typeof envelope.result === 'object' && !Array.isArray(envelope.result)) {
+    const nested = envelope.result as Record<string, unknown>
+    const nestedTotal = nested.total
+    if (typeof nestedTotal === 'number' && Number.isFinite(nestedTotal) && nestedTotal >= 0) {
+      return nestedTotal
+    }
+  }
+  return planCount
+}
+
 export async function fetchKnowledgePlans(
   options: FetchKnowledgePlansOptions = {}
-): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string }> {
+): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string; total?: number }> {
   const knowledgeId = (options.knowledgeId || getDefaultKnowledgeId()).trim()
   // 显式传入 categoryId/categoryKey（含空字符串）时不回退教案默认分类，避免串库
   const hasExplicitCategory =
@@ -819,8 +833,9 @@ export async function fetchKnowledgePlans(
 
     assertSuccess(envelope, '知识库列表失败')
     const plans = mapPlatformResult(envelope.result, knowledgeId)
-    if (plans.length > 0) return { plans, source: 'platform' }
-    return { plans: [], source: 'empty' }
+    const total = pickEnvelopeTotal(envelope, plans.length)
+    if (plans.length > 0) return { plans, source: 'platform', total }
+    return { plans: [], source: 'empty', total }
   } catch (err) {
     const platformMsg = extractErrorMessage(err)
     console.warn('[Knowledge] 知识库查询失败:', err)
@@ -837,10 +852,12 @@ export async function fetchKnowledgePlans(
       return { plans: [], source: 'empty', error: platformMsg }
     }
 
+    const preset = presetTeachingPlans.map((plan) => ({ ...plan, source: 'preset' as const }))
     return {
-      plans: presetTeachingPlans.map((plan) => ({ ...plan, source: 'preset' as const })),
+      plans: preset,
       source: 'preset',
       error: platformMsg,
+      total: preset.length,
     }
   }
 }
