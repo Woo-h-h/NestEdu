@@ -284,7 +284,7 @@ export default function PlanManageList({
     setRelocating(true)
     try {
       const presentIds = new Set(plans.map((p) => (p.id || '').trim()).filter(Boolean))
-      const { moved, failed } = await relocateMissingMineDocs({
+      const { moved, cleaned, failed } = await relocateMissingMineDocs({
         kind: mineDocType,
         presentIds,
       })
@@ -293,10 +293,17 @@ export default function PlanManageList({
         setMineExtraPlans([])
         await onRefresh?.()
       }
-      if (failed.length > 0) {
-        toast.error(failed.slice(0, 2).join('；'))
+      if (cleaned > 0) {
+        toast.message(`已清理 ${cleaned} 条无法纠正的无效映射，请重新生成并入库`)
+        setMineExtraPlans([])
+        await onRefresh?.()
       }
-      if (moved === 0 && failed.length === 0) {
+      if (failed.length > 0 && moved === 0 && cleaned === 0) {
+        toast.error(failed.slice(0, 2).join('；'))
+      } else if (failed.length > 0 && (moved > 0 || cleaned > 0)) {
+        toast.warning(failed.slice(0, 2).join('；'))
+      }
+      if (moved === 0 && cleaned === 0 && failed.length === 0) {
         toast.message('没有需要纠正的文档')
       }
     } catch (err) {

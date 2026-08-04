@@ -377,16 +377,41 @@ func mapPlatformPlans(raw json.RawMessage, knowledgeID string) ([]model.Teaching
 	return []model.TeachingPlan{}, nil
 }
 
+func flattenDocumentFields(item map[string]any) map[string]any {
+	merged := map[string]any{}
+	for k, v := range item {
+		merged[k] = v
+	}
+	for _, wrap := range []string{"document", "doc", "file", "data", "info", "record", "result", "detail"} {
+		inner, ok := item[wrap]
+		if !ok || inner == nil {
+			continue
+		}
+		if nested, ok := inner.(map[string]any); ok {
+			for k, v := range nested {
+				merged[k] = v
+			}
+		}
+	}
+	return merged
+}
+
 func mapPlanMaps(items []map[string]any, knowledgeID string) []model.TeachingPlan {
 	plans := make([]model.TeachingPlan, 0, len(items))
-	for _, item := range items {
+	for _, raw := range items {
+		item := flattenDocumentFields(raw)
 		plan := model.TeachingPlan{
 			ID:          pickString(item, "document_id", "id", "doc_id", "item_id"),
 			Title:       pickString(item, "title", "name", "file_name", "display_name", "plan_name"),
-			Domain:      pickString(item, "domain", "subject", "category_name", "display_name", "knowledge_tag"),
+			Domain:      pickString(item, "domain", "subject", "knowledge_tag"),
 			GradeLevel:  pickString(item, "gradeLevel", "grade_level", "grade", "class_name"),
 			Objectives:  pickString(item, "objectives", "desc", "description", "summary", "intro"),
-			Content:     pickString(item, "content", "text", "markdown", "body", "detail", "description", "desc"),
+			Content: pickString(item,
+				"content", "text", "markdown", "md_content", "mdContent",
+				"file_content", "fileContent", "raw_text", "rawText",
+				"parsed_content", "parsedContent", "full_text", "fullText",
+				"body", "detail", "description", "desc",
+			),
 			Source:      "platform",
 			KnowledgeID: pickString(item, "knowledge_id", "knowledgeId"),
 		}

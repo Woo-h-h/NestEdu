@@ -617,6 +617,44 @@ function pickString(item: Record<string, unknown>, keys: string[]): string {
   return ''
 }
 
+/** 平台详情常把正文放在 document / file / data 等嵌套对象里 */
+function flattenDocumentFields(item: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...item }
+  for (const wrap of ['document', 'doc', 'file', 'data', 'info', 'record', 'result', 'detail']) {
+    const inner = item[wrap]
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+      Object.assign(merged, inner as Record<string, unknown>)
+    }
+  }
+  return merged
+}
+
+function pickDocumentContent(item: Record<string, unknown>): string {
+  const src = flattenDocumentFields(item)
+  return pickString(src, [
+    'content',
+    'text',
+    'markdown',
+    'md_content',
+    'mdContent',
+    'file_content',
+    'fileContent',
+    'raw_text',
+    'rawText',
+    'parsed_content',
+    'parsedContent',
+    'full_text',
+    'fullText',
+    'body',
+    'detail',
+    'description',
+    'desc',
+    'summary',
+    'intro',
+    'objectives',
+  ])
+}
+
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : text.slice(0, max)
 }
@@ -636,23 +674,16 @@ function mapTeachingPlan(plan: Partial<TeachingPlan> & Record<string, unknown>):
 
 function mapPlanMaps(items: Record<string, unknown>[], knowledgeId: string): TeachingPlan[] {
   const plans: TeachingPlan[] = []
-  for (const item of items) {
+  for (const rawItem of items) {
+    const item = flattenDocumentFields(rawItem)
     const title = pickString(item, ['title', 'name', 'file_name', 'display_name', 'plan_name'])
     if (!title) continue
 
     let id = pickString(item, ['document_id', 'id', 'doc_id', 'item_id'])
     if (!id) id = title
 
+    let content = pickDocumentContent(rawItem)
     let objectives = pickString(item, ['objectives', 'desc', 'description', 'summary', 'intro'])
-    let content = pickString(item, [
-      'content',
-      'text',
-      'markdown',
-      'body',
-      'detail',
-      'description',
-      'desc',
-    ])
     if (!content) content = objectives
     if (!objectives) objectives = truncate(content, 100)
 
@@ -690,6 +721,14 @@ function mapPlatformResult(raw: unknown, knowledgeId: string): TeachingPlan[] {
   }
   if (typeof raw !== 'object') return []
   const obj = raw as Record<string, unknown>
+  // 详情接口常见：{ document: {...} } / { data: {...} }
+  for (const wrap of ['document', 'doc', 'file', 'data', 'info', 'record']) {
+    const inner = obj[wrap]
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+      const nested = mapPlanMaps([inner as Record<string, unknown>], knowledgeId)
+      if (nested.length > 0) return nested
+    }
+  }
   const list =
     (Array.isArray(obj.list) && obj.list) ||
     (Array.isArray(obj.items) && obj.items) ||
