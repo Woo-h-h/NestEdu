@@ -12,7 +12,7 @@ import {
 } from '@/lib/planTaxonomy'
 import { authBridge } from '@/lib/authBridge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
-import { listTeacherGeneratedDocs } from '@/api/teacherGeneratedDocs'
+import { listTeacherGeneratedDocs, teacherDocToPlan } from '@/api/teacherGeneratedDocs'
 import { fetchKnowledgePlanById } from '@/api/knowledge'
 import { relocateMissingMineDocs } from '@/api/relocateTeacherDocs'
 import { toast } from 'sonner'
@@ -52,6 +52,7 @@ const sourceTag: Record<string, string> = {
   ai: '主题生成',
   platform: '平台',
   preset: '预设',
+  mysql: '仅本人',
 }
 
 function filterPlansByMine(
@@ -178,17 +179,23 @@ export default function PlanManageList({
         setMineDocIds(docIds)
         setMineTitles(titles)
 
-        // 教案库分类列表里没有的「我的」文档：按 ID 从平台详情拉取（常为误入成果库）
         const presentIds = new Set(
           plans.map((p) => (p.id || '').trim()).filter(Boolean)
         )
-        const missingIds = [...docIds].filter((id) => !presentIds.has(id))
-        if (missingIds.length === 0) {
-          setMineExtraPlans([])
-          return
-        }
+
+        // 1) MySQL-only 文档：直接用库内全文展示
+        const mysqlPlans = rows
+          .filter((r) => (r.storage || 'platform') === 'mysql')
+          .map(teacherDocToPlan)
+
+        // 2) 平台映射但当前分类列表没有的：按 ID 补拉（可能误入成果库）
+        const missingPlatformIds = rows
+          .filter((r) => (r.storage || 'platform') !== 'mysql')
+          .map((r) => r.knowledgeDocId)
+          .filter((id) => id && !presentIds.has(id))
+
         const fetched = await Promise.all(
-          missingIds.map(async (id) => {
+          missingPlatformIds.map(async (id) => {
             const plan = await fetchKnowledgePlanById(id)
             if (plan) return plan
             const row = rows.find((r) => r.knowledgeDocId === id)
@@ -203,7 +210,16 @@ export default function PlanManageList({
             } satisfies TeachingPlan
           })
         )
-        if (!cancelled) setMineExtraPlans(fetched.filter(Boolean))
+        if (!cancelled) {
+          const byId = new Set<string>()
+          const merged: TeachingPlan[] = []
+          for (const p of [...mysqlPlans, ...fetched.filter(Boolean)]) {
+            if (!p.id || byId.has(p.id)) continue
+            byId.add(p.id)
+            merged.push(p)
+          }
+          setMineExtraPlans(merged)
+        }
       } catch (err) {
         if (!cancelled) {
           setMineError(err instanceof Error ? err.message : '加载「我的」记录失败')
@@ -258,7 +274,10 @@ export default function PlanManageList({
     mineTitles,
   ])
 
-  const misroutedCount = ownership === '我的' ? mineExtraPlans.length : 0
+  const misroutedCount =
+    ownership === '我的'
+      ? mineExtraPlans.filter((p) => p.source !== 'mysql').length
+      : 0
 
   const handleRelocate = async () => {
     if (!mineDocType || relocating) return

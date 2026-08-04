@@ -7,7 +7,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2 } from 'lucide-react'
+import { FileText, Loader2, Database, Cloud } from 'lucide-react'
+import type { UploadStorageMode } from '@/api/teacherGeneratedDocs'
 
 export interface PendingUploadItem {
   fileName: string
@@ -19,9 +20,14 @@ interface Props {
   open: boolean
   items: PendingUploadItem[]
   uploading?: boolean
-  onConfirm: () => void
+  onConfirm: (mode: UploadStorageMode) => void
   onCancel: () => void
-  /** 入库目标说明，避免误传到教师成果库 */
+  /**
+   * true：活动方案/周计划，展示「仅 MySQL」与「平台+MySQL」
+   * false：成果库等，仅平台上传（仍回调 platform）
+   */
+  showStorageChoice?: boolean
+  /** 入库目标说明 */
   targetHint?: string
 }
 
@@ -31,7 +37,8 @@ export default function UploadConfirmDialog({
   uploading = false,
   onConfirm,
   onCancel,
-  targetHint = '将上传到「教案知识库管理」。标题不再含手机号（避免平台智能分类进成果库）；请确认下列文件无误后再提交。',
+  showStorageChoice = false,
+  targetHint = '请确认下列文件无误后再提交。',
 }: Props) {
   return (
     <Dialog
@@ -42,7 +49,9 @@ export default function UploadConfirmDialog({
     >
       <DialogContent className="max-w-lg sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>确认上传到平台知识库</DialogTitle>
+          <DialogTitle>
+            {showStorageChoice ? '选择入库方式' : '确认上传到平台知识库'}
+          </DialogTitle>
           <DialogDescription>{targetHint}</DialogDescription>
         </DialogHeader>
 
@@ -68,19 +77,71 @@ export default function UploadConfirmDialog({
           ))}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button type="button" variant="outline" disabled={uploading} onClick={onCancel}>
+        <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={uploading}
+            onClick={onCancel}
+          >
             取消
           </Button>
-          <Button type="button" disabled={uploading || items.length === 0} onClick={onConfirm}>
-            {uploading ? (
-              <>
-                <Loader2 className="animate-spin" /> 上传中…
-              </>
-            ) : (
-              `确认上传（${items.length}）`
-            )}
-          </Button>
+          {showStorageChoice ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                disabled={uploading || items.length === 0}
+                onClick={() => onConfirm('mysql')}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="animate-spin" /> 保存中…
+                  </>
+                ) : (
+                  <>
+                    <Database size={16} /> 仅保存到 MySQL（仅自己可见）
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                className="w-full"
+                disabled={uploading || items.length === 0}
+                onClick={() => onConfirm('platform')}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="animate-spin" /> 上传中…
+                  </>
+                ) : (
+                  <>
+                    <Cloud size={16} /> 上传到平台知识库 + MySQL（{items.length}）
+                  </>
+                )}
+              </Button>
+              <p className="text-[11px] leading-relaxed text-nest-muted">
+                「仅 MySQL」不写 AI101 知识库，只在本系统「我的」中可见；「平台 + MySQL」写入教案/周计划库并同步本人统计。
+              </p>
+            </>
+          ) : (
+            <Button
+              type="button"
+              className="w-full"
+              disabled={uploading || items.length === 0}
+              onClick={() => onConfirm('platform')}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="animate-spin" /> 上传中…
+                </>
+              ) : (
+                `确认上传（${items.length}）`
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

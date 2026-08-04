@@ -12,12 +12,14 @@ import (
 )
 
 var (
-	ErrGeneratedDocPhoneRequired = errors.New("phone is required")
-	ErrGeneratedDocPhoneInvalid  = errors.New("phone must be an 11-digit mainland mobile number")
-	ErrGeneratedDocTypeInvalid   = errors.New("docType must be activity or weekly")
-	ErrGeneratedDocTitleRequired = errors.New("title is required")
-	ErrGeneratedDocIDRequired    = errors.New("knowledgeDocId is required")
-	ErrGeneratedDocNotFound      = errors.New("teacher generated doc not found")
+	ErrGeneratedDocPhoneRequired  = errors.New("phone is required")
+	ErrGeneratedDocPhoneInvalid   = errors.New("phone must be an 11-digit mainland mobile number")
+	ErrGeneratedDocTypeInvalid    = errors.New("docType must be activity or weekly")
+	ErrGeneratedDocTitleRequired  = errors.New("title is required")
+	ErrGeneratedDocIDRequired     = errors.New("knowledgeDocId is required")
+	ErrGeneratedDocNotFound       = errors.New("teacher generated doc not found")
+	ErrGeneratedDocStorageInvalid = errors.New("storage must be mysql or platform")
+	ErrGeneratedDocContentRequired = errors.New("content is required when storage is mysql")
 )
 
 type TeacherGeneratedDocRepository interface {
@@ -53,6 +55,22 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 		return model.TeacherGeneratedDocPayload{}, ErrGeneratedDocIDRequired
 	}
 
+	storage := strings.TrimSpace(payload.Storage)
+	if storage == "" {
+		storage = "platform"
+	}
+	if storage != "mysql" && storage != "platform" {
+		return model.TeacherGeneratedDocPayload{}, ErrGeneratedDocStorageInvalid
+	}
+	content := strings.TrimSpace(payload.Content)
+	if storage == "mysql" && content == "" {
+		return model.TeacherGeneratedDocPayload{}, ErrGeneratedDocContentRequired
+	}
+	// platform 映射一般不落全文，避免表膨胀；若前端传了也允许覆盖
+	if storage == "platform" && content == "" {
+		content = ""
+	}
+
 	id := strings.TrimSpace(payload.ID)
 	if id == "" {
 		id = fmt.Sprintf("tgd_%s_%s", phone, knowledgeDocID)
@@ -77,6 +95,8 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 		Title:          title,
 		KnowledgeID:    strings.TrimSpace(payload.KnowledgeID),
 		CategoryID:     strings.TrimSpace(payload.CategoryID),
+		Storage:        storage,
+		Content:        content,
 	})
 	if err != nil {
 		return model.TeacherGeneratedDocPayload{}, err
@@ -135,6 +155,10 @@ func (s *TeacherGeneratedDocService) DeleteByKnowledgeDocID(ctx context.Context,
 }
 
 func toGeneratedDocPayload(row model.TeacherGeneratedDoc) model.TeacherGeneratedDocPayload {
+	storage := strings.TrimSpace(row.Storage)
+	if storage == "" {
+		storage = "platform"
+	}
 	return model.TeacherGeneratedDocPayload{
 		ID:             row.ID,
 		Phone:          row.Phone,
@@ -143,6 +167,8 @@ func toGeneratedDocPayload(row model.TeacherGeneratedDoc) model.TeacherGenerated
 		Title:          row.Title,
 		KnowledgeID:    row.KnowledgeID,
 		CategoryID:     row.CategoryID,
+		Storage:        storage,
+		Content:        row.Content,
 		CreatedAt:      row.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:      row.UpdatedAt.UTC().Format(time.RFC3339),
 	}

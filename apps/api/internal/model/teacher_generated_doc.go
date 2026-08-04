@@ -5,6 +5,7 @@ import "time"
 var TeacherGeneratedDocTableName = "teacher_generated_docs"
 
 // TeacherGeneratedDoc 记录教师本人成功入库的教案/周计划，供成果库与画像按人统计。
+// Storage=mysql：仅存 NestEdu MySQL，本人可见；Storage=platform：已上传 AI101 知识库并写映射。
 type TeacherGeneratedDoc struct {
 	ID             string    `json:"id" gorm:"column:id;primaryKey;type:varchar(64)"`
 	Phone          string    `json:"phone" gorm:"column:phone;type:varchar(32);not null;index"`
@@ -14,6 +15,8 @@ type TeacherGeneratedDoc struct {
 	Title          string    `json:"title" gorm:"column:title;type:varchar(512);not null"`
 	KnowledgeID    string    `json:"knowledgeId" gorm:"column:knowledge_id;type:varchar(64)"`
 	CategoryID     string    `json:"categoryId" gorm:"column:category_id;type:varchar(64)"`
+	Storage        string    `json:"storage" gorm:"column:storage;type:varchar(32);not null;default:platform;index"` // mysql | platform
+	Content        string    `json:"content,omitempty" gorm:"column:content;type:longtext"`                         // mysql-only 全文；platform 可空
 	CreatedAt      time.Time `json:"createdAt" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt      time.Time `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`
 }
@@ -30,6 +33,8 @@ type TeacherGeneratedDocPayload struct {
 	Title          string `json:"title"`
 	KnowledgeID    string `json:"knowledgeId"`
 	CategoryID     string `json:"categoryId"`
+	Storage        string `json:"storage"` // mysql | platform
+	Content        string `json:"content,omitempty"`
 	CreatedAt      string `json:"createdAt"`
 	UpdatedAt      string `json:"updatedAt"`
 }

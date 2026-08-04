@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { FileText, Loader2, Plus, ShieldCheck, Sparkles } from 'lucide-react'
@@ -13,6 +13,7 @@ import AnnualReportModal from '@/components/profile/AnnualReportModal'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
 import { getProfileSnapshotByPhone, saveProfileSnapshot } from '@/api/profileSnapshot'
+import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { getProfileAgentId } from '@/api/agent'
 
 const REPORT_YEAR = new Date().getFullYear()
@@ -24,11 +25,14 @@ export default function ProfilePage() {
   const [agentError, setAgentError] = useState('')
   const [agentMarkdown, setAgentMarkdown] = useState('')
   const [snapshotLoading, setSnapshotLoading] = useState(false)
+  const [snapshotError, setSnapshotError] = useState('')
+  const [snapshotSavedAt, setSnapshotSavedAt] = useState('')
   const [agentMeta, setAgentMeta] = useState<{
     archiveDocCount: number
     localRecordCount: number
     agentId: number
   } | null>(null)
+  const snapshotLoadAnnouncedRef = useRef(false)
 
   const {
     loading,
@@ -54,35 +58,58 @@ export default function ProfilePage() {
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
-  // 登录后按手机号加载已保存的智能画像（MySQL）
+  // 登录后独立解析手机号并加载 MySQL 画像（不依赖成长指标是否加载成功）
   useEffect(() => {
     if (!isLoggedIn) {
       setAgentMarkdown('')
       setAgentMeta(null)
+      setSnapshotError('')
+      setSnapshotSavedAt('')
+      snapshotLoadAnnouncedRef.current = false
       return
     }
-    // phone 尚未从平台解析出来时不要清空已有文案，避免刷新闪空
-    if (!phone) return
 
     let cancelled = false
     setSnapshotLoading(true)
-    void getProfileSnapshotByPhone(phone)
-      .then((snap) => {
-        if (cancelled || !snap) return
+    setSnapshotError('')
+
+    void (async () => {
+      try {
+        const resolvedPhone = (phone || (await getCurrentTeacherPhone())).trim()
+        if (!resolvedPhone) {
+          if (!cancelled) {
+            setSnapshotLoading(false)
+            setSnapshotError('未能获取手机号，无法加载已保存画像')
+          }
+          return
+        }
+        const snap = await getProfileSnapshotByPhone(resolvedPhone)
+        if (cancelled) return
+        if (!snap?.markdown?.trim()) {
+          setSnapshotLoading(false)
+          return
+        }
         setAgentMarkdown(snap.markdown)
         setAgentMeta({
           archiveDocCount: snap.archiveDocCount,
           localRecordCount: snap.localRecordCount,
           agentId: snap.agentId || getProfileAgentId(),
         })
-      })
-      .catch((err) => {
+        setSnapshotSavedAt(snap.updatedAt || snap.generatedAt || '')
+        if (!snapshotLoadAnnouncedRef.current) {
+          snapshotLoadAnnouncedRef.current = true
+          toast.message('已加载上次保存的智能画像', { duration: 2500 })
+        }
+      } catch (err) {
         if (cancelled) return
+        const msg = err instanceof Error ? err.message : '加载已保存画像失败'
+        setSnapshotError(msg)
         console.warn('[profile] load snapshot failed', err)
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setSnapshotLoading(false)
-      })
+      }
+    })()
+
     return () => {
       cancelled = true
     }
@@ -105,7 +132,7 @@ export default function ProfilePage() {
         agentId: result.agentId,
       })
       try {
-        await saveProfileSnapshot({
+        const saved = await saveProfileSnapshot({
           phone: result.phone,
           displayName: result.displayName || displayName,
           agentId: result.agentId,
@@ -114,9 +141,17 @@ export default function ProfilePage() {
           localRecordCount: result.localRecordCount,
           folderIds: result.folderIds,
         })
-        toast.success('已生成并保存到个人画像（同一手机号仅保留最新一份）')
+        // 回读确认已落库，避免「生成成功但未持久化」假象
+        const verified = await getProfileSnapshotByPhone(result.phone)
+        if (!verified?.markdown?.trim()) {
+          throw new Error('保存后未能读回画像，请确认后端与 MySQL 已启动')
+        }
+        setSnapshotSavedAt(saved.updatedAt || saved.generatedAt || verified.updatedAt || '')
+        setSnapshotError('')
+        toast.success('已生成并保存到 MySQL（同一手机号仅保留最新一份，下次登录可查看）')
       } catch (saveErr) {
         const saveMsg = saveErr instanceof Error ? saveErr.message : '保存失败'
+        setSnapshotError(saveMsg)
         toast.warning(`画像已生成，但保存到数据库失败：${saveMsg}`)
       }
     } catch (err) {
@@ -200,6 +235,13 @@ export default function ProfilePage() {
               #{agentMeta.agentId}
             </a>
             。画像文案按手机号保存在 MySQL，重新生成会覆盖旧版。
+            {snapshotSavedAt ? ` 最近保存：${new Date(snapshotSavedAt).toLocaleString()}` : ''}
+          </p>
+        )}
+
+        {snapshotError && (
+          <p className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-900">
+            画像存取异常：{snapshotError}。请确认已启动后端（`pnpm dev:backend`）且 MySQL 可写。
           </p>
         )}
 

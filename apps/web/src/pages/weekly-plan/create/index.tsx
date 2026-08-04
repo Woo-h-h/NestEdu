@@ -22,6 +22,10 @@ import {
 import { buildTaxonomyContentPrefix } from '@/lib/planTaxonomy'
 import { authBridge } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
+import UploadConfirmDialog, {
+  type PendingUploadItem,
+} from '@/pages/resources/UploadConfirmDialog'
+import type { UploadStorageMode } from '@/api/teacherGeneratedDocs'
 
 /** 周计划生成分区（嵌入「周计划管理」页 Tab） */
 export default function WeeklyPlanCreateSection() {
@@ -30,6 +34,8 @@ export default function WeeklyPlanCreateSection() {
   const isLoggedIn = Boolean(authInfo?.token)
   const weeklyAgentId = getWeeklyPlanAgentId()
   const [isUploading, setIsUploading] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState<PendingUploadItem[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const scope = weeklyPlanKnowledgeScope()
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
@@ -71,18 +77,12 @@ export default function WeeklyPlanCreateSection() {
     }
   }
 
-  const handleUploadToKnowledge = async () => {
+  const handlePrepareUpload = async () => {
     if (!wp.currentPlan) return
     if (!isLoggedIn) {
       toast.error('请先登录平台后再上传')
       return
     }
-    const ok = window.confirm(
-      `是否将当前周计划上传到知识库 ${scope.knowledgeId}（分类 ${getWeeklyPlanCategoryId()}）？\n可随时取消，不影响本地编辑与导出。`
-    )
-    if (!ok) return
-
-    setIsUploading(true)
     try {
       const owner = await resolveOwnerIdentityForDocTitle()
       const title = buildKnowledgeDocTitle({
@@ -93,23 +93,52 @@ export default function WeeklyPlanCreateSection() {
       const prefix = `${buildOwnerContentPrefix(owner)}${buildTaxonomyContentPrefix({
         classLevel: wp.currentPlan.className,
       })}`
-      const plan = await uploadKnowledgeDocument({
-        title,
-        content: `${prefix}${serializeWeeklyPlanText(wp.currentPlan)}`,
-        knowledgeId: scope.knowledgeId,
-        categoryId: scope.categoryId,
-        categoryKey: scope.categoryKey,
-        forceKind: 'weekly',
-      })
-      const { recordTeacherGeneratedUpload } = await import('@/api/teacherGeneratedDocs')
-      await recordTeacherGeneratedUpload({
-        docType: 'weekly',
-        plan,
-        categoryId: scope.categoryId,
-        phone: owner.phone,
-      })
+      setPendingUploads([
+        {
+          fileName: title,
+          title,
+          content: `${prefix}${serializeWeeklyPlanText(wp.currentPlan)}`,
+        },
+      ])
+      setConfirmOpen(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '准备上传失败')
+    }
+  }
+
+  const handleConfirmUpload = async (mode: UploadStorageMode) => {
+    if (pendingUploads.length === 0) return
+    setIsUploading(true)
+    try {
+      const item = pendingUploads[0]
+      if (mode === 'mysql') {
+        const { saveMysqlOnlyGeneratedDoc } = await import('@/api/teacherGeneratedDocs')
+        await saveMysqlOnlyGeneratedDoc({
+          docType: 'weekly',
+          title: item.title,
+          content: item.content,
+        })
+        toast.success('已保存到 MySQL（仅自己可见，请在「我的」查看）')
+      } else {
+        const plan = await uploadKnowledgeDocument({
+          title: item.title,
+          content: item.content,
+          knowledgeId: scope.knowledgeId,
+          categoryId: scope.categoryId,
+          categoryKey: scope.categoryKey,
+          forceKind: 'weekly',
+        })
+        const { recordTeacherGeneratedUpload } = await import('@/api/teacherGeneratedDocs')
+        await recordTeacherGeneratedUpload({
+          docType: 'weekly',
+          plan,
+          categoryId: scope.categoryId,
+        })
+        toast.success(`已上传到周计划知识库 + MySQL：${item.title}`)
+      }
       wp.setIsModified(false)
-      toast.success(`已上传到周计划知识库：${title}`)
+      setConfirmOpen(false)
+      setPendingUploads([])
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
     } finally {
@@ -150,8 +179,22 @@ export default function WeeklyPlanCreateSection() {
             wp.setCurrentPlan(p)
             wp.setIsModified(true)
           }}
-          onUploadToKnowledge={() => void handleUploadToKnowledge()}
+          onUploadToKnowledge={() => void handlePrepareUpload()}
           onSendInstruction={wp.sendAiInstruction}
+        />
+
+        <UploadConfirmDialog
+          open={confirmOpen}
+          items={pendingUploads}
+          uploading={isUploading}
+          showStorageChoice
+          onCancel={() => {
+            if (isUploading) return
+            setConfirmOpen(false)
+            setPendingUploads([])
+          }}
+          onConfirm={(mode) => void handleConfirmUpload(mode)}
+          targetHint="请选择入库方式。上传平台时写入「周计划管理」；仅 MySQL 则只在本系统「我的」可见。"
         />
       </div>
     )

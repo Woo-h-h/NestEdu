@@ -106,10 +106,14 @@ export default function ResourcesPage() {
       toast.error(err instanceof Error ? err.message : '解析文件失败')
     }
   }
-  const handleConfirmUpload = async () => {
+  const handleConfirmUpload = async (mode: 'mysql' | 'platform') => {
     try {
-      const uploaded = await res.confirmPendingUpload()
-      toast.success(`已成功上传 ${uploaded.length} 份到平台知识库`)
+      const uploaded = await res.confirmPendingUpload(mode)
+      toast.success(
+        mode === 'mysql'
+          ? `已保存 ${uploaded.length} 份到 MySQL（仅自己可见，请在「我的」查看）`
+          : `已成功上传 ${uploaded.length} 份到平台知识库，并写入 MySQL`
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
     }
@@ -402,9 +406,10 @@ export default function ResourcesPage() {
         open={res.confirmOpen}
         items={res.pendingUploads}
         uploading={res.isUploading || res.isUploadingGenerated}
-        onConfirm={() => void handleConfirmUpload()}
+        showStorageChoice
+        onConfirm={(mode) => void handleConfirmUpload(mode)}
         onCancel={res.cancelPendingUpload}
-        targetHint="将上传到「教案知识库管理」，不是教师成果库。标题不含手机号，避免平台智能分类误入成果库。"
+        targetHint="请选择入库方式。上传平台时写入「教案知识库管理」（非教师成果库）；仅 MySQL 则只在本系统「我的」可见。"
       />
       <PlanDetailDialog
         plan={viewPlan}

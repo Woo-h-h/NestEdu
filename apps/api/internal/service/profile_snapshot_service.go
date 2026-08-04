@@ -64,7 +64,9 @@ func (s *ProfileSnapshotService) Save(ctx context.Context, ownerID string, paylo
 	now := time.Now().UTC()
 	generatedAt := now
 	if raw := strings.TrimSpace(payload.GeneratedAt); raw != "" {
-		if parsed, parseErr := time.Parse(time.RFC3339, raw); parseErr == nil {
+		if parsed, parseErr := time.Parse(time.RFC3339Nano, raw); parseErr == nil {
+			generatedAt = parsed.UTC()
+		} else if parsed, parseErr := time.Parse(time.RFC3339, raw); parseErr == nil {
 			generatedAt = parsed.UTC()
 		}
 	}

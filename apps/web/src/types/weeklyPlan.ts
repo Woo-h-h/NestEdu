@@ -5,7 +5,7 @@ export interface TeachingPlan {
   gradeLevel: string
   objectives: string
   content: string
-  source?: 'platform' | 'preset' | 'ai'
+  source?: 'platform' | 'preset' | 'ai' | 'mysql'
   knowledgeId?: string
 }
 

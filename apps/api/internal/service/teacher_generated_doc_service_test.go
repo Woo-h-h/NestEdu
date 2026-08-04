@@ -59,3 +59,59 @@ func TestTeacherGeneratedDocStatsByPhone(t *testing.T) {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 }
+
+func TestTeacherGeneratedDocMysqlOnlyStorage(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.TeacherGeneratedDoc{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	svc := NewTeacherGeneratedDocService(store.NewTeacherGeneratedDocStore(db))
+	phone := "13800138000"
+
+	_, err = svc.Save(context.Background(), "owner", model.TeacherGeneratedDocPayload{
+		Phone:          phone,
+		DocType:        "activity",
+		KnowledgeDocID: "local_private_1",
+		Title:          "私有活动",
+		Storage:        "mysql",
+		Content:        "仅本人可见正文",
+	})
+	if err != nil {
+		t.Fatalf("save mysql-only: %v", err)
+	}
+
+	_, err = svc.Save(context.Background(), "owner", model.TeacherGeneratedDocPayload{
+		Phone:          phone,
+		DocType:        "activity",
+		KnowledgeDocID: "local_empty",
+		Title:          "缺正文",
+		Storage:        "mysql",
+	})
+	if err == nil {
+		t.Fatal("expected content required error")
+	}
+
+	list, err := svc.List(context.Background(), phone, "activity")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var found bool
+	for _, row := range list {
+		if row.KnowledgeDocID == "local_private_1" {
+			found = true
+			if row.Storage != "mysql" {
+				t.Fatalf("expected storage=mysql, got %q", row.Storage)
+			}
+			if row.Content != "仅本人可见正文" {
+				t.Fatalf("content mismatch: %q", row.Content)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("mysql-only row not listed")
+	}
+}

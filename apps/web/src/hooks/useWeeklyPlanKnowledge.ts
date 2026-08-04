@@ -9,6 +9,8 @@ import {
 import {
   deleteTeacherGeneratedDocRecord,
   recordTeacherGeneratedUpload,
+  saveMysqlOnlyGeneratedDoc,
+  type UploadStorageMode,
 } from '@/api/teacherGeneratedDocs'
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
@@ -99,32 +101,44 @@ export function useWeeklyPlanKnowledge() {
     setPendingUploads([])
   }, [isUploading])
 
-  const confirmPendingUpload = useCallback(async () => {
+  const confirmPendingUpload = useCallback(async (mode: UploadStorageMode = 'platform') => {
     if (pendingUploads.length === 0) throw new Error('没有待上传内容')
     setIsUploading(true)
     try {
       const uploaded: TeachingPlan[] = []
-      for (const item of pendingUploads) {
-        uploaded.push(
-          await uploadKnowledgeDocument({
-            title: item.title,
-            content: item.content,
-            knowledgeId: scope.knowledgeId,
-            categoryId: scope.categoryId,
-            categoryKey: scope.categoryKey,
-            forceKind: 'weekly',
-          })
+      if (mode === 'mysql') {
+        for (const item of pendingUploads) {
+          uploaded.push(
+            await saveMysqlOnlyGeneratedDoc({
+              docType: 'weekly',
+              title: item.title,
+              content: item.content,
+            })
+          )
+        }
+      } else {
+        for (const item of pendingUploads) {
+          uploaded.push(
+            await uploadKnowledgeDocument({
+              title: item.title,
+              content: item.content,
+              knowledgeId: scope.knowledgeId,
+              categoryId: scope.categoryId,
+              categoryKey: scope.categoryKey,
+              forceKind: 'weekly',
+            })
+          )
+        }
+        await Promise.all(
+          uploaded.map((plan) =>
+            recordTeacherGeneratedUpload({
+              docType: 'weekly',
+              plan,
+              categoryId: scope.categoryId,
+            })
+          )
         )
       }
-      await Promise.all(
-        uploaded.map((plan) =>
-          recordTeacherGeneratedUpload({
-            docType: 'weekly',
-            plan,
-            categoryId: scope.categoryId,
-          })
-        )
-      )
       setConfirmOpen(false)
       setPendingUploads([])
       setUploadFiles([])
@@ -141,6 +155,11 @@ export function useWeeklyPlanKnowledge() {
     }
     setIsDeleting(true)
     try {
+      if (plan.source === 'mysql' || plan.id.startsWith('local_')) {
+        await deleteTeacherGeneratedDocRecord(plan.id)
+        setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
+        return
+      }
       await deleteKnowledgeDocument(plan.id)
       await deleteTeacherGeneratedDocRecord(plan.id)
       setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))

@@ -283,7 +283,10 @@ Query 筛选（均可选）：
 
 - `POST /api/v1/teacher-generated-docs`
 
-请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId`。
+请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId` / `storage` / `content`。
+
+- `storage`：`platform`（默认，已上传 AI101 知识库）| `mysql`（仅 NestEdu MySQL，本人在「我的」可见）
+- `storage=mysql` 时 `content` 必填（全文）；`platform` 时可空
 
 ### 18) 删除
 
@@ -307,7 +310,10 @@ Query 筛选（均可选）：
 
 - `POST /api/v1/teacher-generated-docs`
 
-请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId`。
+请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId` / `storage` / `content`。
+
+- `storage`：`platform`（默认，已上传 AI101 知识库）| `mysql`（仅 NestEdu MySQL，本人在「我的」可见）
+- `storage=mysql` 时 `content` 必填（全文）；`platform` 时可空
 
 ### 18) 删除
 

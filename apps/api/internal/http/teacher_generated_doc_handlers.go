@@ -78,7 +78,9 @@ func (h *teacherGeneratedDocHandler) writeErr(c *gin.Context, err error) {
 		errors.Is(err, service.ErrGeneratedDocPhoneInvalid),
 		errors.Is(err, service.ErrGeneratedDocTypeInvalid),
 		errors.Is(err, service.ErrGeneratedDocTitleRequired),
-		errors.Is(err, service.ErrGeneratedDocIDRequired):
+		errors.Is(err, service.ErrGeneratedDocIDRequired),
+		errors.Is(err, service.ErrGeneratedDocStorageInvalid),
+		errors.Is(err, service.ErrGeneratedDocContentRequired):
 		jsonErr(c, http.StatusBadRequest, err)
 	default:
 		jsonErr(c, http.StatusInternalServerError, err)

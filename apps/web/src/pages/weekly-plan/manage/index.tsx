@@ -46,10 +46,14 @@ export default function WeeklyPlanManageSection() {
     }
   }
 
-  const handleConfirmUpload = async () => {
+  const handleConfirmUpload = async (mode: 'mysql' | 'platform') => {
     try {
-      const uploaded = await kb.confirmPendingUpload()
-      toast.success(`已成功上传 ${uploaded.length} 份到周计划知识库`)
+      const uploaded = await kb.confirmPendingUpload(mode)
+      toast.success(
+        mode === 'mysql'
+          ? `已保存 ${uploaded.length} 份到 MySQL（仅自己可见，请在「我的」查看）`
+          : `已成功上传 ${uploaded.length} 份到周计划知识库，并写入 MySQL`
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
     }
@@ -184,9 +188,10 @@ export default function WeeklyPlanManageSection() {
         open={kb.confirmOpen}
         items={kb.pendingUploads}
         uploading={kb.isUploading}
+        showStorageChoice
         onCancel={kb.cancelPendingUpload}
-        onConfirm={() => void handleConfirmUpload()}
-        targetHint={`将上传到「周计划管理」（分类 ${kb.scope.categoryId}）。请确认下列文件无误后再提交。`}
+        onConfirm={(mode) => void handleConfirmUpload(mode)}
+        targetHint="请选择入库方式。上传平台时写入「周计划管理」；仅 MySQL 则只在本系统「我的」可见。"
       />
 
       <PlanDetailDialog plan={viewPlan} open={detailOpen} onOpenChange={setDetailOpen} />

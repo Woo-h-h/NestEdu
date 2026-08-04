@@ -196,7 +196,7 @@ export default function ArchivePage() {
 
   const handleConfirmUpload = async () => {
     try {
-      const uploaded = await kb.confirmPendingUpload()
+      const uploaded = await kb.confirmPendingUpload('platform')
       toast.success(`已成功上传 ${uploaded.length} 份到教师成果库`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
@@ -711,7 +711,7 @@ export default function ArchivePage() {
         items={kb.pendingUploads}
         uploading={kb.isUploading}
         onCancel={kb.cancelPendingUpload}
-        onConfirm={() => void handleConfirmUpload()}
+        onConfirm={(mode) => void handleConfirmUpload()}
         targetHint={
           kb.uploadTarget
             ? `将上传到教师成果库个人文件夹「${kb.uploadTarget.name}」（分类 ${kb.uploadTarget.id}）。`

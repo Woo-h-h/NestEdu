@@ -4,6 +4,10 @@ import { getCurrentTeacherPhone } from '@/api/platformUser'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
 export type TeacherGeneratedDocType = 'activity' | 'weekly'
+/** mysql：仅本人可见；platform：已上传 AI101 知识库 */
+export type TeacherGeneratedDocStorage = 'mysql' | 'platform'
+
+export type UploadStorageMode = 'mysql' | 'platform'
 
 export interface TeacherGeneratedDocStats {
   phone: string
@@ -19,6 +23,8 @@ export interface TeacherGeneratedDocInput {
   title: string
   knowledgeId?: string
   categoryId?: string
+  storage?: TeacherGeneratedDocStorage
+  content?: string
 }
 
 interface ApiEnvelope<T> {
@@ -46,8 +52,28 @@ export interface TeacherGeneratedDoc {
   title: string
   knowledgeId?: string
   categoryId?: string
+  storage?: TeacherGeneratedDocStorage
+  content?: string
   createdAt?: string
   updatedAt?: string
+}
+
+export function isMysqlOnlyDocId(id: string): boolean {
+  return id.trim().startsWith('local_')
+}
+
+export function teacherDocToPlan(row: TeacherGeneratedDoc): TeachingPlan {
+  const storage = row.storage === 'mysql' ? 'mysql' : 'platform'
+  return {
+    id: row.knowledgeDocId,
+    title: row.title,
+    domain: '综合',
+    gradeLevel: '通用',
+    objectives: (row.content || '').slice(0, 120) || row.title,
+    content: row.content || '',
+    source: storage === 'mysql' ? 'mysql' : 'platform',
+    knowledgeId: row.knowledgeId,
+  }
 }
 
 export async function fetchTeacherGeneratedDocStats(
@@ -94,19 +120,55 @@ export async function listTeacherGeneratedDocs(
 
 export async function saveTeacherGeneratedDoc(
   input: TeacherGeneratedDocInput
-): Promise<void> {
+): Promise<TeacherGeneratedDoc> {
   try {
-    await request.post('/api/v1/teacher-generated-docs', {
-      phone: input.phone.trim(),
-      docType: input.docType,
-      knowledgeDocId: input.knowledgeDocId.trim(),
-      title: input.title.trim(),
-      knowledgeId: input.knowledgeId ?? '',
-      categoryId: input.categoryId ?? '',
-    })
+    const data = await request.post<ApiEnvelope<TeacherGeneratedDoc>>(
+      '/api/v1/teacher-generated-docs',
+      {
+        phone: input.phone.trim(),
+        docType: input.docType,
+        knowledgeDocId: input.knowledgeDocId.trim(),
+        title: input.title.trim(),
+        knowledgeId: input.knowledgeId ?? '',
+        categoryId: input.categoryId ?? '',
+        storage: input.storage || 'platform',
+        content: input.content ?? '',
+      }
+    )
+    return unwrapResult(data)
   } catch (err) {
     throw new Error(getApiErrorMessage(err, '记录教师生成文档失败（请确认后端已启动）'))
   }
+}
+
+/** 仅写入 MySQL，不上传平台知识库（本人可见）。 */
+export async function saveMysqlOnlyGeneratedDoc(params: {
+  docType: TeacherGeneratedDocType
+  title: string
+  content: string
+  phone?: string
+}): Promise<TeachingPlan> {
+  const phone = (params.phone || (await getCurrentTeacherPhone())).trim()
+  if (!phone) throw new Error('未能获取手机号，无法保存到本人库')
+  const title = params.title.trim()
+  const content = params.content.trim()
+  if (!title) throw new Error('标题不能为空')
+  if (!content) throw new Error('内容不能为空')
+
+  const knowledgeDocId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? `local_${crypto.randomUUID()}`
+      : `local_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+
+  const saved = await saveTeacherGeneratedDoc({
+    phone,
+    docType: params.docType,
+    knowledgeDocId,
+    title,
+    storage: 'mysql',
+    content,
+  })
+  return teacherDocToPlan(saved)
 }
 
 /** 知识库上传成功后写入 MySQL；失败只打日志，不阻断主流程。 */
@@ -128,6 +190,7 @@ export async function recordTeacherGeneratedUpload(params: {
       title: params.plan.title || knowledgeDocId,
       knowledgeId: params.plan.knowledgeId,
       categoryId: params.categoryId,
+      storage: 'platform',
     })
   } catch (err) {
     console.warn('[teacher-generated-docs] record skipped', err)

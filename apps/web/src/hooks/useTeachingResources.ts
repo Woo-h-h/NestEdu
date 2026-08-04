@@ -10,6 +10,8 @@ import {
 import {
   deleteTeacherGeneratedDocRecord,
   recordTeacherGeneratedUpload,
+  saveMysqlOnlyGeneratedDoc,
+  type UploadStorageMode,
 } from '@/api/teacherGeneratedDocs'
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
@@ -181,7 +183,7 @@ export function useTeachingResources() {
     setPendingUploads([])
   }, [isUploading, isUploadingGenerated])
 
-  const confirmPendingUpload = useCallback(async () => {
+  const confirmPendingUpload = useCallback(async (mode: UploadStorageMode = 'platform') => {
     if (pendingUploads.length === 0) throw new Error('没有待上传内容')
 
     const uploadingGenerated = confirmMode === 'generated'
@@ -191,27 +193,40 @@ export function useTeachingResources() {
     try {
       const scope = activityPlanKnowledgeScope()
       const uploaded: TeachingPlan[] = []
-      for (const item of pendingUploads) {
-        uploaded.push(
-          await uploadKnowledgeDocument({
-            title: item.title,
-            content: item.content,
-            knowledgeId: scope.knowledgeId,
-            categoryId: scope.categoryId,
-            categoryKey: scope.categoryKey,
-            forceKind: 'activity',
-          })
+
+      if (mode === 'mysql') {
+        for (const item of pendingUploads) {
+          uploaded.push(
+            await saveMysqlOnlyGeneratedDoc({
+              docType: 'activity',
+              title: item.title,
+              content: item.content,
+            })
+          )
+        }
+      } else {
+        for (const item of pendingUploads) {
+          uploaded.push(
+            await uploadKnowledgeDocument({
+              title: item.title,
+              content: item.content,
+              knowledgeId: scope.knowledgeId,
+              categoryId: scope.categoryId,
+              categoryKey: scope.categoryKey,
+              forceKind: 'activity',
+            })
+          )
+        }
+        await Promise.all(
+          uploaded.map((plan) =>
+            recordTeacherGeneratedUpload({
+              docType: 'activity',
+              plan,
+              categoryId: scope.categoryId,
+            })
+          )
         )
       }
-      await Promise.all(
-        uploaded.map((plan) =>
-          recordTeacherGeneratedUpload({
-            docType: 'activity',
-            plan,
-            categoryId: scope.categoryId,
-          })
-        )
-      )
 
       setConfirmOpen(false)
       setPendingUploads([])
@@ -239,6 +254,11 @@ export function useTeachingResources() {
       if (plan.source === 'ai') {
         setGeneratedPlans((prev) => prev.filter((p) => p.id !== plan.id))
         setUploadSelection((prev) => prev.filter((p) => p.id !== plan.id))
+        return
+      }
+      if (plan.source === 'mysql' || plan.id.startsWith('local_')) {
+        await deleteTeacherGeneratedDocRecord(plan.id)
+        setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
         return
       }
       await deleteKnowledgeDocument(plan.id)

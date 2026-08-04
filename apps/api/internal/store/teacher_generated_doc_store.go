@@ -21,7 +21,8 @@ func (s *TeacherGeneratedDocStore) Upsert(ctx context.Context, row model.Teacher
 	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "knowledge_doc_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"phone", "owner_id", "doc_type", "title", "knowledge_id", "category_id", "updated_at",
+			"phone", "owner_id", "doc_type", "title", "knowledge_id", "category_id",
+			"storage", "content", "updated_at",
 		}),
 	}).Create(&row).Error
 	if err != nil {

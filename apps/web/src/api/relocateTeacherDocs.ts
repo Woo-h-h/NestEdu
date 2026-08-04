@@ -100,6 +100,7 @@ export async function relocateMissingMineDocs(params: {
 
   const rows = await listTeacherGeneratedDocs(phone, params.kind)
   const missing = rows.filter((row) => {
+    if ((row.storage || 'platform') === 'mysql') return false
     const id = (row.knowledgeDocId || '').trim()
     return id && !params.presentIds.has(id)
   })

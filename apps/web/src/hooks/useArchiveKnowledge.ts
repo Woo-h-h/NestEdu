@@ -155,7 +155,7 @@ export function useArchiveKnowledge() {
     setPendingUploads([])
   }, [isUploading])
 
-  const confirmPendingUpload = useCallback(async () => {
+  const confirmPendingUpload = useCallback(async (_mode?: 'mysql' | 'platform') => {
     if (!configured) throw new Error('请先配置教师成果库分类 ID')
     if (!uploadTarget) throw new Error('未找到个人成果文件夹，无法上传')
     if (pendingUploads.length === 0) throw new Error('没有待上传内容')
