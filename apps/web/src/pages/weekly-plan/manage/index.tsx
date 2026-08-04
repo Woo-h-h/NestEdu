@@ -98,8 +98,7 @@ export default function WeeklyPlanManageSection() {
         <div>
           <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
           <p className="mt-1 text-sm text-nest-muted">
-            管理知识库 {kb.scope.knowledgeId} 下分类 {kb.scope.categoryId}{' '}
-            的周计划：上传、查看、导出（「班级第N周计划.docx」）、删除
+            管理「周计划」知识库文档：上传、查看、导出（「班级第N周计划.docx」）、删除；顶部展示「我的/总录入」与本页筛选统计
           </p>
         </div>
 
@@ -155,6 +154,7 @@ export default function WeeklyPlanManageSection() {
           plans={kb.platformPlans}
           loading={kb.isLoadingPlatform}
           sourceHint={kb.listHint}
+          kbTotal={kb.kbTotal}
           taxonomy="weekly"
           emptyHint="暂无周计划，可上传 docx 或从「周计划生成」入库"
           onView={(plan) => {

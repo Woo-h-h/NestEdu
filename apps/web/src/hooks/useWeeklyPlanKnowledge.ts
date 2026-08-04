@@ -27,6 +27,7 @@ export function useWeeklyPlanKnowledge() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [platformPlans, setPlatformPlans] = useState<TeachingPlan[]>([])
   const [listHint, setListHint] = useState('')
+  const [kbTotal, setKbTotal] = useState<number | null>(null)
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -37,7 +38,7 @@ export function useWeeklyPlanKnowledge() {
   const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
     try {
-      const { plans: next, source, error } = await fetchKnowledgePlans({
+      const { plans: next, source, error, total } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
@@ -46,8 +47,11 @@ export function useWeeklyPlanKnowledge() {
         fallbackPreset: false,
       })
       setPlatformPlans(next)
+      const resolvedTotal =
+        typeof total === 'number' && total >= 0 ? total : next.length
+      setKbTotal(source === 'platform' || source === 'empty' ? resolvedTotal : next.length)
       if (source === 'platform') {
-        setListHint(`平台知识库 · ${scope.knowledgeId} · 分类 ${scope.categoryId}`)
+        setListHint('')
       } else {
         setListHint(error || '暂无周计划文档')
       }
@@ -194,6 +198,7 @@ export function useWeeklyPlanKnowledge() {
     setUploadFiles,
     platformPlans,
     listHint,
+    kbTotal,
     isLoadingPlatform,
     isUploading,
     isDeleting,

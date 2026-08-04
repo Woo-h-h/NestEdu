@@ -24,6 +24,8 @@ interface Props {
   plans: TeachingPlan[]
   loading?: boolean
   sourceHint?: string
+  /** 知识库分类文档合计（平台 total）；用于「我的/总录入」分母 */
+  kbTotal?: number | null
   emptyHint?: string
   /** 开启后可勾选（用于决定是否上传） */
   selectable?: boolean
@@ -109,6 +111,7 @@ export default function PlanManageList({
   plans,
   loading = false,
   sourceHint,
+  kbTotal = null,
   emptyHint = '暂无教案',
   selectable = false,
   selected = [],
@@ -132,6 +135,8 @@ export default function PlanManageList({
   const [minePhone, setMinePhone] = useState('')
   const [mineDocIds, setMineDocIds] = useState<Set<string>>(() => new Set())
   const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
+  const [mineMappedCount, setMineMappedCount] = useState<number | null>(null)
+  const [mineMysqlCount, setMineMysqlCount] = useState(0)
   const [mineExtraPlans, setMineExtraPlans] = useState<TeachingPlan[]>([])
   const [mineLoading, setMineLoading] = useState(false)
   const [mineError, setMineError] = useState('')
@@ -140,9 +145,12 @@ export default function PlanManageList({
   const showTaxonomy = taxonomy === 'activity' || taxonomy === 'weekly'
   const mineDocType = taxonomy === 'activity' ? 'activity' : taxonomy === 'weekly' ? 'weekly' : null
 
+  // 有 taxonomy 时始终拉本人入库映射，供顶部「我的/总录入」；仅「我的」时再补拉误入库文档
   useEffect(() => {
-    if (!showTaxonomy || ownership !== '我的' || !mineDocType) {
+    if (!showTaxonomy || !mineDocType) {
       setMineExtraPlans([])
+      setMineMappedCount(null)
+      setMineMysqlCount(0)
       return
     }
     let cancelled = false
@@ -155,8 +163,12 @@ export default function PlanManageList({
             setMinePhone('')
             setMineDocIds(new Set())
             setMineTitles(new Set())
+            setMineMappedCount(null)
+            setMineMysqlCount(0)
             setMineExtraPlans([])
-            setMineError('请先登录后再查看「我的」文档')
+            if (ownership === '我的') {
+              setMineError('请先登录后再查看「我的」文档')
+            }
           }
           return
         }
@@ -167,6 +179,8 @@ export default function PlanManageList({
             setMinePhone('')
             setMineDocIds(new Set())
             setMineTitles(new Set())
+            setMineMappedCount(null)
+            setMineMysqlCount(0)
             setMineExtraPlans([])
           }
           return
@@ -178,6 +192,13 @@ export default function PlanManageList({
         setMinePhone(phone)
         setMineDocIds(docIds)
         setMineTitles(titles)
+        setMineMappedCount(rows.length)
+        setMineMysqlCount(rows.filter((r) => (r.storage || 'platform') === 'mysql').length)
+
+        if (ownership !== '我的') {
+          setMineExtraPlans([])
+          return
+        }
 
         const presentIds = new Set(
           plans.map((p) => (p.id || '').trim()).filter(Boolean)
@@ -330,22 +351,57 @@ export default function PlanManageList({
     void onSearch?.(query.trim())
   }
 
+  const totalEntryCount =
+    typeof kbTotal === 'number' && kbTotal >= 0 ? kbTotal : plans.length
+  const mineEntryCount = mineMappedCount
+  const pageLoadedCount = plans.length
+  const showStats = showTaxonomy
+  const sourceHintIsError = Boolean(
+    sourceHint &&
+      (/失败|错误|登录|暂无|预设|未配置|无法/.test(sourceHint) ||
+        sourceHint.includes('平台失败'))
+  )
+
   return (
     <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/25 p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2 font-medium text-nest-ink">
         <span className="font-display">{title}</span>
-        {plans.length > 0 && (
+        {showStats ? (
+          <>
+            <span
+              className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted"
+              title="本人入库记录数 / 知识库分类文档合计"
+            >
+              {mineEntryCount === null ? (mineLoading ? '…' : '—') : mineEntryCount} /{' '}
+              {totalEntryCount}
+              <span className="ml-1 text-[10px] text-nest-muted/80">我的/总录入</span>
+            </span>
+            <span
+              className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted"
+              title="当前筛选结果数 / 本页已加载文档数"
+            >
+              {filtered.length} / {pageLoadedCount}
+              <span className="ml-1 text-[10px] text-nest-muted/80">本页/已加载</span>
+            </span>
+            <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
+              仅本人 {mineMysqlCount}
+            </span>
+            <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
+              {misroutedCount > 0 ? `待纠正 ${misroutedCount}` : `知识库合计 ${totalEntryCount}`}
+            </span>
+          </>
+        ) : plans.length > 0 ? (
           <span className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted">
             共 {filtered.length}
             {filtered.length !== plans.length ? ` / ${plans.length}` : ''} 份
           </span>
-        )}
+        ) : null}
         {selectable && selected.length > 0 && (
           <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
             已勾选 {selected.length} 份待上传
           </span>
         )}
-        {sourceHint && (
+        {sourceHint && sourceHintIsError && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
             {sourceHint}
           </span>

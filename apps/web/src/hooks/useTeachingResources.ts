@@ -34,6 +34,8 @@ export function useTeachingResources() {
   const [uploadSelection, setUploadSelection] = useState<TeachingPlan[]>([])
   const [platformPlans, setPlatformPlans] = useState<TeachingPlan[]>([])
   const [listHint, setListHint] = useState('')
+  /** 知识库分类文档合计（平台 total，可能大于本页加载条数） */
+  const [kbTotal, setKbTotal] = useState<number | null>(null)
   const [themeName, setThemeName] = useState('')
   const [className, setClassName] = useState<ClassType | ''>('')
   const [focusDomains, setFocusDomains] = useState<FocusDomain[]>([])
@@ -52,7 +54,7 @@ export function useTeachingResources() {
     setIsLoadingPlatform(true)
     try {
       const scope = activityPlanKnowledgeScope()
-      const { plans: next, source, error } = await fetchKnowledgePlans({
+      const { plans: next, source, error, total } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
         knowledgeId: scope.knowledgeId,
         categoryId: scope.categoryId,
@@ -60,8 +62,11 @@ export function useTeachingResources() {
         limit: 50,
       })
       setPlatformPlans(next)
+      const resolvedTotal =
+        typeof total === 'number' && total >= 0 ? total : next.length
+      setKbTotal(source === 'platform' || source === 'empty' ? resolvedTotal : next.length)
       if (source === 'platform') {
-        setListHint(`教案知识库 · ${scope.knowledgeId} · 分类 ${scope.categoryId}`)
+        setListHint('')
       } else if (source === 'preset') {
         setListHint(error ? `本地预设（平台失败：${error}）` : '本地预设')
       } else {
@@ -279,6 +284,7 @@ export function useTeachingResources() {
     setUploadSelection,
     platformPlans,
     listHint,
+    kbTotal,
     themeName,
     setThemeName,
     className,
