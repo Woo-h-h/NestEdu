@@ -11,6 +11,10 @@ type ProfileSection = {
   body: string
 }
 
+type ProfileSectionGroup = ProfileSection & {
+  children: ProfileSection[]
+}
+
 const SECTION_HINTS: Record<string, string> = {
   数字名片: '一句话概括教师、材料范围与画像主题',
   成长结构观察: '围绕活动方案 / 周计划 / 教师成果库三维度',
@@ -65,6 +69,28 @@ function splitSections(text: string): ProfileSection[] {
     if (s.title === '前言' && !s.body) return false
     return !HIDDEN_SECTION_KEYS.some((key) => s.title.includes(key))
   })
+}
+
+/** 将 ### 子节归并到紧邻的上级 ## 节，避免父节显示「本节暂无内容」 */
+function groupSections(flat: ProfileSection[]): ProfileSectionGroup[] {
+  const groups: ProfileSectionGroup[] = []
+  let index = 0
+  while (index < flat.length) {
+    const section = flat[index]
+    if (section.level === 2) {
+      const children: ProfileSection[] = []
+      index += 1
+      while (index < flat.length && flat[index].level === 3) {
+        children.push(flat[index])
+        index += 1
+      }
+      groups.push({ ...section, children })
+      continue
+    }
+    groups.push({ ...section, children: [] })
+    index += 1
+  }
+  return groups
 }
 
 function hintFor(title: string): string | undefined {
@@ -154,7 +180,8 @@ function SectionBody({ body }: { body: string }) {
 }
 
 export default function ProfileAgentMarkdown({ text }: { text: string }) {
-  const sections = splitSections(text.trim())
+  const flatSections = splitSections(text.trim())
+  const sections = groupSections(flatSections)
 
   if (sections.length === 0) {
     return <p className="text-sm text-nest-muted">暂无画像内容</p>
@@ -169,14 +196,16 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
     )
   }
 
+  const outlineCount = flatSections.length
+
   return (
     <div className="space-y-4">
       <details className="rounded-xl border border-nest-leaf/15 bg-white/70 px-4 py-3 text-xs text-nest-muted">
         <summary className="cursor-pointer select-none font-medium text-nest-pine">
-          查看输出格式拆解（共 {sections.length} 个区块）
+          查看输出格式拆解（共 {outlineCount} 个区块）
         </summary>
         <ol className="mt-3 list-decimal space-y-1.5 pl-4">
-          {sections.map((section, index) => (
+          {flatSections.map((section, index) => (
             <li key={`${section.title}-${index}`}>
               <span className="font-medium text-nest-ink">
                 {section.level === 3 ? '　↳ ' : ''}
@@ -197,6 +226,9 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
       {sections.map((section, index) => {
         const hint = hintFor(section.title)
         const isH3 = section.level === 3
+        const hasChildren = section.children.length > 0
+        const showParentBody = section.body.trim().length > 0
+
         return (
           <article
             key={`${section.title}-${index}`}
@@ -217,7 +249,29 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
               </h3>
               {hint ? <p className="mt-0.5 text-xs text-nest-muted">{hint}</p> : null}
             </header>
-            <SectionBody body={section.body} />
+            {showParentBody ? <SectionBody body={section.body} /> : null}
+            {hasChildren ? (
+              <div className={`space-y-3 ${showParentBody ? 'mt-4' : ''}`}>
+                {section.children.map((child, childIndex) => (
+                  <div
+                    key={`${child.title}-${childIndex}`}
+                    className="rounded-xl border border-nest-leaf/10 bg-white/60 px-4 py-3 md:ml-1"
+                  >
+                    <h4 className="font-display text-sm font-semibold text-nest-pine">
+                      {child.title}
+                    </h4>
+                    {hintFor(child.title) ? (
+                      <p className="mt-0.5 text-xs text-nest-muted">{hintFor(child.title)}</p>
+                    ) : null}
+                    <div className="mt-2">
+                      <SectionBody body={child.body} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : !showParentBody && !isH3 ? (
+              <SectionBody body={section.body} />
+            ) : null}
           </article>
         )
       })}

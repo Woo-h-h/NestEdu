@@ -87,14 +87,16 @@ export function buildGrowthRecordsContext(records: GrowthRecord[]): string {
 export function buildProfileAgentUserMessage(params: {
   displayName: string
   phone: string
+  activityPlans: TeachingPlan[]
+  weeklyPlans: TeachingPlan[]
   archivePlans: TeachingPlan[]
   localRecords: GrowthRecord[]
   activityPlanCount?: number
   weeklyPlanCount?: number
   focus?: string
 }): string {
-  const activity = params.activityPlanCount ?? 0
-  const weekly = params.weeklyPlanCount ?? 0
+  const activity = params.activityPlanCount ?? params.activityPlans.length
+  const weekly = params.weeklyPlanCount ?? params.weeklyPlans.length
   const archive = params.archivePlans.length
 
   const parts: string[] = [
@@ -122,6 +124,12 @@ export function buildProfileAgentUserMessage(params: {
     `| 周计划 | ${weekly} | 本人入库 · MySQL |`,
     `| 教师成果库 | ${archive} | 平台知识库 · 手机号同名文件夹 |`,
     '',
+    '【活动方案摘要（本人入库 · MySQL，已由系统隔离）】',
+    buildArchiveDocsContext(params.activityPlans),
+    '',
+    '【周计划摘要（本人入库 · MySQL，已由系统隔离）】',
+    buildArchiveDocsContext(params.weeklyPlans),
+    '',
     '【教师成果库文档摘要（仅本人手机号文件夹，已由系统隔离，请勿假定存在其他材料）】',
     buildArchiveDocsContext(params.archivePlans),
     '',
@@ -129,6 +137,7 @@ export function buildProfileAgentUserMessage(params: {
     buildGrowthRecordsContext(params.localRecords),
     '',
     '请严格按系统提示的 Markdown 结构输出；优势与待发展必须能对应到上述三维度计数或材料摘要；禁止编造未出现的数量。',
+    '「成长结构观察」须分别结合活动方案、周计划、教师成果库的材料摘要给出观察，不可只引用计数。',
   )
 
   return parts.join('\n')

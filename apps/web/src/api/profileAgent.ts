@@ -1,11 +1,16 @@
 import { generateAgentText, getProfileAgentId } from '@/api/agent'
 import { listGrowthRecords } from '@/api/growth'
-import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
+import { fetchArchivePlansForOwnerFolder, fetchKnowledgePlanById } from '@/api/knowledge'
 import {
   getCurrentTeacherDisplayName,
   getCurrentTeacherPhone,
 } from '@/api/platformUser'
-import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
+import {
+  fetchTeacherGeneratedDocStats,
+  listTeacherGeneratedDocs,
+  teacherDocToPlan,
+  type TeacherGeneratedDocType,
+} from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
 import { buildProfileAgentUserMessage } from '@/lib/profileAgentPrompt'
 import type { GrowthRecord } from '@/types/growth'
@@ -17,14 +22,58 @@ export interface ProfileAgentGenerateResult {
   displayName: string
   archiveDocCount: number
   localRecordCount: number
+  activityPlanCount: number
+  weeklyPlanCount: number
   folderIds: string[]
   agentId: number
+}
+
+const PROFILE_DOC_LIMIT = 20
+
+/** 拉取本人入库的活动方案/周计划正文，供画像 Agent 分析（不仅传计数） */
+async function loadTeacherGeneratedPlansForProfile(
+  phone: string,
+  docType: TeacherGeneratedDocType,
+  limit = PROFILE_DOC_LIMIT
+): Promise<TeachingPlan[]> {
+  const rows = await listTeacherGeneratedDocs(phone, docType)
+  const plans: TeachingPlan[] = []
+
+  for (const row of rows.slice(0, limit)) {
+    const dbContent = (row.content || '').trim()
+    if (dbContent.length >= 20) {
+      plans.push(teacherDocToPlan(row))
+      continue
+    }
+
+    const id = (row.knowledgeDocId || '').trim()
+    if (id && !id.startsWith('local_')) {
+      try {
+        const fetched = await fetchKnowledgePlanById(id)
+        const text = (fetched?.content || fetched?.objectives || '').trim()
+        if (fetched && text.length >= 20) {
+          plans.push({
+            ...fetched,
+            title: row.title || fetched.title,
+            content: fetched.content || text,
+          })
+          continue
+        }
+      } catch {
+        // 平台正文不可读时回退数据库记录
+      }
+    }
+
+    plans.push(teacherDocToPlan(row))
+  }
+
+  return plans
 }
 
 /**
  * 生成教师画像解读：
  * - 先取本人手机号
- * - 只拉取手机号同名文件夹文档（不把整库交给智能体检索）
+ * - 拉取活动方案/周计划本人入库摘要 + 成果库文件夹文档
  * - 将摘要注入提示词后调用画像 Agent
  */
 export async function generateProfileAgentAnalysis(options?: {
@@ -44,12 +93,16 @@ export async function generateProfileAgentAnalysis(options?: {
 
   const displayName = (await getCurrentTeacherDisplayName()) || '老师'
 
-  const archive = await fetchArchivePlansForOwnerFolder(phone, { limit: 50 })
+  const [archive, activityPlans, weeklyPlans] = await Promise.all([
+    fetchArchivePlansForOwnerFolder(phone, { limit: 50 }),
+    loadTeacherGeneratedPlansForProfile(phone, 'activity'),
+    loadTeacherGeneratedPlansForProfile(phone, 'weekly'),
+  ])
+
   if (archive.error && archive.folders.length === 0 && archive.plans.length === 0) {
     throw new Error(archive.error)
   }
 
-  // 二次校验：返回的 folders 名称必须匹配手机号（防御性）
   const folderIds = archive.folders.map((f) => f.id)
   const archivePlans: TeachingPlan[] = archive.plans
 
@@ -72,10 +125,14 @@ export async function generateProfileAgentAnalysis(options?: {
     // 系统统计失败不阻断画像生成
   }
 
+  const resolvedActivityCount = activityPlanCount ?? activityPlans.length
+  const resolvedWeeklyCount = weeklyPlanCount ?? weeklyPlans.length
+
   if (
     archivePlans.length === 0 &&
     localRecords.length === 0 &&
-    !(activityPlanCount || weeklyPlanCount)
+    resolvedActivityCount === 0 &&
+    resolvedWeeklyCount === 0
   ) {
     throw new Error(
       `三维度暂无数据：活动方案/周计划未入库，且手机号「${phone}」文件夹下暂无文档。请先入库或整理成果库后再生成。`
@@ -85,16 +142,23 @@ export async function generateProfileAgentAnalysis(options?: {
   const prompt = buildProfileAgentUserMessage({
     displayName,
     phone,
+    activityPlans,
+    weeklyPlans,
     archivePlans,
     localRecords,
-    activityPlanCount: activityPlanCount ?? 0,
-    weeklyPlanCount: weeklyPlanCount ?? 0,
+    activityPlanCount: resolvedActivityCount,
+    weeklyPlanCount: resolvedWeeklyCount,
     focus: options?.focus,
   })
 
   console.info('[ProfileAgent] generate', {
     agentId,
     phone,
+    activityPlanCount: resolvedActivityCount,
+    weeklyPlanCount: resolvedWeeklyCount,
+    activityDocsWithBody: activityPlans.filter((p) => (p.content || '').trim().length >= 20)
+      .length,
+    weeklyDocsWithBody: weeklyPlans.filter((p) => (p.content || '').trim().length >= 20).length,
     archiveDocCount: archivePlans.length,
     folderIds,
     localRecordCount: localRecords.length,
@@ -112,6 +176,8 @@ export async function generateProfileAgentAnalysis(options?: {
     displayName,
     archiveDocCount: archivePlans.length,
     localRecordCount: localRecords.length,
+    activityPlanCount: resolvedActivityCount,
+    weeklyPlanCount: resolvedWeeklyCount,
     folderIds,
     agentId,
   }

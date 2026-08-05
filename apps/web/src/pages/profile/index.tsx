@@ -31,6 +31,8 @@ export default function ProfilePage() {
   const [snapshotSavedAt, setSnapshotSavedAt] = useState('')
   const [agentMeta, setAgentMeta] = useState<{
     archiveDocCount: number
+    activityPlanCount: number
+    weeklyPlanCount: number
     localRecordCount: number
     agentId: number
   } | null>(null)
@@ -141,6 +143,8 @@ export default function ProfilePage() {
       setAgentMarkdown(result.markdown)
       setAgentMeta({
         archiveDocCount: result.archiveDocCount,
+        activityPlanCount: result.activityPlanCount,
+        weeklyPlanCount: result.weeklyPlanCount,
         localRecordCount: result.localRecordCount,
         agentId: result.agentId,
       })
@@ -228,7 +232,8 @@ export default function ProfilePage() {
 
         {agentMeta && (
           <p className="text-xs text-nest-muted">
-            本次注入：活动方案/周计划统计 + 成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入{' '}
+            本次注入：活动方案 {agentMeta.activityPlanCount} 份、周计划 {agentMeta.weeklyPlanCount}{' '}
+            份（含正文摘要）+ 成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入{' '}
             {agentMeta.localRecordCount} 条 · 智能体{' '}
             <a
               href={`https://www.zcat.cn/teach/agent/config/${agentMeta.agentId}`}
