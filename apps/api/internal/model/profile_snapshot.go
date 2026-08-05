@@ -11,7 +11,7 @@ type ProfileSnapshot struct {
 	OwnerID          string    `json:"-" gorm:"column:owner_id;type:varchar(128);not null;index"`
 	DisplayName      string    `json:"displayName" gorm:"column:display_name;type:varchar(128)"`
 	AgentID          int       `json:"agentId" gorm:"column:agent_id"`
-	Markdown         string    `json:"markdown" gorm:"column:markdown;type:longtext;not null"`
+	Markdown         string    `json:"markdown" gorm:"column:markdown;type:text;not null"`
 	ArchiveDocCount  int       `json:"archiveDocCount" gorm:"column:archive_doc_count"`
 	LocalRecordCount int       `json:"localRecordCount" gorm:"column:local_record_count"`
 	FolderIDsJSON    string    `json:"-" gorm:"column:folder_ids_json;type:text"`

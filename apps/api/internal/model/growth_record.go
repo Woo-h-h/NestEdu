@@ -15,12 +15,12 @@ type GrowthRecord struct {
 	Level          string    `json:"level" gorm:"column:level;type:varchar(64)"`
 	Role           string    `json:"role" gorm:"column:role;type:varchar(128)"`
 	Org            string    `json:"org" gorm:"column:org;type:varchar(256)"`
-	Intro          string    `json:"intro" gorm:"column:intro;type:longtext"`
-	Keywords       string    `json:"-" gorm:"column:keywords;type:longtext"`
+	Intro          string    `json:"intro" gorm:"column:intro;type:text"`
+	Keywords       string    `json:"-" gorm:"column:keywords;type:text"`
 	Status         string    `json:"status" gorm:"column:status;type:varchar(64)"`
 	Representative bool      `json:"representative" gorm:"column:representative;not null;default:false"`
-	Extra          string    `json:"-" gorm:"column:extra;type:longtext"`
-	Files          string    `json:"-" gorm:"column:files;type:longtext"`
+	Extra          string    `json:"-" gorm:"column:extra;type:text"`
+	Files          string    `json:"-" gorm:"column:files;type:text"`
 	CreatedAt      time.Time `json:"createdAt" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt      time.Time `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`
 }

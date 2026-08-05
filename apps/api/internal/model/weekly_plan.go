@@ -10,9 +10,9 @@ type WeeklyPlan struct {
 	ThemeName   string    `json:"themeName" gorm:"column:theme_name;type:varchar(512);not null"`
 	ClassName   string    `json:"className" gorm:"column:class_name;type:varchar(128);not null"`
 	WeekNumber  int       `json:"weekNumber" gorm:"column:week_number;not null"`
-	WeeklyFocus string    `json:"weeklyFocus" gorm:"column:weekly_focus;type:longtext"`
-	DailyPlans  string    `json:"-" gorm:"column:daily_plans;type:longtext;not null"`
-	Suggestions string    `json:"suggestions" gorm:"column:suggestions;type:longtext"`
+	WeeklyFocus string    `json:"weeklyFocus" gorm:"column:weekly_focus;type:text"`
+	DailyPlans  string    `json:"-" gorm:"column:daily_plans;type:text;not null"`
+	Suggestions string    `json:"suggestions" gorm:"column:suggestions;type:text"`
 	Status      string    `json:"status" gorm:"column:status;type:varchar(64);not null"`
 	CreatedAt   time.Time `json:"createdAt" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt   time.Time `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`

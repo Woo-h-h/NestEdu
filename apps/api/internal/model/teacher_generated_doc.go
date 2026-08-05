@@ -16,7 +16,7 @@ type TeacherGeneratedDoc struct {
 	KnowledgeID    string    `json:"knowledgeId" gorm:"column:knowledge_id;type:varchar(64)"`
 	CategoryID     string    `json:"categoryId" gorm:"column:category_id;type:varchar(64)"`
 	Storage        string    `json:"storage" gorm:"column:storage;type:varchar(32);not null;default:platform;index"` // mysql | platform
-	Content        string    `json:"content,omitempty" gorm:"column:content;type:longtext"`                         // mysql-only 全文；platform 可空
+	Content        string    `json:"content,omitempty" gorm:"column:content;type:text"` // 全文；platform 可空（text 兼容 MySQL/Postgres）
 	CreatedAt      time.Time `json:"createdAt" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt      time.Time `json:"updatedAt" gorm:"column:updated_at;autoUpdateTime"`
 }
