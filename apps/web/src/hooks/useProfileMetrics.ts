@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listGrowthRecords } from '@/api/growth'
 import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
 import {
+  clearTeacherPhoneCache,
   fetchPlatformUserSelf,
   getCurrentTeacherPhone,
+  refreshTeacherAuthIdentity,
   resolvePhoneFromAuthInfo,
   resolvePhoneFromUserSelf,
 } from '@/api/platformUser'
@@ -90,9 +92,6 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
     setLoading(true)
     setError('')
     try {
-      const { clearTeacherPhoneCache, refreshTeacherAuthIdentity } = await import(
-        '@/api/platformUser'
-      )
       // 换账号后强制对齐父页登录态，避免仍用上一用户的手机号文件夹
       await refreshTeacherAuthIdentity()
       clearTeacherPhoneCache()

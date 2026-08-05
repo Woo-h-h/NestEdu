@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { FileText, Loader2, Plus, ShieldCheck, Sparkles } from 'lucide-react'
+import { Loader2, Plus, ShieldCheck, Sparkles } from 'lucide-react'
 import { authBridge } from '@/lib/authBridge'
 import { getAuthIdentityKey } from '@/lib/authIdentity'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
@@ -11,7 +11,7 @@ import DimensionCards from '@/components/profile/DimensionCards'
 import RadarChart from '@/components/profile/RadarChart'
 import DonutChart from '@/components/profile/DonutChart'
 import StrengthGapPanel from '@/components/profile/StrengthGapPanel'
-import AnnualReportModal from '@/components/profile/AnnualReportModal'
+import AnnualReportPanel from '@/components/profile/AnnualReportPanel'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
 import { getProfileSnapshotByPhone, saveProfileSnapshot } from '@/api/profileSnapshot'
@@ -22,7 +22,6 @@ const REPORT_YEAR = new Date().getFullYear()
 
 export default function ProfilePage() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
-  const [reportOpen, setReportOpen] = useState(false)
   const [agentLoading, setAgentLoading] = useState(false)
   const [agentError, setAgentError] = useState('')
   const [agentMarkdown, setAgentMarkdown] = useState('')
@@ -107,6 +106,8 @@ export default function ProfilePage() {
         setAgentMarkdown(snap.markdown)
         setAgentMeta({
           archiveDocCount: snap.archiveDocCount,
+          activityPlanCount: 0,
+          weeklyPlanCount: 0,
           localRecordCount: snap.localRecordCount,
           agentId: snap.agentId || getProfileAgentId(),
         })
@@ -285,7 +286,7 @@ export default function ProfilePage() {
         </div>
       ) : error ? (
         <div className="surface-panel mt-6 p-8 text-center">
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-red-600">成长数据加载失败：{error}</p>
           <button type="button" onClick={() => void load()} className="btn-secondary mt-4">
             重试
           </button>
@@ -347,34 +348,19 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="no-print mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-nest-leaf/10 pt-8">
-        <p className="max-w-lg text-xs leading-relaxed text-nest-muted">
-          画像与报告围绕三维度聚合：活动方案、周计划（本人入库）与教师成果库（平台个人文件夹）。
-        </p>
-        <button
-          type="button"
-          onClick={() => setReportOpen(true)}
-          disabled={loading}
-          className="btn-primary shrink-0"
-        >
-          <FileText size={16} />
-          生成年度成长报告
-        </button>
-      </div>
-
-      <AnnualReportModal
-        open={reportOpen}
-        onOpenChange={setReportOpen}
-        displayName={displayName}
-        year={REPORT_YEAR}
-        dimensions={dimensions}
-        categoryCounts={categoryCounts}
-        radar={radar}
-        strengths={analysis.strengths}
-        gaps={analysis.gaps}
-        representatives={representatives}
-        teacherRecordCount={teacherRecordCount}
-      />
+      {!loading && (
+        <AnnualReportPanel
+          displayName={displayName}
+          year={REPORT_YEAR}
+          dimensions={dimensions}
+          categoryCounts={categoryCounts}
+          radar={radar}
+          strengths={analysis.strengths}
+          gaps={analysis.gaps}
+          representatives={representatives}
+          teacherRecordCount={teacherRecordCount}
+        />
+      )}
     </div>
   )
 }

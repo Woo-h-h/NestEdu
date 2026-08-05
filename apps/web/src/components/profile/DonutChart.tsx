@@ -8,8 +8,8 @@ interface DonutChartProps {
 }
 
 export default function DonutChart({ items, size = 200 }: DonutChartProps) {
-  const teacherItems = items.filter((i) => i.source === 'teacher' && i.count > 0)
-  const total = teacherItems.reduce((sum, i) => sum + i.count, 0)
+  const chartItems = items.filter((i) => i.count > 0)
+  const total = chartItems.reduce((sum, i) => sum + i.count, 0)
   const cx = size / 2
   const cy = size / 2
   const outerR = size * 0.38
@@ -21,13 +21,13 @@ export default function DonutChart({ items, size = 200 }: DonutChartProps) {
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="#e8f2ee" strokeWidth={outerR - innerR} />
         </svg>
-        <p className="mt-2">暂无录入类分布</p>
+        <p className="mt-2">暂无结构分布数据</p>
       </div>
     )
   }
 
   let angle = -Math.PI / 2
-  const slices = teacherItems.map((item, index) => {
+  const slices = chartItems.map((item, index) => {
     const sliceAngle = (item.count / total) * Math.PI * 2
     const start = angle
     angle += sliceAngle
@@ -62,7 +62,7 @@ export default function DonutChart({ items, size = 200 }: DonutChartProps) {
         </text>
       </svg>
       <ul className="space-y-2 text-sm">
-        {teacherItems.map((item, i) => (
+        {chartItems.map((item, i) => (
           <li key={item.key} className="flex items-center gap-2 text-nest-muted">
             <span
               className="h-2.5 w-2.5 rounded-sm"
