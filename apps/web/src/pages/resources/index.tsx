@@ -323,7 +323,7 @@ export default function ResourcesPage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
             <p className="mt-1 text-sm text-nest-muted">
-              上传 docx 到「教案知识库管理」；顶部区分本人入库 / 仅本地 / 已上平台；「仅本地」可一键上传到平台
+              上传 docx 到「教案知识库管理」；确认后同时写入平台知识库与本系统数据库。「全部」看平台分类，「我的」看本人入库记录。
             </p>
           </div>
           {!isLoggedIn && (

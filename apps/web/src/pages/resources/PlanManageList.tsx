@@ -57,9 +57,9 @@ interface Props {
 
 const sourceTag: Record<string, string> = {
   ai: '主题生成',
-  platform: '已上平台',
+  platform: '平台',
   preset: '预设',
-  mysql: '仅本地',
+  mysql: '待上平台',
 }
 
 function SummaryCell({
@@ -71,10 +71,10 @@ function SummaryCell({
   label: string
   value: string
   hint: string
-  tone?: 'default' | 'local' | 'ok'
+  tone?: 'default' | 'warn' | 'ok'
 }) {
   const toneClass =
-    tone === 'local'
+    tone === 'warn'
       ? 'border-amber-200/80 bg-amber-50/80'
       : tone === 'ok'
         ? 'border-nest-leaf/20 bg-nest-mist/60'
@@ -152,7 +152,7 @@ export default function PlanManageList({
   const [mineDocIds, setMineDocIds] = useState<Set<string>>(() => new Set())
   const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
   const [mineMappedCount, setMineMappedCount] = useState<number | null>(null)
-  const [mineMysqlCount, setMineMysqlCount] = useState(0)
+  const [mineLegacyLocalCount, setMineLegacyLocalCount] = useState(0)
   const [mineInCategoryCount, setMineInCategoryCount] = useState(0)
   const [mineMisroutedCount, setMineMisroutedCount] = useState(0)
   const [mineExtraPlans, setMineExtraPlans] = useState<TeachingPlan[]>([])
@@ -170,7 +170,7 @@ export default function PlanManageList({
     if (!showTaxonomy || !mineDocType) {
       setMineExtraPlans([])
       setMineMappedCount(null)
-      setMineMysqlCount(0)
+      setMineLegacyLocalCount(0)
       setMineInCategoryCount(0)
       setMineMisroutedCount(0)
       return
@@ -186,7 +186,7 @@ export default function PlanManageList({
             setMineDocIds(new Set())
             setMineTitles(new Set())
             setMineMappedCount(null)
-            setMineMysqlCount(0)
+            setMineLegacyLocalCount(0)
             setMineInCategoryCount(0)
             setMineMisroutedCount(0)
             setMineExtraPlans([])
@@ -204,7 +204,7 @@ export default function PlanManageList({
             setMineDocIds(new Set())
             setMineTitles(new Set())
             setMineMappedCount(null)
-            setMineMysqlCount(0)
+            setMineLegacyLocalCount(0)
             setMineInCategoryCount(0)
             setMineMisroutedCount(0)
             setMineExtraPlans([])
@@ -218,12 +218,12 @@ export default function PlanManageList({
         const presentIds = new Set(plans.map((p) => (p.id || '').trim()).filter(Boolean))
         const presentTitles = new Set(plans.map((p) => (p.title || '').trim()).filter(Boolean))
 
-        let mysqlCount = 0
+        let legacyLocalCount = 0
         let inCategoryCount = 0
         let misroutedCount = 0
         for (const row of rows) {
           if ((row.storage || 'platform') === 'mysql') {
-            mysqlCount += 1
+            legacyLocalCount += 1
             continue
           }
           const id = (row.knowledgeDocId || '').trim()
@@ -238,7 +238,7 @@ export default function PlanManageList({
         setMineDocIds(docIds)
         setMineTitles(titles)
         setMineMappedCount(rows.length)
-        setMineMysqlCount(mysqlCount)
+        setMineLegacyLocalCount(legacyLocalCount)
         setMineInCategoryCount(inCategoryCount)
         setMineMisroutedCount(misroutedCount)
 
@@ -338,12 +338,16 @@ export default function PlanManageList({
   void mineDocIds
   void mineTitles
 
-  const minePlatformCount = Math.max(0, (mineMappedCount ?? 0) - mineMysqlCount)
   const mineLabel =
     mineMappedCount === null ? (mineLoading ? '…' : '—') : String(mineMappedCount)
-  const localLabel = mineMappedCount === null ? (mineLoading ? '…' : '—') : String(mineMysqlCount)
   const platformLabel =
-    mineMappedCount === null ? (mineLoading ? '…' : '—') : String(minePlatformCount)
+    typeof kbTotal === 'number' && kbTotal >= 0
+      ? String(kbTotal)
+      : mineMappedCount === null
+        ? mineLoading
+          ? '…'
+          : '—'
+        : String(Math.max(0, (mineMappedCount ?? 0) - mineLegacyLocalCount))
 
   const sourceHintIsError = Boolean(
     sourceHint &&
@@ -451,31 +455,25 @@ export default function PlanManageList({
       </div>
 
       {showTaxonomy ? (
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-2 gap-2">
           <SummaryCell
             label="本人入库"
             value={mineLabel}
             hint={
-              typeof kbTotal === 'number' && kbTotal >= 0
-                ? `数据库记录 · 平台分类约 ${kbTotal} 份`
-                : '数据库中的本人记录'
+              mineLegacyLocalCount > 0
+                ? `含 ${mineLegacyLocalCount} 份历史本地记录，可补传平台`
+                : '生成/上传后同步写入数据库'
             }
           />
           <SummaryCell
-            label="仅本地"
-            value={localLabel}
-            hint="未上传平台，可点卡片上传"
-            tone="local"
-          />
-          <SummaryCell
-            label="已上平台"
+            label="平台分类"
             value={platformLabel}
             hint={
               mineMisroutedCount > 0
                 ? `分类内可见约 ${mineInCategoryCount} 份 · ${mineMisroutedCount} 份待纠正`
-                : mineInCategoryCount > 0
-                  ? `分类内可见约 ${mineInCategoryCount} 份`
-                  : '已在知识库分类中'
+                : typeof kbTotal === 'number' && kbTotal >= 0
+                  ? '知识库当前分类文档数'
+                  : '平台知识库分类中的文档'
             }
             tone="ok"
           />
@@ -540,7 +538,7 @@ export default function PlanManageList({
           {ownership === '我的' && (
             <div className="mt-2 space-y-2">
               <p className="text-[11px] leading-relaxed text-nest-muted">
-                「全部」看平台知识库分类；「我的」看本系统数据库本人记录（含仅本地保存）。
+                「全部」看平台知识库分类；「我的」看本系统数据库中的本人入库记录。
                 {minePhone ? ` 当前：${minePhone}` : ''}
                 {mineLoading ? ' 加载中…' : ''}
                 {mineError ? ` ${mineError}` : ''}
@@ -586,8 +584,8 @@ export default function PlanManageList({
         <p className="mb-3 text-sm text-nest-muted/80">
           {ownership === '我的'
             ? mineMappedCount && mineMappedCount > 0
-              ? '数据库有入库记录，但暂无可展示正文。可点「纠正到教案库」，或重新生成并入库。'
-              : '「我的」下暂无入库记录。生成后可选择「仅保存到数据库」或「上传到平台」。'
+              ? '数据库有入库记录，但暂无可展示正文。可点「纠正到教案库」，或重新生成并上传。'
+              : '「我的」下暂无入库记录。生成后可上传到平台知识库。'
             : plans.length === 0
               ? emptyHint
               : '当前分类下没有匹配文档'}
@@ -729,7 +727,7 @@ export default function PlanManageList({
               </p>
               {canPromote && (
                 <p className="mt-2 text-[11px] text-amber-800">
-                  仅保存在本系统 · 可点上方云图标上传到平台
+                  历史本地记录 · 可点上方云图标补传平台
                 </p>
               )}
               {onView && !selectable && !canPromote && (

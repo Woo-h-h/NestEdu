@@ -41,7 +41,7 @@ const sourceTag: Record<string, string> = {
   ai: '主题生成',
   platform: '平台',
   preset: '预设',
-  mysql: '仅本地',
+  mysql: '待上平台',
 }
 
 function ChipRow<T extends string>({
