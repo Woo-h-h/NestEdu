@@ -3,6 +3,7 @@ import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import { LogIn, UserRound } from 'lucide-react'
 import { getCurrentTeacherPhone, resolvePhoneFromAuthInfo } from '@/api/platformUser'
+import { getAuthIdentityKey } from '@/lib/authIdentity'
 
 export default function UserBadge() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
@@ -26,7 +27,7 @@ export default function UserBadge() {
         return
       }
       try {
-        const phone = await getCurrentTeacherPhone()
+        const phone = await getCurrentTeacherPhone({ force: true })
         if (!cancelled) setPhoneHint(phone)
       } catch {
         if (!cancelled) setPhoneHint('')
@@ -35,7 +36,7 @@ export default function UserBadge() {
     return () => {
       cancelled = true
     }
-  }, [authInfo])
+  }, [authInfo, getAuthIdentityKey(authInfo)])
 
   const handleLogin = async () => {
     setLoggingIn(true)

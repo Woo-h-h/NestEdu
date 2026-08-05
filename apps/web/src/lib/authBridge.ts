@@ -14,6 +14,10 @@ import {
   fetchPlatformUserSelf,
   resolvePhoneFromUserSelf,
 } from "@/api/platformUser";
+import {
+  clearLegacyAuthStorage,
+  getAuthIdentityKey,
+} from "@/lib/authIdentity";
 
 const DEFAULT_PARENT_ORIGINS = [
   "https://www.zcat.cn",
@@ -105,6 +109,10 @@ const createTicketExchangeFetcher = (): Ai101FetchLike | undefined => {
   };
 };
 
+// storage:false — auth-bridge 在 persistToLocalStorage:false 时仍会优先读 localStorage，
+// 换账号后旧 token 会覆盖父页 postMessage 下发的内存态，导致串到上一教师。
+clearLegacyAuthStorage();
+
 const ai101Auth = createAi101SubmoduleAuth({
   parentOrigins,
   clientName: import.meta.env.VITE_AI101_CLIENT_NAME || "mvp-template",
@@ -116,6 +124,8 @@ const ai101Auth = createAi101SubmoduleAuth({
   redirectOnExchangeFailure: false,
   fetcher: createTicketExchangeFetcher(),
   persistToLocalStorage: false,
+  persistDirectAuthToLocalStorage: false,
+  storage: false,
 });
 
 export const authBridge = ai101Auth.authClient;
@@ -162,6 +172,7 @@ if (typeof window !== "undefined") {
   }).__NEST_AUTH__ = () => {
     const info = authBridge.getAuthInfo()
     logAuthDebug(info, "window.__NEST_AUTH__()")
+    console.warn("[NestAuth] identityKey", getAuthIdentityKey(info))
     return info
   }
   ;(window as Window & { __NEST_USER__?: () => Promise<unknown> }).__NEST_USER__ = async () => {
@@ -220,6 +231,8 @@ export const loginWithAi101 = async (): Promise<void> => {
     return;
   }
 
+  clearLegacyAuthStorage();
+  authBridge.clearAuth({ clearStorage: true });
   // 主动登录前清掉上一位教师的手机号 / uid 缓存，避免短暂串号
   const { clearTeacherPhoneCache } = await import("@/api/platformUser");
   clearTeacherPhoneCache();
@@ -243,18 +256,20 @@ export const startAuthBridge = async () => {
     return existing;
   }
 
+  clearLegacyAuthStorage();
+
   const startedWithTicket = typeof window !== "undefined" && hasTicketInUrl();
   try {
     const authInfo = await ai101Auth.start();
     started = true;
     const { clearTeacherPhoneCache } = await import("@/api/platformUser");
     clearTeacherPhoneCache();
-    // iframe 父页换账号时 token 会变，立即清用户缓存
-    let lastToken = (authInfo?.token || "").trim();
+    // 父页换账号：token / sub / bid 变化时立即清用户缓存
+    let lastIdentity = getAuthIdentityKey(authInfo);
     authBridge.subscribe((next) => {
-      const token = (next?.token || "").trim();
-      if (token === lastToken) return;
-      lastToken = token;
+      const identity = getAuthIdentityKey(next);
+      if (identity === lastIdentity) return;
+      lastIdentity = identity;
       void import("@/api/platformUser").then(({ clearTeacherPhoneCache: clear }) => clear());
     });
     logAuthDebug(authInfo, "start");

@@ -1,5 +1,6 @@
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
+import { clearLegacyAuthStorage } from '@/lib/authIdentity'
 import { clearCachedUidHash, setCachedUidHash } from '@/lib/uidHashCache'
 
 export interface PlatformUserSelf {
@@ -192,6 +193,7 @@ async function getCachedPlatformUserSelf(force = false): Promise<PlatformUserSel
  * 用于换账号后仍串到旧手机号的场景。
  */
 export async function refreshTeacherAuthIdentity(): Promise<void> {
+  clearLegacyAuthStorage()
   try {
     if (typeof window !== 'undefined' && window.parent !== window) {
       await authBridge.requestAuthInfo({ force: true })
@@ -223,10 +225,10 @@ export async function getCurrentTeacherPhone(options?: {
       selfPhone,
     })
     clearTeacherPhoneCache()
-    return authPhone
   }
 
-  return selfPhone || authPhone || ''
+  // 父页下发的 sub/bid 是登录真相源，优先于可能被旧 token 污染的 /user/self
+  return authPhone || selfPhone || ''
 }
 
 /** 平台展示名：真实姓名优先，其次昵称 */

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { FileText, Loader2, Plus, ShieldCheck, Sparkles } from 'lucide-react'
 import { authBridge } from '@/lib/authBridge'
+import { getAuthIdentityKey } from '@/lib/authIdentity'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import ProfileHeroCard, { resolveProfileDisplayName } from '@/components/profile/ProfileHeroCard'
 import ProfileAgentMarkdown from '@/components/profile/ProfileAgentMarkdown'
@@ -55,6 +56,21 @@ export default function ProfilePage() {
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
+  // 换账号时清空已加载的 MySQL 画像，避免短暂展示上一教师内容
+  useEffect(() => {
+    let lastIdentity = getAuthIdentityKey(authBridge.getAuthInfo())
+    return authBridge.subscribe((info) => {
+      const identity = getAuthIdentityKey(info)
+      if (identity === lastIdentity) return
+      lastIdentity = identity
+      setAgentMarkdown('')
+      setAgentMeta(null)
+      setSnapshotError('')
+      setSnapshotSavedAt('')
+      snapshotLoadAnnouncedRef.current = false
+    })
+  }, [])
+
   // 登录后独立解析手机号并加载 MySQL 画像（不依赖成长指标是否加载成功）
   useEffect(() => {
     if (!isLoggedIn) {
@@ -72,7 +88,7 @@ export default function ProfilePage() {
 
     void (async () => {
       try {
-        const resolvedPhone = (phone || (await getCurrentTeacherPhone())).trim()
+        const resolvedPhone = (phone || (await getCurrentTeacherPhone({ force: true }))).trim()
         if (!resolvedPhone) {
           if (!cancelled) {
             setSnapshotLoading(false)

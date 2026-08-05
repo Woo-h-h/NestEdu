@@ -9,6 +9,7 @@ import {
 } from '@/api/platformUser'
 import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
+import { getAuthIdentityKey } from '@/lib/authIdentity'
 import {
   mergeActionSeeds,
   saveActionState,
@@ -183,13 +184,15 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
     void load()
   }, [load])
 
-  // 父页换账号时重新加载画像数据
+  // 父页换账号时重新加载画像数据（token / sub / bid 任一变化）
   useEffect(() => {
-    let lastToken = (authBridge.getAuthInfo()?.token || '').trim()
+    let lastIdentity = getAuthIdentityKey(authBridge.getAuthInfo())
     return authBridge.subscribe((info) => {
-      const token = (info?.token || '').trim()
-      if (token === lastToken) return
-      lastToken = token
+      const identity = getAuthIdentityKey(info)
+      if (identity === lastIdentity) return
+      lastIdentity = identity
+      setPhone('')
+      setDisplayName('')
       void load()
     })
   }, [load])
