@@ -4,6 +4,7 @@ import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
 import {
   fetchPlatformUserSelf,
   getCurrentTeacherPhone,
+  resolvePhoneFromAuthInfo,
   resolvePhoneFromUserSelf,
 } from '@/api/platformUser'
 import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
@@ -88,6 +89,13 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
     setLoading(true)
     setError('')
     try {
+      const { clearTeacherPhoneCache, refreshTeacherAuthIdentity } = await import(
+        '@/api/platformUser'
+      )
+      // 换账号后强制对齐父页登录态，避免仍用上一用户的手机号文件夹
+      await refreshTeacherAuthIdentity()
+      clearTeacherPhoneCache()
+
       const auth = authBridge.getAuthInfo()
       const loggedIn = Boolean(auth?.token)
 
@@ -96,7 +104,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
         try {
           const auth = authBridge.getAuthInfo()
           if (!auth?.token) return {}
-          const phone = (await getCurrentTeacherPhone()).trim()
+          const phone = (await getCurrentTeacherPhone({ force: true })).trim()
           if (!phone) return {}
           const stats = await fetchTeacherGeneratedDocStats(phone)
           if (!stats) return { activityPlans: 0, weeklyPlans: 0, archivePlans: 0 }
@@ -118,7 +126,19 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       if (loggedIn) {
         try {
           const user = await fetchPlatformUserSelf()
-          nextPhone = resolvePhoneFromUserSelf(user) || (await getCurrentTeacherPhone())
+          const authPhone = resolvePhoneFromAuthInfo(auth)
+          nextPhone =
+            resolvePhoneFromUserSelf(user) ||
+            authPhone ||
+            (await getCurrentTeacherPhone({ force: true }))
+          // 若 /user/self 与鉴权手机号不一致，以鉴权为准
+          if (authPhone && nextPhone && authPhone !== nextPhone) {
+            console.warn('[Profile] phone mismatch, prefer auth', {
+              authPhone,
+              selfPhone: nextPhone,
+            })
+            nextPhone = authPhone
+          }
           nextDisplayName = resolvePlatformDisplayName(user)
           setPhone(nextPhone)
           if (nextDisplayName) setDisplayName(nextDisplayName)
@@ -129,7 +149,6 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
             archiveCount = archive.plans.length
           }
         } catch (err) {
-          // 知识库失败不阻断本地录入；有手机号时再提示
           if (!nextPhone) {
             console.warn('[Profile] 加载个人成果库失败:', err)
           } else {
@@ -138,17 +157,16 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
         }
       } else {
         setPhone('')
+        setDisplayName('')
       }
 
       const [localRecords, nextStats] = await Promise.all([localPromise, statsPromise])
       const seen = new Set(kbRecords.map((item) => item.id))
       const merged = [
         ...kbRecords,
-        ...localRecords.filter((item) => !seen.has(item.id) && !item.id.startsWith('kb_')),
+        ...localRecords.filter((item) => !item.id.startsWith('kb_') && !seen.has(item.id)),
       ]
       setRecords(merged)
-      // initialSystemStats 默认必须是稳定常量 EMPTY_SYSTEM_STATS；
-      // 若写成 `= {}`，每次渲染新引用 → load 重建 → effect 死循环闪烁
       setSystemStats({
         ...initialSystemStats,
         ...nextStats,
@@ -163,6 +181,17 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
 
   useEffect(() => {
     void load()
+  }, [load])
+
+  // 父页换账号时重新加载画像数据
+  useEffect(() => {
+    let lastToken = (authBridge.getAuthInfo()?.token || '').trim()
+    return authBridge.subscribe((info) => {
+      const token = (info?.token || '').trim()
+      if (token === lastToken) return
+      lastToken = token
+      void load()
+    })
   }, [load])
 
   const summary = useMemo(

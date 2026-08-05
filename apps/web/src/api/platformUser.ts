@@ -28,6 +28,43 @@ function pickString(item: Record<string, unknown>, keys: string[]): string {
   return ''
 }
 
+function asMobilePhone(value: unknown): string {
+  const raw = String(value ?? '').trim()
+  if (/^1\d{10}$/.test(raw)) return raw
+  const digits = raw.replace(/\D/g, '')
+  if (/^1\d{10}$/.test(digits)) return digits
+  return ''
+}
+
+/**
+ * 从鉴权上下文推断手机号（sub / bid / user 字段）。
+ * 用于和 /user/self 交叉校验，避免 Cookie 旧会话串号。
+ */
+export function resolvePhoneFromAuthInfo(
+  auth: ReturnType<typeof authBridge.getAuthInfo> | null | undefined
+): string {
+  if (!auth) return ''
+  const direct = asMobilePhone(auth.sub) || asMobilePhone(auth.bid)
+  if (direct) return direct
+
+  const user =
+    auth.user && typeof auth.user === 'object'
+      ? (auth.user as Record<string, unknown>)
+      : null
+  if (!user) return ''
+  return (
+    asMobilePhone(user.phone) ||
+    asMobilePhone(user.mobile) ||
+    asMobilePhone(user.mobile_phone) ||
+    asMobilePhone(user.username) ||
+    asMobilePhone(user.userName) ||
+    asMobilePhone(user.user_name) ||
+    asMobilePhone(user.login_name) ||
+    asMobilePhone(user.account) ||
+    ''
+  )
+}
+
 /**
  * 拉取平台当前登录用户资料（AI101 `/api/user/self`）。
  * 本地需 Vite 代理 `/api/user`；生产需同域反代。
@@ -36,7 +73,10 @@ export async function fetchPlatformUserSelf(): Promise<PlatformUserSelf | null> 
   const auth = authBridge.getAuthInfo()
   if (!auth?.token) return null
 
-  const envelope = await request.get<ApiEnvelope>('/api/user/self')
+  // 关闭 Cookie：同域 iframe 下旧登录 Cookie 可能覆盖 Bearer，导致串号到上一账号
+  const envelope = await request.get<ApiEnvelope>('/api/user/self', {
+    withCredentials: false,
+  })
   if (envelope?.success === false) {
     const msg = (envelope.errorMessage || envelope.error_message || '').trim()
     throw new Error(msg || '获取用户资料失败')
@@ -49,7 +89,6 @@ export async function fetchPlatformUserSelf(): Promise<PlatformUserSelf | null> 
         ? (envelope as unknown as Record<string, unknown>)
         : {}
 
-  // 兼容 result 再包一层 user / data
   const nested =
     (raw.user && typeof raw.user === 'object' && (raw.user as Record<string, unknown>)) ||
     (raw.data && typeof raw.data === 'object' && (raw.data as Record<string, unknown>)) ||
@@ -84,10 +123,9 @@ export async function fetchPlatformUserSelf(): Promise<PlatformUserSelf | null> 
 /** 优先手机号；平台「用户名」常即手机号 */
 export function resolvePhoneFromUserSelf(user: PlatformUserSelf | null | undefined): string {
   if (!user) return ''
-  if (user.phone) return user.phone
-  // 用户名若为 11 位数字，按手机号使用
-  if (/^1\d{10}$/.test(user.username)) return user.username
-  return ''
+  const fromPhone = asMobilePhone(user.phone)
+  if (fromPhone) return fromPhone
+  return asMobilePhone(user.username)
 }
 
 const SELF_CACHE_TTL_MS = 60_000
@@ -109,22 +147,24 @@ export function clearTeacherPhoneCache() {
 /** 最近一次 /user/self 拿到的 uid_hash（可能为空） */
 export { getCachedUidHash } from '@/lib/uidHashCache'
 
-async function getCachedPlatformUserSelf(): Promise<PlatformUserSelf | null> {
+async function getCachedPlatformUserSelf(force = false): Promise<PlatformUserSelf | null> {
   const token = currentAuthToken()
   if (!token) {
     clearTeacherPhoneCache()
     return null
   }
 
+  if (force) clearTeacherPhoneCache()
+
   const now = Date.now()
   if (
+    !force &&
     cachedSelf &&
     cachedSelf.token === token &&
     now - cachedSelf.at < SELF_CACHE_TTL_MS
   ) {
     return cachedSelf.value
   }
-  // token 已变：丢弃旧账号缓存（含进行中的旧请求结果）
   if (cachedSelf && cachedSelf.token !== token) {
     clearTeacherPhoneCache()
   }
@@ -135,9 +175,7 @@ async function getCachedPlatformUserSelf(): Promise<PlatformUserSelf | null> {
       const tokenAtStart = currentAuthToken()
       if (!tokenAtStart) return null
       const user = await fetchPlatformUserSelf()
-      if (currentAuthToken() !== tokenAtStart) {
-        return null
-      }
+      if (currentAuthToken() !== tokenAtStart) return null
       cachedSelf = { value: user, at: Date.now(), token: tokenAtStart }
       if (user?.uidHash) setCachedUidHash(user.uidHash)
       return user
@@ -150,12 +188,45 @@ async function getCachedPlatformUserSelf(): Promise<PlatformUserSelf | null> {
 }
 
 /**
- * 当前登录教师手机号（成果库个人文件夹名）。
- * 短时内存缓存，避免成果库与画像同时请求反复打 /user/self。
+ * 向父页强制拉取最新登录态，并清空用户缓存。
+ * 用于换账号后仍串到旧手机号的场景。
  */
-export async function getCurrentTeacherPhone(): Promise<string> {
-  const user = await getCachedPlatformUserSelf()
-  return resolvePhoneFromUserSelf(user)
+export async function refreshTeacherAuthIdentity(): Promise<void> {
+  try {
+    if (typeof window !== 'undefined' && window.parent !== window) {
+      await authBridge.requestAuthInfo({ force: true })
+    }
+  } catch (err) {
+    console.warn('[NestAuth] requestAuthInfo failed', err)
+  }
+  clearTeacherPhoneCache()
+}
+
+/**
+ * 当前登录教师手机号（成果库个人文件夹名）。
+ * 与鉴权上下文交叉校验，降低 Cookie/缓存串号风险。
+ */
+export async function getCurrentTeacherPhone(options?: {
+  force?: boolean
+}): Promise<string> {
+  if (options?.force) {
+    clearTeacherPhoneCache()
+  }
+
+  const authPhone = resolvePhoneFromAuthInfo(authBridge.getAuthInfo())
+  const user = await getCachedPlatformUserSelf(Boolean(options?.force))
+  const selfPhone = resolvePhoneFromUserSelf(user)
+
+  if (authPhone && selfPhone && authPhone !== selfPhone) {
+    console.warn('[NestUser] phone mismatch between auth and /user/self', {
+      authPhone,
+      selfPhone,
+    })
+    clearTeacherPhoneCache()
+    return authPhone
+  }
+
+  return selfPhone || authPhone || ''
 }
 
 /** 平台展示名：真实姓名优先，其次昵称 */

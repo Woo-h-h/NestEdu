@@ -2,14 +2,40 @@ import { useEffect, useState } from 'react'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import { LogIn, UserRound } from 'lucide-react'
+import { getCurrentTeacherPhone, resolvePhoneFromAuthInfo } from '@/api/platformUser'
 
 export default function UserBadge() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const [loggingIn, setLoggingIn] = useState(false)
+  const [phoneHint, setPhoneHint] = useState('')
 
   useEffect(() => {
     return authBridge.subscribe(setAuthInfo)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      if (!authInfo?.token) {
+        if (!cancelled) setPhoneHint('')
+        return
+      }
+      const fromAuth = resolvePhoneFromAuthInfo(authInfo)
+      if (fromAuth) {
+        if (!cancelled) setPhoneHint(fromAuth)
+        return
+      }
+      try {
+        const phone = await getCurrentTeacherPhone()
+        if (!cancelled) setPhoneHint(phone)
+      } catch {
+        if (!cancelled) setPhoneHint('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authInfo])
 
   const handleLogin = async () => {
     setLoggingIn(true)
@@ -42,10 +68,13 @@ export default function UserBadge() {
   const role = authInfo.role || ''
 
   return (
-    <span className="ml-auto inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-full border border-nest-leaf/15 bg-nest-mist/80 px-3 py-1 text-xs text-nest-pine">
+    <span
+      className="ml-auto inline-flex max-w-[260px] items-center gap-1.5 truncate rounded-full border border-nest-leaf/15 bg-nest-mist/80 px-3 py-1 text-xs text-nest-pine"
+      title={phoneHint ? `当前手机号 ${phoneHint}` : undefined}
+    >
       <UserRound size={13} className="shrink-0 opacity-70" />
       <span className="truncate">
-        {uid}
+        {phoneHint || uid}
         {role ? ` · ${role}` : ''}
       </span>
     </span>
