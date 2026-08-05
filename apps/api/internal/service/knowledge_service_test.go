@@ -98,3 +98,23 @@ func TestResolveUploadCategoryKeepsClientKey(t *testing.T) {
 		t.Fatalf("expected client pair kept, got %s / %s", id, key)
 	}
 }
+
+func TestResolveUploadCategoryRejectsPhoneFolder(t *testing.T) {
+	cfg := KnowledgeConfig{
+		ActivityCategoryID:  "20806",
+		ActivityCategoryKey: "custom_activity",
+	}
+	id, key, scrub := resolveUploadCategory(
+		"王焕_活动方案_水宝宝.md",
+		"activity",
+		"17362955307",
+		"",
+		cfg,
+	)
+	if !scrub {
+		t.Fatal("expected scrub")
+	}
+	if id != "20806" || key != "custom_activity" {
+		t.Fatalf("expected force to activity lib, got %s / %s", id, key)
+	}
+}

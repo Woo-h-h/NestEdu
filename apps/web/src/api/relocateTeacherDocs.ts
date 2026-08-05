@@ -1,10 +1,10 @@
 import {
-  activityPlanKnowledgeScope,
   deleteKnowledgeDocument,
   fetchArchivePlansForOwnerFolder,
   fetchKnowledgePlanById,
+  fetchKnowledgePlans,
+  resolveLiveBusinessCategory,
   uploadKnowledgeDocument,
-  weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
 import {
   deleteTeacherGeneratedDocRecord,
@@ -31,67 +31,186 @@ function hasUsableContent(plan: TeachingPlan | null | undefined): boolean {
   if (!plan) return false
   const text = (plan.content || plan.objectives || '').trim()
   if (!text) return false
-  // 列表占位文案不算可用正文
   if (text.includes('可能误入教师成果库')) return false
   if (text.includes('不在当前教案')) return false
   return text.length >= 20
 }
 
-/** 尽量拿回误入文档的正文：详情 → 成果库个人文件夹列表 */
+function pickBestText(...parts: Array<string | undefined>): string {
+  return parts
+    .map((p) => (p || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)[0] || ''
+}
+
+/** 尽量拿回误入文档的正文：详情 → 成果库个人文件夹 → 调用方预填 */
 async function resolveMisroutedPlan(params: {
   knowledgeDocId: string
   titleHint?: string
+  contentHint?: string
 }): Promise<TeachingPlan | null> {
   const id = params.knowledgeDocId.trim()
   const titleHint = (params.titleHint || '').trim()
+  const contentHint = (params.contentHint || '').trim()
 
   const byId = await fetchKnowledgePlanById(id)
   if (hasUsableContent(byId)) return byId
 
   const phone = (await getCurrentTeacherPhone()).trim()
-  if (!phone) return byId
+  let fromArchive: TeachingPlan | null = null
+  if (phone) {
+    const keyword =
+      titleHint.replace(/\.md$/i, '').replace(/^.*?_(?:活动方案|周计划)_/, '').slice(0, 40) ||
+      titleHint.slice(0, 40)
+    const archive = await fetchArchivePlansForOwnerFolder(phone, {
+      keyword: keyword || undefined,
+      limit: 50,
+    })
 
-  const keyword =
-    titleHint.replace(/\.md$/i, '').replace(/^.*?_(?:活动方案|周计划)_/, '').slice(0, 40) ||
-    titleHint.slice(0, 40)
-  const archive = await fetchArchivePlansForOwnerFolder(phone, {
-    keyword: keyword || undefined,
-    limit: 50,
-  })
+    const hit =
+      archive.plans.find((p) => (p.id || '').trim() === id) ||
+      archive.plans.find((p) => (p.title || '').trim() === titleHint) ||
+      archive.plans.find(
+        (p) => titleHint && (p.title || '').includes(titleHint.replace(/\.md$/i, '').slice(-20))
+      )
 
-  const hit =
-    archive.plans.find((p) => (p.id || '').trim() === id) ||
-    archive.plans.find((p) => (p.title || '').trim() === titleHint) ||
-    archive.plans.find(
-      (p) => titleHint && (p.title || '').includes(titleHint.replace(/\.md$/i, '').slice(-20))
-    )
-
-  if (hasUsableContent(hit)) return hit
-  if (hit?.id && hit.id !== id) {
-    const again = await fetchKnowledgePlanById(hit.id)
-    if (hasUsableContent(again)) return again
+    if (hit) {
+      if (hasUsableContent(hit)) {
+        fromArchive = hit
+      } else if (hit.id) {
+        const again = await fetchKnowledgePlanById(hit.id)
+        fromArchive = hasUsableContent(again)
+          ? again
+          : {
+              ...hit,
+              content: pickBestText(hit.content, again?.content, hit.objectives, again?.objectives),
+              objectives: pickBestText(
+                hit.objectives,
+                again?.objectives,
+                hit.content,
+                again?.content
+              ).slice(0, 120),
+            }
+      } else {
+        fromArchive = hit
+      }
+    }
   }
 
-  // 合并已有字段，方便后续报错文案
-  if (hit) {
+  if (hasUsableContent(fromArchive)) return fromArchive
+
+  if (contentHint.length >= 20 && !contentHint.includes('可能误入教师成果库') && !contentHint.includes('不在当前教案')) {
     return {
-      ...hit,
-      content: hit.content || byId?.content || '',
-      objectives: hit.objectives || byId?.objectives || '',
+      id: id || fromArchive?.id || byId?.id || '',
+      title: titleHint || fromArchive?.title || byId?.title || '未命名.md',
+      domain: fromArchive?.domain || byId?.domain || '综合',
+      gradeLevel: fromArchive?.gradeLevel || byId?.gradeLevel || '通用',
+      objectives: contentHint.slice(0, 120),
+      content: contentHint,
+      source: 'platform',
+    }
+  }
+
+  if (fromArchive) {
+    return {
+      ...fromArchive,
+      content: pickBestText(fromArchive.content, byId?.content, contentHint),
+      objectives: pickBestText(fromArchive.objectives, byId?.objectives, contentHint).slice(0, 120),
     }
   }
   return byId
 }
 
+async function assertLandedInBusinessCategory(params: {
+  kind: TeacherGeneratedDocType
+  uploaded: TeachingPlan
+  title: string
+}): Promise<void> {
+  const live = await resolveLiveBusinessCategory(params.kind)
+  await new Promise((resolve) => setTimeout(resolve, 900))
+
+  const listed = await fetchKnowledgePlans({
+    knowledgeId: live.knowledgeId,
+    categoryId: live.categoryId,
+    categoryKey: live.categoryKey,
+    keyword: params.title.replace(/\.md$/i, '').slice(0, 40),
+    page: 1,
+    limit: 50,
+    fallbackPreset: false,
+  })
+
+  const hit = listed.plans.find(
+    (p) =>
+      (params.uploaded.id && p.id && p.id === params.uploaded.id) ||
+      (p.title || '').trim() === params.title.trim()
+  )
+  if (hit) return
+
+  // 列表索引延迟：详情可读且不在成果库则接受
+  if (params.uploaded.id && !params.uploaded.id.startsWith('upload_')) {
+    const detail = await fetchKnowledgePlanById(params.uploaded.id)
+    if (detail) {
+      const phone = (await getCurrentTeacherPhone()).trim()
+      if (phone) {
+        const archive = await fetchArchivePlansForOwnerFolder(phone, {
+          keyword: params.title.replace(/\.md$/i, '').slice(0, 40),
+          limit: 30,
+        })
+        const bad = archive.plans.find(
+          (p) =>
+            (params.uploaded.id && p.id && p.id === params.uploaded.id) ||
+            (p.title || '').trim() === params.title.trim()
+        )
+        if (bad?.id) {
+          try {
+            await deleteKnowledgeDocument(bad.id)
+          } catch (err) {
+            console.warn('[relocate] withdraw misrouted retry failed', err)
+          }
+          throw new Error(
+            `纠正后仍落在「教师成果库」。请确认「${params.kind === 'weekly' ? '周计划管理' : '教案知识库管理'}」可写，勿点「建议智能分类」。`
+          )
+        }
+      }
+      return
+    }
+  }
+
+  const phone = (await getCurrentTeacherPhone()).trim()
+  if (phone) {
+    const archive = await fetchArchivePlansForOwnerFolder(phone, {
+      keyword: params.title.replace(/\.md$/i, '').slice(0, 40),
+      limit: 30,
+    })
+    const bad = archive.plans.find(
+      (p) =>
+        (params.uploaded.id && p.id && p.id === params.uploaded.id) ||
+        (p.title || '').trim() === params.title.trim()
+    )
+    if (bad?.id) {
+      try {
+        await deleteKnowledgeDocument(bad.id)
+      } catch (err) {
+        console.warn('[relocate] withdraw misrouted retry failed', err)
+      }
+    }
+  }
+
+  throw new Error(
+    `纠正后仍未出现在「${params.kind === 'weekly' ? '周计划管理' : '教案知识库管理'}」。请到平台核对；若已在目标库可刷新本页。若没有，请确认分类可写，勿点「建议智能分类」，然后重新生成入库。`
+  )
+}
+
 /**
  * 将误入成果库（或其他分类）的本人文档，重新上传到教案库 / 周计划库，
  * 并更新 MySQL 映射；成功后删除旧文档。
- * 若平台已无法读到正文，则清理无效 MySQL 映射（避免「我的」一直挂空壳）。
  */
 export async function relocateTeacherDocToBusinessLib(params: {
   knowledgeDocId: string
   kind: TeacherGeneratedDocType
   titleHint?: string
+  /** 列表里已展示的正文，详情接口为空时作兜底 */
+  contentHint?: string
 }): Promise<{ plan?: TeachingPlan; cleaned?: boolean }> {
   const existing = await resolveMisroutedPlan(params)
   const title = ensureBusinessTitle(
@@ -100,41 +219,47 @@ export async function relocateTeacherDocToBusinessLib(params: {
   )
 
   if (!hasUsableContent(existing)) {
-    // 正文不可用：清掉无效映射，并尽量删除成果库空壳文档
     const oldId = (existing?.id || params.knowledgeDocId).trim()
+    // 详情常 404、列表只有占位文案：无法自动重传。清理映射时删除平台文件常 403，改为尽力而为。
     if (oldId) {
-      try {
-        await deleteKnowledgeDocument(oldId)
-      } catch (err) {
-        console.warn('[relocate] delete empty platform doc failed', err)
-      }
       try {
         await deleteTeacherGeneratedDocRecord(oldId)
       } catch (err) {
         console.warn('[relocate] delete mysql mapping failed', err)
       }
+      try {
+        await deleteKnowledgeDocument(oldId)
+      } catch (err) {
+        console.warn('[relocate] delete platform doc skipped', err)
+      }
     }
     throw new Error(
-      `「${title}」在平台读不到正文（多半已被智能分类且详情为空）。已清理无效映射，请到活动方案页重新生成并选择入库`
+      `「${title}」无法读取平台正文（详情 404 或为空），不能自动纠正到教案库。请到平台「教师成果库」把该文件手动移到「教案知识库管理」，或回到活动方案页重新生成并入库。本地映射已尝试清理。`
     )
   }
 
-  const scope =
-    params.kind === 'activity' ? activityPlanKnowledgeScope() : weeklyPlanKnowledgeScope()
+  const live = await resolveLiveBusinessCategory(params.kind)
+  const body = pickBestText(existing!.content, existing!.objectives, params.contentHint)
 
   const uploaded = await uploadKnowledgeDocument({
     title,
-    content: (existing!.content || existing!.objectives).trim(),
-    knowledgeId: scope.knowledgeId,
-    categoryId: scope.categoryId,
-    categoryKey: scope.categoryKey,
+    content: body,
+    knowledgeId: live.knowledgeId,
+    categoryId: live.categoryId,
+    categoryKey: live.categoryKey,
     forceKind: params.kind,
+  })
+
+  await assertLandedInBusinessCategory({
+    kind: params.kind,
+    uploaded,
+    title,
   })
 
   await recordTeacherGeneratedUpload({
     docType: params.kind,
     plan: uploaded,
-    categoryId: scope.categoryId,
+    categoryId: live.categoryId,
   })
 
   const oldId = (existing!.id || params.knowledgeDocId).trim()
@@ -142,7 +267,7 @@ export async function relocateTeacherDocToBusinessLib(params: {
     try {
       await deleteKnowledgeDocument(oldId)
     } catch (err) {
-      console.warn('[relocate] delete old kb doc failed', err)
+      console.warn('[relocate] delete old kb doc failed (可忽略，新文件已在业务库)', err)
     }
     try {
       await deleteTeacherGeneratedDocRecord(oldId)
@@ -158,6 +283,8 @@ export async function relocateTeacherDocToBusinessLib(params: {
 export async function relocateMissingMineDocs(params: {
   kind: TeacherGeneratedDocType
   presentIds: Set<string>
+  /** id → 列表已加载正文，供详情为空时兜底 */
+  contentById?: Record<string, string>
 }): Promise<{ moved: number; cleaned: number; failed: string[] }> {
   const phone = (await getCurrentTeacherPhone()).trim()
   if (!phone) throw new Error('未能获取手机号')
@@ -173,11 +300,13 @@ export async function relocateMissingMineDocs(params: {
   let cleaned = 0
   const failed: string[] = []
   for (const row of missing) {
+    const id = (row.knowledgeDocId || '').trim()
     try {
       await relocateTeacherDocToBusinessLib({
-        knowledgeDocId: row.knowledgeDocId,
+        knowledgeDocId: id,
         kind: params.kind,
         titleHint: row.title,
+        contentHint: params.contentById?.[id] || row.content || '',
       })
       moved += 1
     } catch (err) {

@@ -7,14 +7,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import RadarChart from '@/components/profile/RadarChart'
-import type { ProfileActionItem } from '@/lib/profile-actions'
 import type {
   AnalysisItem,
   CategoryCountItem,
-  GrowthPath,
   ProfileDimension,
-  WordCloudItem,
-  YearTrendSeries,
 } from '@/lib/profile-metrics'
 import type { GrowthRecord } from '@/types/growth'
 
@@ -26,13 +22,9 @@ interface AnnualReportModalProps {
   dimensions: ProfileDimension[]
   categoryCounts: CategoryCountItem[]
   radar: { labels: string[]; values: number[] }
-  trend: YearTrendSeries[]
   strengths: AnalysisItem[]
   gaps: AnalysisItem[]
-  paths: GrowthPath[]
-  wordCloud: WordCloudItem[]
   representatives: GrowthRecord[]
-  actions: ProfileActionItem[]
   teacherRecordCount: number
 }
 
@@ -46,10 +38,7 @@ export default function AnnualReportModal({
   radar,
   strengths,
   gaps,
-  paths,
-  wordCloud,
   representatives,
-  actions,
   teacherRecordCount,
 }: AnnualReportModalProps) {
   const handlePrint = useCallback(() => {
@@ -105,10 +94,8 @@ export default function AnnualReportModal({
               ))}
             </div>
             <p className="mt-3 text-xs text-nest-muted">
-              教师录入 {teacherRecordCount} 条 · 系统生成{' '}
-              {categoryCounts
-                .filter((c) => c.source === 'system')
-                .reduce((s, c) => s + c.count, 0) || '待接入'}
+              结构合计{' '}
+              {categoryCounts.reduce((s, c) => s + c.count, 0)} 条（活动方案 / 周计划 / 教师成果库）
             </p>
           </ReportSection>
 
@@ -141,41 +128,10 @@ export default function AnnualReportModal({
             )}
           </ReportSection>
 
-          <ReportSection title="五、成长路径参考">
-            <ul className="space-y-2 text-sm">
-              {paths.map((p) => (
-                <li key={p.id} className="flex justify-between gap-4 rounded-lg bg-nest-mist/40 p-3">
-                  <span>
-                    <span className="font-medium text-nest-ink">{p.label}</span>
-                    <span className="mt-1 block text-nest-muted">{p.description}</span>
-                  </span>
-                  <span className="shrink-0 text-nest-leaf">当前匹配度 {p.matchPercent}%</span>
-                </li>
-              ))}
-            </ul>
-          </ReportSection>
-
-          {wordCloud.length > 0 && (
-            <ReportSection title="六、关注主题">
-              <p className="text-sm text-nest-muted">{wordCloud.slice(0, 12).map((w) => w.word).join(' · ')}</p>
-            </ReportSection>
-          )}
-
-          <ReportSection title="七、行动计划进展">
-            <ul className="space-y-2 text-sm">
-              {actions.slice(0, 6).map((a) => (
-                <li key={a.id} className="flex justify-between gap-2">
-                  <span className={a.checked ? 'text-nest-muted line-through' : 'text-nest-ink'}>
-                    {a.title}
-                  </span>
-                  <span className="text-nest-muted">{a.progress}%</span>
-                </li>
-              ))}
-            </ul>
-          </ReportSection>
-
           <footer className="border-t border-nest-leaf/15 pt-4 text-xs leading-relaxed text-nest-muted">
-            <p>数据说明：报告数据来源于 NestEdu 成果库与系统生成统计（部分待接入），生成时间为浏览器本地计算结果。</p>
+            <p>
+              数据说明：报告围绕三维度聚合——活动方案、周计划（本人入库）与教师成果库（平台个人文件夹）；生成时间为浏览器本地计算结果。
+            </p>
             <p className="mt-2">
               合规声明：本报告仅用于教师个人专业发展参考，不得用于排名、考核打分或与他人比较。
             </p>

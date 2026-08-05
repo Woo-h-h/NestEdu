@@ -9,6 +9,7 @@ import ProfileAgentMarkdown from '@/components/profile/ProfileAgentMarkdown'
 import DimensionCards from '@/components/profile/DimensionCards'
 import RadarChart from '@/components/profile/RadarChart'
 import DonutChart from '@/components/profile/DonutChart'
+import StrengthGapPanel from '@/components/profile/StrengthGapPanel'
 import AnnualReportModal from '@/components/profile/AnnualReportModal'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
@@ -44,12 +45,8 @@ export default function ProfilePage() {
     dimensions,
     categoryCounts,
     radar,
-    trend,
     analysis,
-    wordCloud,
-    paths,
     representatives,
-    actions,
     load,
   } = useProfileMetrics()
 
@@ -173,7 +170,7 @@ export default function ProfilePage() {
 
       {phone ? (
         <p className="mt-3 text-xs text-nest-muted">
-          画像数据来自教师成果库中与手机号「{phone}」同名的个人文件夹（可叠加本地录入）。
+          画像三维度：活动方案 / 周计划（MySQL 本人入库）· 教师成果库（手机号「{phone}」同名文件夹）。
         </p>
       ) : null}
 
@@ -184,16 +181,7 @@ export default function ProfilePage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">智能画像解读</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-nest-muted">
-              已接入平台智能体{' '}
-              <a
-                href={`https://www.zcat.cn/teach/agent/config/${profileAgentId}`}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-nest-pine underline-offset-2 hover:underline"
-              >
-                #{profileAgentId}
-              </a>
-              ：由前端先按手机号隔离个人文件夹文档，再把摘要注入智能体；
+              围绕三维度（活动方案、周计划、教师成果库）生成解读。前端先按手机号隔离个人文件夹文档，再把摘要与三维度计数注入智能体；
               <strong className="font-medium text-nest-pine">不把整库交给 Agent 检索</strong>
               ，避免看到其他教师材料。
             </p>
@@ -224,8 +212,8 @@ export default function ProfilePage() {
 
         {agentMeta && (
           <p className="text-xs text-nest-muted">
-            本次注入：成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入 {agentMeta.localRecordCount}{' '}
-            条 · 智能体{' '}
+            本次注入：活动方案/周计划统计 + 成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入{' '}
+            {agentMeta.localRecordCount} 条 · 智能体{' '}
             <a
               href={`https://www.zcat.cn/teach/agent/config/${agentMeta.agentId}`}
               target="_blank"
@@ -288,30 +276,38 @@ export default function ProfilePage() {
           <section>
             <SectionHead
               title="成长结构维度"
-              desc="由系统生成与教师录入成果共同形成的结构观察，非能力或绩效评分。"
+              desc="与成果库首页前三栏对齐：活动方案、周计划、教师成果库；结构观察，非能力或绩效评分。"
             />
             <DimensionCards dimensions={dimensions} />
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <ChartPanel title="结构雷达" desc="各维度结构丰富度（0–100）">
+            <ChartPanel title="结构雷达" desc="三维度结构丰富度（0–100，非能力分）">
               <RadarChart labels={radar.labels} values={radar.values} />
             </ChartPanel>
-            <ChartPanel title="录入类别分布" desc="教师录入三类成果占比">
+            <ChartPanel title="成果结构分布" desc="活动方案 / 周计划 / 教师成果库数量占比">
               <DonutChart items={categoryCounts} />
             </ChartPanel>
           </section>
 
+          <section>
+            <SectionHead
+              title="优势与待发展"
+              desc="基于三维度计数的可解释规则分析，仅供个人发展参考。"
+            />
+            <StrengthGapPanel strengths={analysis.strengths} gaps={analysis.gaps} />
+          </section>
+
           {representatives.length > 0 && (
             <section className="surface-panel p-5">
-              <SectionHead title="代表成果" desc="来自成果库标记或自动选取的展示条目" />
+              <SectionHead title="代表成果" desc="来自教师成果库文档或本地录入的展示条目" />
               <ul className="mt-3 divide-y divide-nest-leaf/10">
                 {representatives.map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                     <div>
                       <span className="font-medium text-nest-ink">{r.name}</span>
                       <span className="ml-2 text-nest-muted">
-                        {r.category} · {r.year}
+                        {r.id.startsWith('kb_') ? '教师成果库' : r.category} · {r.year}
                       </span>
                     </div>
                     {r.representative && (
@@ -323,7 +319,7 @@ export default function ProfilePage() {
                 ))}
               </ul>
               <Link to="/archive" className="btn-secondary mt-4 inline-flex text-xs">
-                在成果库管理代表成果
+                在成果库查看更多
               </Link>
             </section>
           )}
@@ -332,7 +328,7 @@ export default function ProfilePage() {
 
       <div className="no-print mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-nest-leaf/10 pt-8">
         <p className="max-w-lg text-xs leading-relaxed text-nest-muted">
-          画像与报告优先聚合您手机号文件夹中的教师成果库文档，并合并本地录入与活动方案/周计划系统统计。
+          画像与报告围绕三维度聚合：活动方案、周计划（本人入库）与教师成果库（平台个人文件夹）。
         </p>
         <button
           type="button"
@@ -353,13 +349,9 @@ export default function ProfilePage() {
         dimensions={dimensions}
         categoryCounts={categoryCounts}
         radar={radar}
-        trend={trend}
         strengths={analysis.strengths}
         gaps={analysis.gaps}
-        paths={paths}
-        wordCloud={wordCloud}
         representatives={representatives}
-        actions={actions}
         teacherRecordCount={teacherRecordCount}
       />
     </div>
@@ -386,16 +378,21 @@ function EmptyState({ className, phone }: { className?: string; phone?: string }
       <p className="font-display text-lg font-semibold text-nest-ink">尚无足够数据生成画像</p>
       <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-nest-muted">
         {phone
-          ? `请在知识库「教师成果库」下确认已有手机号「${phone}」同名文件夹，并上传奖状/成果文档；也可在成果库补充录入。`
-          : '请先登录平台；画像将根据您手机号对应的教师成果库文件夹中的文件生成。'}
+          ? `请先在「活动方案」或「周计划」入库，或在知识库「教师成果库」下手机号「${phone}」同名文件夹中沉淀文档。`
+          : '请先登录平台；画像将根据活动方案、周计划与教师成果库三维度生成。'}
       </p>
-      <Link to="/archive" className="btn-primary mt-6 inline-flex">
-        查看成果库
-      </Link>
-      <Link to="/archive/upload" className="btn-secondary mt-3 ml-0 inline-flex md:ml-3">
-        <Plus size={16} />
-        补充录入
-      </Link>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <Link to="/activity" className="btn-primary inline-flex">
+          去活动方案
+        </Link>
+        <Link to="/weekly-plan" className="btn-secondary inline-flex">
+          去周计划
+        </Link>
+        <Link to="/archive" className="btn-secondary inline-flex">
+          <Plus size={16} />
+          查看成果库
+        </Link>
+      </div>
     </div>
   )
 }

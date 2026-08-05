@@ -14,14 +14,14 @@ export default function StrengthGapPanel({ strengths, gaps }: StrengthGapPanelPr
         icon={Sparkles}
         tone="text-emerald-700 bg-emerald-50 ring-emerald-200/80"
         items={strengths}
-        emptyHint="录入更多成果后，系统将基于规则识别您的结构优势。"
+        emptyHint="三维度有更多记录后，将基于规则识别您的结构优势。"
       />
       <Panel
         title="待发展关注（规则分析）"
         icon={Target}
         tone="text-amber-800 bg-amber-50 ring-amber-200/80"
         items={gaps}
-        emptyHint="当前未发现明显结构缺口，可继续保持录入与代表成果标记。"
+        emptyHint="当前三维度未发现明显缺口，可继续保持入库节奏。"
       />
     </div>
   )

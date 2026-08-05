@@ -28,9 +28,8 @@ export default function ProfileHeroCard({
   categoryCounts,
 }: ProfileHeroCardProps) {
   const initial = displayName.charAt(0) || '师'
-  const systemTotal = categoryCounts
-    .filter((c) => c.source === 'system')
-    .reduce((sum, c) => sum + c.count, 0)
+  const structureTotal = categoryCounts.reduce((sum, c) => sum + c.count, 0)
+  const manualCount = teacherRecordCount
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-nest-leaf/10 bg-gradient-to-br from-[#173f34] via-[#1e5142] to-[#39705e] px-6 py-8 text-white shadow-lg shadow-nest-pine/15 md:px-9 md:py-10">
@@ -43,14 +42,21 @@ export default function ProfileHeroCard({
           {initial}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-emerald-50/80">个人成长画像 · 非排名、非绩效评分</p>
+          <p className="text-xs text-emerald-50/80">个人成长画像 · 三维度结构 · 非排名、非绩效评分</p>
           <h1 className="font-display mt-1 text-2xl font-bold tracking-wide md:text-3xl">
             {displayName}
           </h1>
-          <p className="mt-1 text-sm text-emerald-50/85">华中科技大学幼儿园附属幼儿园 · 华科附幼</p>
+          <p className="mt-1 text-sm text-emerald-50/85">华中科技大学附属幼儿园 · 华科附幼</p>
           <div className="mt-5 flex flex-wrap gap-3 text-sm">
-            <StatPill label="教师录入" value={String(teacherRecordCount)} />
-            <StatPill label="系统生成" value={systemTotal > 0 ? String(systemTotal) : '待接入'} muted />
+            <StatPill label="结构合计" value={structureTotal > 0 ? String(structureTotal) : '0'} />
+            <StatPill label="教师录入" value={String(manualCount)} muted />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-emerald-50/80">
+            {categoryCounts.map((c) => (
+              <span key={c.key} className="rounded-full bg-white/10 px-2.5 py-1 ring-1 ring-white/15">
+                {c.label} {c.count}
+              </span>
+            ))}
           </div>
         </div>
         <Link

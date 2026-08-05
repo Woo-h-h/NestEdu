@@ -15,6 +15,7 @@ import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { listTeacherGeneratedDocs, teacherDocToPlan } from '@/api/teacherGeneratedDocs'
 import { fetchKnowledgePlanById } from '@/api/knowledge'
 import { relocateMissingMineDocs } from '@/api/relocateTeacherDocs'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { toast } from 'sonner'
 
 export type PlanListTaxonomy = 'activity' | 'weekly' | 'none'
@@ -55,21 +56,6 @@ const sourceTag: Record<string, string> = {
   platform: '平台',
   preset: '预设',
   mysql: '仅本人',
-}
-
-function filterPlansByMine(
-  plans: TeachingPlan[],
-  opts: { phone: string; docIds: Set<string>; titles: Set<string> }
-): TeachingPlan[] {
-  const phone = opts.phone.trim()
-  return plans.filter((plan) => {
-    const id = (plan.id || '').trim()
-    if (id && opts.docIds.has(id)) return true
-    const title = (plan.title || '').trim()
-    if (title && opts.titles.has(title)) return true
-    if (phone && title.includes(phone)) return true
-    return false
-  })
 }
 
 function ChipRow<T extends string>({
@@ -233,39 +219,62 @@ export default function PlanManageList({
           return
         }
 
-        // 1) MySQL-only 文档：直接用库内全文展示
-        const mysqlPlans = rows
-          .filter((r) => (r.storage || 'platform') === 'mysql')
-          .map(teacherDocToPlan)
+        // 「我的」以数据库记录为准：有全文直接展示；否则尝试平台列表/详情补全
+        const built: TeachingPlan[] = []
+        for (const row of rows) {
+          const id = (row.knowledgeDocId || '').trim()
+          const title = (row.title || '').trim()
+          const dbContent = (row.content || '').trim()
 
-        // 2) 平台映射但当前分类列表没有的：按 ID 补拉（可能误入成果库）
-        const missingPlatformIds = rows
-          .filter((r) => (r.storage || 'platform') !== 'mysql')
-          .map((r) => r.knowledgeDocId)
-          .filter((id) => id && !presentIds.has(id))
+          if ((row.storage || 'platform') === 'mysql' || dbContent.length >= 20) {
+            built.push({
+              ...teacherDocToPlan(row),
+              source: (row.storage || 'platform') === 'mysql' ? 'mysql' : 'platform',
+              content: dbContent || row.content || '',
+              objectives: (dbContent || row.title).slice(0, 120),
+            })
+            continue
+          }
 
-        const fetched = await Promise.all(
-          missingPlatformIds.map(async (id) => {
-            const plan = await fetchKnowledgePlanById(id)
-            if (plan) return plan
-            const row = rows.find((r) => r.knowledgeDocId === id)
-            return {
-              id,
-              title: row?.title || id,
-              domain: '综合',
-              gradeLevel: '通用',
-              objectives: '（文档不在当前教案/周计划分类中，可能误入教师成果库）',
-              content: '',
-              source: 'platform' as const,
-            } satisfies TeachingPlan
+          const fromPlatform =
+            plans.find((p) => (p.id || '').trim() === id) ||
+            plans.find((p) => (p.title || '').trim() === title)
+          if (fromPlatform) {
+            built.push({
+              ...fromPlatform,
+              content: fromPlatform.content || dbContent,
+              objectives:
+                fromPlatform.objectives ||
+                (fromPlatform.content || dbContent || title).slice(0, 120),
+            })
+            continue
+          }
+
+          const fetched = id ? await fetchKnowledgePlanById(id) : null
+          if (fetched && ((fetched.content || fetched.objectives || '').trim().length >= 20)) {
+            built.push(fetched)
+            continue
+          }
+
+          built.push({
+            id: id || `missing_${title}`,
+            title: title || id,
+            domain: '综合',
+            gradeLevel: '通用',
+            objectives:
+              '（数据库有入库记录；平台正文暂不可读。请重新生成入库，或到平台「教案知识库管理」确认文件）',
+            content: '',
+            source: 'platform',
           })
-        )
+        }
+
         if (!cancelled) {
           const byId = new Set<string>()
           const merged: TeachingPlan[] = []
-          for (const p of [...mysqlPlans, ...fetched.filter(Boolean)]) {
-            if (!p.id || byId.has(p.id)) continue
-            byId.add(p.id)
+          for (const p of built) {
+            const key = (p.id || p.title || '').trim()
+            if (!key || byId.has(key)) continue
+            byId.add(key)
             merged.push(p)
           }
           setMineExtraPlans(merged)
@@ -285,43 +294,28 @@ export default function PlanManageList({
   }, [showTaxonomy, ownership, mineDocType, plans])
 
   const normalizedPlans = useMemo(() => plans.map(enrichPlanTaxonomy), [plans])
-  const normalizedExtra = useMemo(
-    () => mineExtraPlans.map(enrichPlanTaxonomy),
-    [mineExtraPlans]
-  )
 
   const filtered = useMemo(() => {
-    let next = normalizedPlans
-    if (ownership === '我的') {
-      const fromCategory = filterPlansByMine(next, {
-        phone: minePhone,
-        docIds: mineDocIds,
-        titles: mineTitles,
-      })
-      const byId = new Set(fromCategory.map((p) => p.id))
-      next = [
-        ...fromCategory,
-        ...normalizedExtra.filter((p) => p.id && !byId.has(p.id)),
-      ]
-    }
+    // 「全部」：平台教案库当前分类列表；「我的」：以 MySQL 入库记录组装的列表
+    let next =
+      ownership === '我的'
+        ? mineExtraPlans.map(enrichPlanTaxonomy)
+        : normalizedPlans
     if (taxonomy === 'activity' || taxonomy === 'weekly') {
       next = filterPlansByTaxonomy(next, {
         classLevel,
-        domain: taxonomy === 'activity' ? domain : '全部',
+        domain,
       })
     }
     return filterPlansByKeyword(next, query)
   }, [
+    ownership,
+    mineExtraPlans,
     normalizedPlans,
-    normalizedExtra,
     taxonomy,
     classLevel,
     domain,
     query,
-    ownership,
-    minePhone,
-    mineDocIds,
-    mineTitles,
   ])
 
   const misroutedCount = mineMisroutedCount
@@ -331,9 +325,17 @@ export default function PlanManageList({
     setRelocating(true)
     try {
       const presentIds = new Set(plans.map((p) => (p.id || '').trim()).filter(Boolean))
+      const contentById: Record<string, string> = {}
+      for (const plan of [...mineExtraPlans, ...filtered]) {
+        const id = (plan.id || '').trim()
+        if (!id) continue
+        const text = (plan.content || plan.objectives || '').trim()
+        if (text.length >= 20) contentById[id] = text
+      }
       const { moved, cleaned, failed } = await relocateMissingMineDocs({
         kind: mineDocType,
         presentIds,
+        contentById,
       })
       if (moved > 0) {
         toast.success(`已纠正 ${moved} 份到${mineDocType === 'activity' ? '教案库' : '周计划库'}`)
@@ -354,7 +356,7 @@ export default function PlanManageList({
         toast.message('没有需要纠正的文档')
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '纠正失败')
+      toast.error(getApiErrorMessage(err, '纠正失败'))
     } finally {
       setRelocating(false)
     }
@@ -491,23 +493,23 @@ export default function PlanManageList({
             value={classLevel}
             onChange={setClassLevel}
           />
-          {taxonomy === 'activity' && (
-            <ChipRow
-              label="领域分类"
-              options={ACTIVITY_DOMAINS}
-              value={domain}
-              onChange={setDomain}
-            />
-          )}
+          <ChipRow
+            label="领域分类"
+            options={ACTIVITY_DOMAINS}
+            value={domain}
+            onChange={setDomain}
+          />
           {ownership === '我的' && (
             <div className="mt-2 space-y-2">
               <p className="text-[11px] leading-relaxed text-nest-muted">
-                「我的」按 MySQL 本人入库记录匹配；若文档误入成果库，会按文档 ID 补拉并提示纠正。
-                {minePhone ? ` 当前：${minePhone}` : ''}
+                「全部」展示平台「
+                {taxonomy === 'weekly' ? '周计划管理' : '教案知识库管理'}
+                」中的全部文档；「我的」展示本系统数据库中的本人入库记录。
+                {minePhone ? ` 当前账号：${minePhone}` : ''}
                 {mineLoading ? ' 加载中…' : ''}
                 {mineError ? ` ${mineError}` : ''}
-                {!mineLoading && !mineError
-                  ? ` 已映射 ${mineDocIds.size || mineTitles.size} 条入库记录。`
+                {!mineLoading && !mineError && mineMappedCount !== null
+                  ? ` 数据库已映射 ${mineMappedCount} 条。`
                   : ''}
               </p>
               {misroutedCount > 0 && (
@@ -550,9 +552,9 @@ export default function PlanManageList({
       {!loading && filtered.length === 0 && (
         <p className="mb-3 text-sm text-nest-muted/80">
           {ownership === '我的'
-            ? mineDocIds.size > 0
-              ? 'MySQL 有入库记录，但平台暂未返回可展示文档（可能仍在成果库且详情拉取失败）。可点上方「纠正到教案库」。'
-              : '「我的」下暂无入库记录（需本人入库成功并写入 MySQL 后才会出现）'
+            ? mineMappedCount && mineMappedCount > 0
+              ? '数据库有入库记录，但暂无可展示正文。可点「纠正到教案库」，或重新生成并入库。'
+              : '「我的」下暂无数据库入库记录（生成后请选择上传到平台，会同步写入数据库）'
             : plans.length === 0
               ? emptyHint
               : '当前分类下没有匹配文档'}

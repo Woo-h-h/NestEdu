@@ -1,6 +1,13 @@
 import type { ProfileActionItem } from '@/lib/profile-actions'
 import type { ActionStatus } from '@/lib/profile-actions'
+import type { DimensionId } from '@/lib/profile-metrics'
 import { Calendar, CheckSquare } from 'lucide-react'
+
+const DIMENSION_BADGE: Record<DimensionId, string> = {
+  activity: '活动方案',
+  weekly: '周计划',
+  archive: '教师成果库',
+}
 
 interface ActionPlanListProps {
   actions: ProfileActionItem[]
@@ -41,7 +48,7 @@ export default function ActionPlanList({ actions, onToggle, onUpdate }: ActionPl
                 </span>
                 {action.dimensionId && (
                   <span className="rounded-full bg-nest-mist px-2 py-0.5 text-[10px] text-nest-pine">
-                    {action.dimensionId}
+                    {DIMENSION_BADGE[action.dimensionId as DimensionId] || action.dimensionId}
                   </span>
                 )}
               </div>

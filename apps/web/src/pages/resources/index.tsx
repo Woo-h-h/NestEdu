@@ -129,8 +129,16 @@ export default function ResourcesPage() {
   const handleDelete = async (plan: Parameters<typeof res.deletePlan>[0]) => {
     if (!window.confirm(`确定删除「${plan.title}」？`)) return
     try {
-      await res.deletePlan(plan)
-      toast.success('已删除')
+      const result = await res.deletePlan(plan)
+      if (result && 'platformDeleted' in result && result.platformDeleted === false) {
+        toast.warning(
+          'hint' in result && result.hint
+            ? result.hint
+            : '已从本系统移除；平台侧无权删除，请到知识库手动处理'
+        )
+      } else {
+        toast.success('已删除')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '删除失败')
     }
@@ -410,7 +418,7 @@ export default function ResourcesPage() {
         showStorageChoice
         onConfirm={(mode) => void handleConfirmUpload(mode)}
         onCancel={res.cancelPendingUpload}
-        targetHint="请选择入库方式。上传平台时写入「教案知识库管理」（非教师成果库）；仅 MySQL 则只在本系统「我的」可见。"
+        targetHint="推荐：先上传到平台公共分类「教案知识库管理」，再同步写入数据库。「全部」看平台全库，「我的」看数据库中的本人记录。也可选仅 MySQL（不上平台）。"
       />
       <PlanDetailDialog
         plan={viewPlan}

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Loader2, Search, Trash2 } from 'lucide-react'
+import { Check, Eye, Loader2, Search, Trash2 } from 'lucide-react'
 import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
 import {
   ACTIVITY_DOMAINS,
@@ -10,6 +10,14 @@ import {
   type ActivityDomain,
   type ClassLevel,
 } from '@/lib/planTaxonomy'
+import { authBridge } from '@/lib/authBridge'
+import { getCurrentTeacherPhone } from '@/api/platformUser'
+import {
+  listTeacherGeneratedDocs,
+  teacherDocToPlan,
+} from '@/api/teacherGeneratedDocs'
+
+type OwnershipFilter = '全部' | '我的'
 
 interface Props {
   plans: TeachingPlan[]
@@ -20,10 +28,12 @@ interface Props {
   emptyHint?: string
   onDelete?: (plan: TeachingPlan) => void | Promise<void>
   deleting?: boolean
+  /** 查看教案完整内容 */
+  onView?: (plan: TeachingPlan) => void
   /** 提交关键词时回调（可触发平台检索）；本地仍会即时过滤 */
   onSearch?: (keyword: string) => void | Promise<void>
   searchPlaceholder?: string
-  /** 教案候选池默认按活动方案两级分类 */
+  /** 教案候选池默认按活动方案三级分类（归属 / 班级 / 领域） */
   taxonomy?: 'activity' | 'weekly' | 'none'
 }
 
@@ -31,6 +41,7 @@ const sourceTag: Record<string, string> = {
   ai: '主题生成',
   platform: '平台',
   preset: '预设',
+  mysql: '仅本地',
 }
 
 function ChipRow<T extends string>({
@@ -77,15 +88,145 @@ export default function PlanSelector({
   emptyHint = '暂无候选教案，请先从上方来源生成或加载',
   onDelete,
   deleting = false,
+  onView,
   onSearch,
   searchPlaceholder = '搜索方案名、内容关键词…',
   taxonomy = 'activity',
 }: Props) {
   const [classLevel, setClassLevel] = useState<ClassLevel | '全部'>('全部')
   const [domain, setDomain] = useState<ActivityDomain | '全部'>('全部')
+  const [ownership, setOwnership] = useState<OwnershipFilter>('全部')
   const [query, setQuery] = useState('')
+  const [minePhone, setMinePhone] = useState('')
+  const [mineDocIds, setMineDocIds] = useState<Set<string>>(() => new Set())
+  const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
+  const [mineExtraPlans, setMineExtraPlans] = useState<TeachingPlan[]>([])
+  const [mineMappedCount, setMineMappedCount] = useState<number | null>(null)
+  const [mineLoading, setMineLoading] = useState(false)
+  const [mineError, setMineError] = useState('')
 
-  const normalizedPlans = useMemo(() => plans.map(enrichPlanTaxonomy), [plans])
+  const showTaxonomy = taxonomy === 'activity' || taxonomy === 'weekly'
+  const mineDocType = taxonomy === 'activity' ? 'activity' : taxonomy === 'weekly' ? 'weekly' : null
+
+  useEffect(() => {
+    if (!showTaxonomy || !mineDocType) {
+      setMineExtraPlans([])
+      setMineMappedCount(null)
+      return
+    }
+    let cancelled = false
+    const loadMine = async () => {
+      setMineLoading(true)
+      setMineError('')
+      try {
+        if (!authBridge.getAuthInfo()?.token) {
+          if (!cancelled) {
+            setMinePhone('')
+            setMineDocIds(new Set())
+            setMineTitles(new Set())
+            setMineMappedCount(null)
+            setMineExtraPlans([])
+            if (ownership === '我的') {
+              setMineError('请先登录后再查看「我的」文档')
+            }
+          }
+          return
+        }
+        const phone = (await getCurrentTeacherPhone()).trim()
+        if (!phone) {
+          if (!cancelled) {
+            setMineError('未获取到手机号，无法映射本人入库记录')
+            setMinePhone('')
+            setMineDocIds(new Set())
+            setMineTitles(new Set())
+            setMineMappedCount(null)
+            setMineExtraPlans([])
+          }
+          return
+        }
+        const rows = await listTeacherGeneratedDocs(phone, mineDocType)
+        if (cancelled) return
+        const docIds = new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean))
+        const titles = new Set(rows.map((r) => r.title.trim()).filter(Boolean))
+        setMinePhone(phone)
+        setMineDocIds(docIds)
+        setMineTitles(titles)
+        setMineMappedCount(rows.length)
+
+        if (ownership !== '我的') {
+          setMineExtraPlans([])
+          return
+        }
+
+        const built: TeachingPlan[] = []
+        for (const row of rows) {
+          const id = (row.knowledgeDocId || '').trim()
+          const title = (row.title || '').trim()
+          const dbContent = (row.content || '').trim()
+          if ((row.storage || 'platform') === 'mysql' || dbContent.length >= 20) {
+            built.push({
+              ...teacherDocToPlan(row),
+              source: (row.storage || 'platform') === 'mysql' ? 'mysql' : 'platform',
+              content: dbContent || row.content || '',
+              objectives: (dbContent || row.title).slice(0, 120),
+            })
+            continue
+          }
+          const fromPlatform =
+            plans.find((p) => (p.id || '').trim() === id) ||
+            plans.find((p) => (p.title || '').trim() === title)
+          if (fromPlatform) {
+            built.push(fromPlatform)
+            continue
+          }
+          built.push({
+            id: id || `mine_${title}`,
+            title: title || id,
+            domain: '综合',
+            gradeLevel: '通用',
+            objectives: '（本人入库记录；正文请到活动方案知识库查看）',
+            content: '',
+            source: 'platform',
+          })
+        }
+        if (!cancelled) {
+          const byId = new Set<string>()
+          const merged: TeachingPlan[] = []
+          for (const p of built) {
+            const key = (p.id || p.title || '').trim()
+            if (!key || byId.has(key)) continue
+            byId.add(key)
+            merged.push(p)
+          }
+          setMineExtraPlans(merged)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setMineError(err instanceof Error ? err.message : '加载「我的」记录失败')
+        }
+      } finally {
+        if (!cancelled) setMineLoading(false)
+      }
+    }
+    void loadMine()
+    return () => {
+      cancelled = true
+    }
+  }, [showTaxonomy, ownership, mineDocType, plans])
+
+  const basePlans = useMemo(() => {
+    if (!showTaxonomy) return plans
+    if (ownership === '我的') {
+      return mineExtraPlans.length > 0 ? mineExtraPlans : plans.filter((p) => {
+        const id = (p.id || '').trim()
+        const title = (p.title || '').trim()
+        return (id && mineDocIds.has(id)) || (title && mineTitles.has(title))
+      })
+    }
+    return plans
+  }, [showTaxonomy, ownership, plans, mineExtraPlans, mineDocIds, mineTitles])
+
+  const normalizedPlans = useMemo(() => basePlans.map(enrichPlanTaxonomy), [basePlans])
 
   const filtered = useMemo(() => {
     let next = normalizedPlans
@@ -159,8 +300,14 @@ export default function PlanSelector({
         )}
       </div>
 
-      {(taxonomy === 'activity' || taxonomy === 'weekly') && plans.length > 0 && (
+      {showTaxonomy && plans.length > 0 && (
         <div className="mb-4 rounded-xl border border-nest-leaf/10 bg-nest-mist/30 p-3">
+          <ChipRow
+            label="归属"
+            options={['我的'] as const}
+            value={ownership}
+            onChange={(next) => setOwnership(next === '全部' ? '全部' : '我的')}
+          />
           <ChipRow
             label="班级分类"
             options={CLASS_LEVELS}
@@ -175,6 +322,15 @@ export default function PlanSelector({
               onChange={setDomain}
             />
           )}
+          <p className="mt-2 text-[11px] leading-relaxed text-nest-muted">
+            「全部」为平台教案知识库文档；「我的」为本系统数据库中的本人入库记录。
+            {minePhone ? ` 当前账号：${minePhone}` : ''}
+            {mineLoading ? ' 加载中…' : ''}
+            {mineError ? ` ${mineError}` : ''}
+            {!mineLoading && !mineError && mineMappedCount !== null
+              ? ` 数据库已映射 ${mineMappedCount} 条。`
+              : ''}
+          </p>
         </div>
       )}
 
@@ -189,7 +345,11 @@ export default function PlanSelector({
       )}
 
       {!loading && plans.length > 0 && filtered.length === 0 && (
-        <p className="mb-3 text-sm text-nest-muted/80">当前分类下没有匹配方案</p>
+        <p className="mb-3 text-sm text-nest-muted/80">
+          {ownership === '我的' && !mineLoading
+            ? '「我的」下暂无匹配方案，请先到活动方案页入库'
+            : '当前分类下没有匹配方案'}
+        </p>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -209,6 +369,19 @@ export default function PlanSelector({
               <div className="mb-2 flex items-start justify-between gap-2">
                 <h4 className="text-sm font-semibold text-nest-ink">{plan.title}</h4>
                 <div className="flex shrink-0 items-center gap-1">
+                  {onView && (
+                    <button
+                      type="button"
+                      title="查看完整内容"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onView(plan)
+                      }}
+                      className="p-1 text-nest-muted hover:text-nest-leaf"
+                    >
+                      <Eye size={14} />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       type="button"

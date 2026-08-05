@@ -11,10 +11,11 @@ const KIND_LABEL: Record<KnowledgeDocKind, string> = {
   weekly: '周计划',
 }
 
-/** 去掉非法文件名字符，压缩空白 */
+/** 去掉非法文件名字符，压缩空白（含中文全角标点，避免平台检索/分类异常） */
 export function sanitizeDocTitleSegment(raw: string, maxLen = 80): string {
   const cleaned = String(raw || '')
     .replace(/[\\/:*?"<>|\r\n]+/g, ' ')
+    .replace(/[：；‘’“”｜、]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   if (!cleaned) return ''
@@ -59,7 +60,8 @@ export function buildKnowledgeDocTitle(params: {
 }
 
 /** 正文头部归属信息（可检索）。
- * 默认不写完整手机号：平台会按正文中的 11 位号「智能分类」进教师成果库手机号文件夹。
+ * 教案/周计划默认只写姓名：正文里任何手机号/尾号都会触发平台「智能分类」
+ * 进入「教师成果库 / 17362955307」等手机号同名文件夹。
  * 归属手机号以 MySQL teacher_generated_docs 为准。
  */
 export function buildOwnerContentPrefix(params: {
@@ -70,14 +72,11 @@ export function buildOwnerContentPrefix(params: {
 }): string {
   const name = sanitizeDocTitleSegment(params.displayName, 40)
   const phone = sanitizeDocTitleSegment(params.phone, 20).replace(/\s+/g, '')
-  if (!name && !phone) return ''
+  if (!name && !(params.includePhone && phone)) return ''
   const parts: string[] = []
   if (name) parts.push(`姓名：${name}`)
   if (params.includePhone && phone) {
     parts.push(`手机号：${phone}`)
-  } else if (phone && phone.length >= 7) {
-    // 仅留尾号，避免连续 11 位触发平台按文件夹名匹配
-    parts.push(`教师尾号：${phone.slice(-4)}`)
   }
   return `【归属】${parts.join('；')}\n\n`
 }

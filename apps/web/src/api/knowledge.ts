@@ -2,6 +2,7 @@ import type { TeachingPlan } from '@/types/weeklyPlan'
 import { presetTeachingPlans } from '@/data/teachingPlans'
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
+import { getApiErrorMessage } from '@/lib/apiError'
 import {
   listArchiveChildFolderNames,
   resolveArchiveParentId,
@@ -107,54 +108,83 @@ function normalizeCategoryLabel(name: string): string {
 
 /**
  * 从平台分类树按显示名解析真实 category_id / category_key。
- * 命中树节点时只用该节点自己的 key，绝不与 env 旧 key 混用（混用会触发「未匹配到有效分类」）。
+ * 教案必须落到「教案知识库管理」（非手机号文件夹、非根目录、非未分类）。
+ * 平台入库需同时带 category_id + category_key；key 无效时会触发智能分类进手机号夹。
  */
 export async function resolveLiveBusinessCategory(
   kind: 'activity' | 'weekly'
-): Promise<{ knowledgeId: string; categoryId: string; categoryKey: string }> {
+): Promise<{ knowledgeId: string; categoryId: string; categoryKey: string; categoryName: string }> {
   const fallback =
     kind === 'activity' ? activityPlanKnowledgeScope() : weeklyPlanKnowledgeScope()
   const preferredNames =
-    kind === 'activity'
-      ? ['教案知识库管理', '教案知识库', '课程资源库']
-      : ['周计划管理', '周计划知识库', '周计划']
+    kind === 'activity' ? ['教案知识库管理'] : ['周计划管理', '周计划知识库', '周计划']
+  const defaultName = kind === 'activity' ? '教案知识库管理' : '周计划管理'
+
+  const isPhoneLike = (value: string) => /^1\d{10}$/.test(value.trim())
+
+  const withKey = (categoryId: string, liveKey: string, categoryName: string) => {
+    if (isPhoneLike(categoryId) || isPhoneLike(liveKey) || isPhoneLike(categoryName)) {
+      throw new Error(
+        `解析到的分类异常（疑似手机号文件夹 ${categoryName || categoryId}），已中止。请确认知识库存在「${defaultName}」。`
+      )
+    }
+    const categoryKey = (liveKey || '').trim() || fallback.categoryKey
+    if (!categoryId || !categoryKey) {
+      throw new Error(`未能解析「${defaultName}」的分类 id/key，请检查知识库权限或 .env 配置`)
+    }
+    return {
+      knowledgeId: fallback.knowledgeId,
+      categoryId,
+      categoryKey,
+      categoryName: categoryName || defaultName,
+    }
+  }
 
   try {
     const { categories } = await fetchKnowledgeCategories(fallback.knowledgeId)
-    if (categories.length === 0) return fallback
+    if (categories.length === 0) {
+      return { ...fallback, categoryName: defaultName }
+    }
 
     for (const label of preferredNames) {
       const want = normalizeCategoryLabel(label)
       const hit = categories.find((c) => normalizeCategoryLabel(c.name) === want)
       if (hit?.id) {
-        const liveKey = (hit.key || '').trim()
+        const resolved = withKey(hit.id, hit.key || '', hit.name)
         console.info('[Knowledge] resolveLiveBusinessCategory', {
           kind,
           matchedName: hit.name,
-          categoryId: hit.id,
-          categoryKey: liveKey || '(omit)',
+          categoryId: resolved.categoryId,
+          categoryKey: resolved.categoryKey,
+          keySource: (hit.key || '').trim() ? 'tree' : 'fallback',
         })
-        return {
-          knowledgeId: fallback.knowledgeId,
-          categoryId: hit.id,
-          // 空 key 宁可不传，也不要拿 env 旧 key 拼到新 id 上
-          categoryKey: liveKey,
-        }
+        return resolved
       }
     }
 
     const byId = categories.find((c) => c.id === fallback.categoryId)
     if (byId) {
-      return {
-        knowledgeId: fallback.knowledgeId,
-        categoryId: byId.id,
-        categoryKey: (byId.key || '').trim(),
+      const resolved = withKey(byId.id, byId.key || '', byId.name || defaultName)
+      // 固定 id 命中但名称是手机号 → 拒绝
+      if (isPhoneLike(byId.name)) {
+        throw new Error(
+          `分类 ${byId.id} 显示名为手机号「${byId.name}」，不是「${defaultName}」。请到平台核对知识库分类。`
+        )
       }
+      console.info('[Knowledge] resolveLiveBusinessCategory byId', {
+        kind,
+        categoryId: resolved.categoryId,
+        categoryKey: resolved.categoryKey,
+        categoryName: resolved.categoryName,
+        keySource: (byId.key || '').trim() ? 'tree' : 'fallback',
+      })
+      return resolved
     }
   } catch (err) {
+    if (err instanceof Error && /手机号|中止|未能解析/.test(err.message)) throw err
     console.warn('[Knowledge] resolveLiveBusinessCategory failed, use env fallback', err)
   }
-  return fallback
+  return { ...fallback, categoryName: defaultName }
 }
 
 export function getArchiveCategoryId(): string {
@@ -952,7 +982,8 @@ export async function uploadKnowledgeDocument(params: {
     )
   }
 
-  // 活动方案 / 周计划：强制纠正到业务库，并清洗正文中的 11 位手机号
+  // 活动方案 / 周计划：强制纠正到业务库，并清除正文中的手机号信号（防智能分类进 173… 文件夹）
+  let categoryName = ''
   if (forceKind === 'activity' || (forceKind !== 'archive' && titleIsActivity)) {
     const activity = await resolveLiveBusinessCategory('activity')
     console.warn('[Knowledge] 活动方案目标分类', {
@@ -963,7 +994,8 @@ export async function uploadKnowledgeDocument(params: {
     })
     categoryId = activity.categoryId
     categoryKey = activity.categoryKey
-    content = scrubElevenDigitPhones(content)
+    categoryName = activity.categoryName
+    content = await scrubBusinessUploadContent(content)
   } else if (forceKind === 'weekly' || (forceKind !== 'archive' && titleIsWeekly)) {
     const weekly = await resolveLiveBusinessCategory('weekly')
     console.warn('[Knowledge] 周计划目标分类', {
@@ -974,7 +1006,8 @@ export async function uploadKnowledgeDocument(params: {
     })
     categoryId = weekly.categoryId
     categoryKey = weekly.categoryKey
-    content = scrubElevenDigitPhones(content)
+    categoryName = weekly.categoryName
+    content = await scrubBusinessUploadContent(content)
   }
 
   if (!categoryId && !categoryKey) {
@@ -997,37 +1030,52 @@ export async function uploadKnowledgeDocument(params: {
     )
   }
 
+  if (mustGuardBusinessLib && !categoryKey) {
+    throw new Error(
+      `上传失败：缺少「${categoryName || '业务库'}」的 category_key。请打开平台该分类，把 URL 中的 category_key 写入 .env 后重试。`
+    )
+  }
+
   console.info('[Knowledge] upload', {
     knowledgeId,
     categoryId,
     categoryKey: categoryKey || '(omit)',
+    categoryName: categoryName || '(n/a)',
     forceKind: forceKind || null,
     title,
   })
 
   let envelope: ApiEnvelope
-  if (USE_BFF) {
-    envelope = await request.post<ApiEnvelope>(BFF_UPLOAD_PATH, {
-      knowledgeId,
-      title,
-      content,
-      categoryId: categoryId || undefined,
-      // 空 key 不传，避免 BFF/平台拼出无效 id+key
-      ...(categoryKey ? { categoryKey } : {}),
-      ...(forceKind ? { forceKind } : {}),
-    })
-  } else {
-    const body: Record<string, unknown> = {
-      knowledge_id: parseIdValue(knowledgeId),
-      name: title,
-      title,
-      text: content,
-      content,
+  try {
+    if (USE_BFF) {
+      envelope = await request.post<ApiEnvelope>(BFF_UPLOAD_PATH, {
+        knowledgeId,
+        title,
+        content,
+        categoryId: categoryId || undefined,
+        ...(categoryKey ? { categoryKey } : {}),
+        ...(categoryName ? { categoryName } : {}),
+        ...(forceKind ? { forceKind } : {}),
+      })
+    } else {
+      const body: Record<string, unknown> = {
+        knowledge_id: parseIdValue(knowledgeId),
+        name: title,
+        title,
+        text: content,
+        content,
+      }
+      if (categoryId) body.category_id = parseIdValue(categoryId)
+      if (categoryKey) body.category_key = categoryKey
+      // 显式分类名，降低平台落到未分类/手机号夹的概率
+      if (categoryName) {
+        body.category_name = categoryName
+        body.display_name = categoryName
+      }
+      envelope = await request.post<ApiEnvelope>(PLATFORM_UPLOAD_PATH, body)
     }
-    if (categoryId) body.category_id = parseIdValue(categoryId)
-    // 无 key 时不传，避免与 category_id 组成无效配对
-    if (categoryKey) body.category_key = categoryKey
-    envelope = await request.post<ApiEnvelope>(PLATFORM_UPLOAD_PATH, body)
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err, '上传知识库失败'))
   }
 
   assertSuccess(envelope, '上传知识库失败')
@@ -1053,69 +1101,197 @@ export async function uploadKnowledgeDocument(params: {
       }
 
   if (forceKind === 'activity' || forceKind === 'weekly') {
-    await assertNotLandedInArchiveFolder(uploaded, title)
+    await assertLandedInBusinessCategory(forceKind, uploaded, title)
   }
 
   return uploaded
 }
 
-/** 避免正文完整手机号触发平台智能分类进成果库手机号文件夹 */
-function scrubElevenDigitPhones(text: string): string {
-  return text.replace(/1\d{10}/g, (m) => `${m.slice(0, 3)}****${m.slice(-4)}`)
+/** 业务库上传：清除正文手机号信号，避免智能分类进「17362955307」等文件夹 */
+async function scrubBusinessUploadContent(text: string): Promise<string> {
+  let out = text
+  try {
+    const { getCurrentTeacherPhone } = await import('@/api/platformUser')
+    const phone = (await getCurrentTeacherPhone()).replace(/\D/g, '')
+    if (phone.length >= 11) {
+      out = out.split(phone).join('')
+    }
+  } catch {
+    // ignore
+  }
+  // 整段移除，不要掩码成 173****5307（尾号仍会命中手机号文件夹）
+  out = out.replace(/1\d{10}/g, '')
+  out = out.replace(/1\d{2}[\s\-_]?\d{4}[\s\-_]?\d{4}/g, (m) => {
+    const digits = m.replace(/\D/g, '')
+    return digits.length === 11 ? '' : m
+  })
+  out = out.replace(/教师尾号\s*[：:]\s*\d{3,6}/g, '')
+  out = out.replace(/手机号\s*[：:]\s*[\d\*\s\-]{7,}/g, '')
+  return out
 }
 
 /**
- * 上传后抽查：若文档已出现在教师成果库手机号文件夹，立即删除并报错，
- * 避免「成功入库」假象（平台忽略分类后默认落到个人文件夹）。
+ * 上传后正向校验：必须出现在教案库/周计划库列表中。
+ * 若落在手机号同名文件夹（含顶层「17362955307」）则撤回并报错。
+ * 不再用「详情可读」作为成功条件（误入手机号夹时详情也能读到）。
  */
-async function assertNotLandedInArchiveFolder(
+async function assertLandedInBusinessCategory(
+  kind: 'activity' | 'weekly',
   plan: TeachingPlan,
   title: string
 ): Promise<void> {
+  const live = await resolveLiveBusinessCategory(kind)
+  const planId = (plan.id || '').trim()
+  const planTitle = title.trim()
+  const isSyntheticId = !planId || planId.startsWith('upload_')
+  const libName = kind === 'weekly' ? '周计划管理' : '教案知识库管理'
+
+  const matchPlan = (items: TeachingPlan[]) =>
+    items.some(
+      (item) =>
+        (planId && !isSyntheticId && item.id && item.id === planId) ||
+        (item.title || '').trim() === planTitle
+    )
+
+  const themeKw = planTitle
+    .replace(/\.md$/i, '')
+    .replace(/^.*?_(?:活动方案|周计划)_/, '')
+    .replace(/[：:；;，,.\s]+/g, ' ')
+    .trim()
+    .slice(0, 36)
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 900 + attempt * 800))
+
+    // 优先检查是否误入手机号文件夹（含顶层，不限于教师成果库子夹）
+    const phoneHit = await findInPhoneNamedFolder(plan, title)
+    if (phoneHit) {
+      try {
+        if (phoneHit.id) await deleteKnowledgeDocument(phoneHit.id)
+      } catch (err) {
+        console.warn('[Knowledge] 撤回误入手机号文件夹文档失败', err)
+      }
+      throw new Error(
+        `平台把文档分到了手机号文件夹「${phoneHit.folderName}」（已尝试撤回），而不是「${libName}」。请确认对该分类有写入权限，上传时不要点击「建议智能分类」，然后重试。`
+      )
+    }
+
+    const listed = await fetchKnowledgePlans({
+      knowledgeId: live.knowledgeId,
+      categoryId: live.categoryId,
+      categoryKey: live.categoryKey,
+      page: 1,
+      limit: 100,
+      fallbackPreset: false,
+    })
+    if (matchPlan(listed.plans)) return
+
+    if (themeKw.length >= 2) {
+      const searched = await fetchKnowledgePlans({
+        knowledgeId: live.knowledgeId,
+        categoryId: live.categoryId,
+        categoryKey: live.categoryKey,
+        keyword: themeKw,
+        page: 1,
+        limit: 50,
+        fallbackPreset: false,
+      })
+      if (matchPlan(searched.plans)) return
+    }
+  }
+
+  const phoneHit = await findInPhoneNamedFolder(plan, title)
+  if (phoneHit) {
+    try {
+      if (phoneHit.id) await deleteKnowledgeDocument(phoneHit.id)
+    } catch (err) {
+      console.warn('[Knowledge] 撤回误入手机号文件夹文档失败', err)
+    }
+    throw new Error(
+      `平台把文档分到了手机号文件夹「${phoneHit.folderName}」（已尝试撤回），而不是「${libName}」。请确认写入权限，勿点「建议智能分类」，然后重试。`
+    )
+  }
+
+  throw new Error(
+    `上传后未在「${libName}」中确认到该文档。请到平台该文件夹核对；若在「未分类」或手机号文件夹，请手动移入「${libName}」或修正分类权限后重试。`
+  )
+}
+
+/** 在任意以手机号命名的分类中查找文档（含侧栏顶层 17362955307） */
+async function findInPhoneNamedFolder(
+  plan: TeachingPlan,
+  title: string
+): Promise<(TeachingPlan & { folderName: string }) | null> {
+  const { getCurrentTeacherPhone } = await import('@/api/platformUser')
+  let phone = ''
+  try {
+    phone = (await getCurrentTeacherPhone()).replace(/\D/g, '').trim()
+  } catch {
+    return null
+  }
+  if (!/^1\d{10}$/.test(phone)) return null
+
+  try {
+    const { categories } = await fetchKnowledgeCategories()
+    const phoneFolders = categories.filter(
+      (c) => c.name.trim() === phone || c.id.trim() === phone
+    )
+    // 兼容：成果库下同名夹
+    const archiveHit = await findInArchiveFolder(plan, title)
+    if (archiveHit) {
+      return { ...archiveHit, folderName: phone }
+    }
+
+    for (const folder of phoneFolders) {
+      const listed = await fetchKnowledgePlans({
+        knowledgeId: getDefaultKnowledgeId(),
+        categoryId: folder.id,
+        categoryKey: folder.key || '',
+        keyword: title.replace(/\.md$/i, '').slice(0, 40),
+        page: 1,
+        limit: 30,
+        fallbackPreset: false,
+      })
+      const hit = listed.plans.find(
+        (item) =>
+          (plan.id && item.id && item.id === plan.id) ||
+          (item.title || '').trim() === title.trim()
+      )
+      if (hit) return { ...hit, folderName: folder.name || phone }
+    }
+  } catch (err) {
+    console.warn('[Knowledge] findInPhoneNamedFolder failed', err)
+  }
+  return null
+}
+
+async function findInArchiveFolder(
+  plan: TeachingPlan,
+  title: string
+): Promise<TeachingPlan | null> {
   const { getCurrentTeacherPhone } = await import('@/api/platformUser')
   let phone = ''
   try {
     phone = (await getCurrentTeacherPhone()).trim()
-  } catch (err) {
-    console.warn('[Knowledge] assert: 无法获取手机号，跳过成果库抽查', err)
-    return
+  } catch {
+    return null
   }
-  if (!phone) return
-
-  // 给平台一点索引时间；误入时宁可晚一点发现也不要假成功
-  await new Promise((resolve) => setTimeout(resolve, 900))
-
-  let archive: Awaited<ReturnType<typeof fetchArchivePlansForOwnerFolder>>
+  if (!phone) return null
   try {
-    archive = await fetchArchivePlansForOwnerFolder(phone, {
-      keyword: title.replace(/\.md$/i, '').slice(0, 40),
+    const archive = await fetchArchivePlansForOwnerFolder(phone, {
+      keyword: title.replace(/\.md$/i, '').replace(/[：:].*$/, '').slice(0, 40),
       limit: 30,
     })
-  } catch (err) {
-    console.warn('[Knowledge] assert: 成果库抽查失败（上传可能已误入，请手动确认分类）', err)
-    return
+    return (
+      archive.plans.find(
+        (item) =>
+          (plan.id && item.id && item.id === plan.id) ||
+          (item.title || '').trim() === title.trim()
+      ) || null
+    )
+  } catch {
+    return null
   }
-
-  const hit = archive.plans.find(
-    (item) =>
-      (plan.id && item.id && item.id === plan.id) ||
-      (item.title || '').trim() === title.trim()
-  )
-  if (!hit) return
-
-  console.error('[Knowledge] 上传误入教师成果库手机号文件夹', {
-    title,
-    docId: hit.id,
-    phone,
-  })
-  try {
-    if (hit.id) await deleteKnowledgeDocument(hit.id)
-  } catch (err) {
-    console.warn('[Knowledge] 撤回误入成果库文档失败', err)
-  }
-  throw new Error(
-    '平台未把文档写入教案/周计划库，而是分到了「教师成果库」手机号文件夹（已尝试撤回）。请确认知识库「教案知识库管理 / 周计划管理」可写入，且不要点击「建议智能分类」，然后重试。'
-  )
 }
 
 export async function deleteKnowledgeDocument(id: string): Promise<void> {
@@ -1125,15 +1301,19 @@ export async function deleteKnowledgeDocument(id: string): Promise<void> {
   const auth = authBridge.getAuthInfo()
   if (!auth?.token) throw new Error('请先登录平台后再删除')
 
-  let envelope: ApiEnvelope
-  if (USE_BFF) {
-    envelope = await request.delete<ApiEnvelope>(
-      `${BFF_UPLOAD_PATH}/${encodeURIComponent(documentId)}`
-    )
-  } else {
-    envelope = await request.delete<ApiEnvelope>(PLATFORM_DELETE_PATH, {
-      data: { id: parseIdValue(documentId) },
-    })
+  try {
+    let envelope: ApiEnvelope
+    if (USE_BFF) {
+      envelope = await request.delete<ApiEnvelope>(
+        `${BFF_UPLOAD_PATH}/${encodeURIComponent(documentId)}`
+      )
+    } else {
+      envelope = await request.delete<ApiEnvelope>(PLATFORM_DELETE_PATH, {
+        data: { id: parseIdValue(documentId) },
+      })
+    }
+    assertSuccess(envelope ?? { success: true }, '删除知识库文档失败')
+  } catch (err) {
+    throw new Error(getApiErrorMessage(err, '删除知识库文档失败'))
   }
-  assertSuccess(envelope ?? { success: true }, '删除知识库文档失败')
 }

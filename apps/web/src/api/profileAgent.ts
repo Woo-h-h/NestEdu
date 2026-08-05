@@ -72,9 +72,13 @@ export async function generateProfileAgentAnalysis(options?: {
     // 系统统计失败不阻断画像生成
   }
 
-  if (archivePlans.length === 0 && localRecords.length === 0) {
+  if (
+    archivePlans.length === 0 &&
+    localRecords.length === 0 &&
+    !(activityPlanCount || weeklyPlanCount)
+  ) {
     throw new Error(
-      `手机号「${phone}」文件夹下暂无文档，且没有本地录入记录。请先在教师成果库个人文件夹上传成果后再生成。`
+      `三维度暂无数据：活动方案/周计划未入库，且手机号「${phone}」文件夹下暂无文档。请先入库或整理成果库后再生成。`
     )
   }
 
@@ -83,8 +87,8 @@ export async function generateProfileAgentAnalysis(options?: {
     phone,
     archivePlans,
     localRecords,
-    activityPlanCount,
-    weeklyPlanCount,
+    activityPlanCount: activityPlanCount ?? 0,
+    weeklyPlanCount: weeklyPlanCount ?? 0,
     focus: options?.focus,
   })
 

@@ -30,6 +30,8 @@ type UploadDocumentInput struct {
 	Content     string `json:"content"`
 	CategoryID  string `json:"categoryId"`
 	CategoryKey string `json:"categoryKey"`
+	// CategoryName: 平台分类显示名（如「教案知识库管理」），辅助落到正确文件夹
+	CategoryName string `json:"categoryName"`
 	// ForceKind: activity | weekly | archive；与标题标记一起决定是否清洗手机号、是否允许回退 env 分类
 	ForceKind string `json:"forceKind"`
 }
@@ -147,6 +149,9 @@ func (s *KnowledgeService) UploadDocument(
 	// 无 key 时不传：勿把 env 旧 key 拼到前端 live id 上（会导致平台智能分类进成果库）
 	if categoryKey != "" {
 		body["category_key"] = categoryKey
+	}
+	if name := strings.TrimSpace(input.CategoryName); name != "" {
+		body["category_name"] = name
 	}
 
 	var envelope struct {
@@ -463,6 +468,7 @@ func parseIDValue(id string) any {
 
 // resolveUploadCategory 优先信任前端 live 解析的分类；仅在客户端未传 id 时回退 env。
 // 切勿把 env 旧 key 拼到客户端已提供的 id 上（无效配对会触发平台智能分类进教师成果库）。
+// 若客户端误传手机号文件夹 id/key，强制改回教案/周计划业务库。
 func resolveUploadCategory(
 	title string,
 	forceKind string,
@@ -481,28 +487,56 @@ func resolveUploadCategory(
 		}
 	}
 
+	isPhoneLike := func(v string) bool {
+		if len(v) != 11 || v[0] != '1' {
+			return false
+		}
+		for i := 1; i < 11; i++ {
+			if v[i] < '0' || v[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+
 	switch kind {
 	case "activity":
 		scrubPhones = true
+		wantID := strings.TrimSpace(cfg.ActivityCategoryID)
+		wantKey := strings.TrimSpace(cfg.ActivityCategoryKey)
+		// 误传手机号文件夹时强制改回教案库
+		if isPhoneLike(categoryID) || isPhoneLike(categoryKey) {
+			categoryID = wantID
+			categoryKey = wantKey
+			break
+		}
 		if categoryID == "" {
-			categoryID = strings.TrimSpace(cfg.ActivityCategoryID)
+			categoryID = wantID
 			if categoryKey == "" {
-				categoryKey = strings.TrimSpace(cfg.ActivityCategoryKey)
+				categoryKey = wantKey
 			}
 		}
+		// 客户端已提供 live id 时：不把 env 旧 key 拼上去（无效配对会触发智能分类）
 	case "weekly":
 		scrubPhones = true
+		wantID := strings.TrimSpace(cfg.WeeklyCategoryID)
+		wantKey := strings.TrimSpace(cfg.WeeklyCategoryKey)
+		if isPhoneLike(categoryID) || isPhoneLike(categoryKey) {
+			categoryID = wantID
+			categoryKey = wantKey
+			break
+		}
 		if categoryID == "" {
-			categoryID = strings.TrimSpace(cfg.WeeklyCategoryID)
+			categoryID = wantID
 			if categoryKey == "" {
-				categoryKey = strings.TrimSpace(cfg.WeeklyCategoryKey)
+				categoryKey = wantKey
 			}
 		}
 	}
 	return categoryID, categoryKey, scrubPhones
 }
 
-// scrubElevenDigitPhones 避免正文完整手机号触发平台智能分类进成果库手机号文件夹。
+// scrubElevenDigitPhones 移除正文中的 11 位手机号（不要掩码留尾号，尾号仍会命中手机号文件夹）。
 func scrubElevenDigitPhones(text string) string {
 	var b strings.Builder
 	b.Grow(len(text))
@@ -517,7 +551,6 @@ func scrubElevenDigitPhones(text string) string {
 				}
 			}
 			if ok {
-				b.WriteString(string(runes[i:i+3]) + "****" + string(runes[i+7:i+11]))
 				i += 11
 				continue
 			}
@@ -525,5 +558,39 @@ func scrubElevenDigitPhones(text string) string {
 		b.WriteRune(runes[i])
 		i++
 	}
-	return b.String()
+	out := b.String()
+	out = regexpReplaceTeacherPhoneHints(out)
+	return out
+}
+
+func regexpReplaceTeacherPhoneHints(text string) string {
+	// 轻量替换，避免引入 regexp 包循环依赖风险：手写扫描「教师尾号：xxxx」「手机号：...」
+	replacements := []struct {
+		prefix string
+	}{
+		{"教师尾号："},
+		{"教师尾号:"},
+		{"手机号："},
+		{"手机号:"},
+	}
+	out := text
+	for _, r := range replacements {
+		for {
+			idx := strings.Index(out, r.prefix)
+			if idx < 0 {
+				break
+			}
+			end := idx + len(r.prefix)
+			for end < len(out) {
+				c := out[end]
+				if (c >= '0' && c <= '9') || c == '*' || c == '-' || c == ' ' {
+					end++
+					continue
+				}
+				break
+			}
+			out = out[:idx] + out[end:]
+		}
+	}
+	return out
 }

@@ -99,10 +99,11 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
           const phone = (await getCurrentTeacherPhone()).trim()
           if (!phone) return {}
           const stats = await fetchTeacherGeneratedDocStats(phone)
-          if (!stats) return { activityPlans: 0, weeklyPlans: 0 }
+          if (!stats) return { activityPlans: 0, weeklyPlans: 0, archivePlans: 0 }
           return {
             activityPlans: stats.activity,
             weeklyPlans: stats.weekly,
+            archivePlans: 0,
           }
         } catch {
           return {}
@@ -112,6 +113,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       let kbRecords: GrowthRecord[] = []
       let nextPhone = ''
       let nextDisplayName = ''
+      let archiveCount = 0
 
       if (loggedIn) {
         try {
@@ -124,6 +126,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
           if (nextPhone) {
             const archive = await fetchArchivePlansForOwnerFolder(nextPhone, { limit: 50 })
             kbRecords = archive.plans.map(planToGrowthRecord)
+            archiveCount = archive.plans.length
           }
         } catch (err) {
           // 知识库失败不阻断本地录入；有手机号时再提示
@@ -146,7 +149,11 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       setRecords(merged)
       // initialSystemStats 默认必须是稳定常量 EMPTY_SYSTEM_STATS；
       // 若写成 `= {}`，每次渲染新引用 → load 重建 → effect 死循环闪烁
-      setSystemStats({ ...initialSystemStats, ...nextStats })
+      setSystemStats({
+        ...initialSystemStats,
+        ...nextStats,
+        archivePlans: archiveCount,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败')
     } finally {

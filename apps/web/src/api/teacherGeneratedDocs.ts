@@ -177,6 +177,8 @@ export async function recordTeacherGeneratedUpload(params: {
   plan: TeachingPlan
   categoryId?: string
   phone?: string
+  /** 同步落库全文，便于「我的」直接从数据库展示 */
+  content?: string
 }): Promise<void> {
   try {
     const phone = (params.phone || (await getCurrentTeacherPhone())).trim()
@@ -191,6 +193,7 @@ export async function recordTeacherGeneratedUpload(params: {
       knowledgeId: params.plan.knowledgeId,
       categoryId: params.categoryId,
       storage: 'platform',
+      content: (params.content || params.plan.content || '').trim(),
     })
   } catch (err) {
     console.warn('[teacher-generated-docs] record skipped', err)

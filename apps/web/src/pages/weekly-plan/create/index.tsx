@@ -25,7 +25,9 @@ import type { AuthInfo } from '@zcat-open/auth-bridge'
 import UploadConfirmDialog, {
   type PendingUploadItem,
 } from '@/pages/resources/UploadConfirmDialog'
+import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import type { UploadStorageMode } from '@/api/teacherGeneratedDocs'
+import type { TeachingPlan } from '@/types/weeklyPlan'
 
 /** 周计划生成分区（嵌入「周计划管理」页 Tab） */
 export default function WeeklyPlanCreateSection() {
@@ -36,6 +38,8 @@ export default function WeeklyPlanCreateSection() {
   const [isUploading, setIsUploading] = useState(false)
   const [pendingUploads, setPendingUploads] = useState<PendingUploadItem[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [viewPlan, setViewPlan] = useState<TeachingPlan | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
   const scope = weeklyPlanKnowledgeScope()
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
@@ -282,6 +286,10 @@ export default function WeeklyPlanCreateSection() {
           loading={wp.isLoadingPlatform}
           sourceHint={wp.poolSourceHint}
           emptyHint="暂无活动方案，可点击右上角刷新，或到活动方案页上传/生成"
+          onView={(plan) => {
+            setViewPlan(plan)
+            setDetailOpen(true)
+          }}
           onSearch={async (keyword) => {
             try {
               const plans = await wp.loadPlatformPlans(keyword)
@@ -311,6 +319,8 @@ export default function WeeklyPlanCreateSection() {
           </button>
         </div>
       </div>
+
+      <PlanDetailDialog plan={viewPlan} open={detailOpen} onOpenChange={setDetailOpen} />
     </div>
   )
 }

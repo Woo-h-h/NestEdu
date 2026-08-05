@@ -1,16 +1,18 @@
 import type { GrowthCategory, GrowthRecord } from '@/types/growth'
 
-/** 系统生成类计数占位，后续接知识库统计 */
+/** 与成果库首页前三栏对齐的系统统计 */
 export interface SystemStats {
   activityPlans?: number
   weeklyPlans?: number
+  /** 平台「教师成果库」本人手机号文件夹文档数 */
+  archivePlans?: number
 }
 
 export interface CategoryCountItem {
   key: string
   label: string
   count: number
-  source: 'system' | 'teacher'
+  source: 'system' | 'teacher' | 'platform'
 }
 
 export interface ProfileDimension {
@@ -21,7 +23,8 @@ export interface ProfileDimension {
   sources: string[]
 }
 
-export type DimensionId = 'activity' | 'research' | 'contribution'
+/** 成长结构三维度：对齐成果库「活动方案 / 周计划 / 教师成果库」 */
+export type DimensionId = 'activity' | 'weekly' | 'archive'
 
 export interface AnalysisItem {
   title: string
@@ -45,7 +48,7 @@ export interface GrowthPath {
   label: string
   description: string
   matchPercent: number
-  relatedCategories: GrowthCategory[]
+  relatedDimensions: DimensionId[]
 }
 
 export interface YearTrendSeries {
@@ -61,10 +64,10 @@ export interface DefaultActionSeed {
   dimensionId?: DimensionId
 }
 
-const DIMENSION_LABELS: Record<DimensionId, string> = {
-  activity: '保教活动设计与实施',
-  research: '专业学习与园本研究',
-  contribution: '园本资源与协同贡献',
+export const DIMENSION_LABELS: Record<DimensionId, string> = {
+  activity: '活动方案',
+  weekly: '周计划',
+  archive: '教师成果库',
 }
 
 const LEVEL_WEIGHT: Record<string, number> = {
@@ -84,6 +87,7 @@ function countByTeacherCategory(records: GrowthRecord[]): Record<GrowthCategory,
     学习与研修: 0,
   }
   for (const record of records) {
+    if (record.id.startsWith('kb_') || record.extra?.source === 'knowledge') continue
     if (record.category in counts) {
       counts[record.category as GrowthCategory] += 1
     }
@@ -104,62 +108,60 @@ export function structuralRichnessScore(count: number, tiers = [1, 2, 4, 7, 12])
 }
 
 export function buildCategoryCounts(
-  records: GrowthRecord[],
+  _records: GrowthRecord[],
   systemStats: SystemStats = {}
 ): CategoryCountItem[] {
-  const teacher = countByTeacherCategory(records)
-  const activityPlans = systemStats.activityPlans ?? 0
-  const weeklyPlans = systemStats.weeklyPlans ?? 0
-
   return [
-    { key: 'activityPlans', label: '活动方案', count: activityPlans, source: 'system' },
-    { key: 'weeklyPlans', label: '周计划', count: weeklyPlans, source: 'system' },
     {
-      key: '专业研究成果',
-      label: '专业研究成果',
-      count: teacher['专业研究成果'],
-      source: 'teacher',
+      key: 'activityPlans',
+      label: DIMENSION_LABELS.activity,
+      count: systemStats.activityPlans ?? 0,
+      source: 'system',
     },
-    { key: '获奖与荣誉', label: '获奖与荣誉', count: teacher['获奖与荣誉'], source: 'teacher' },
-    { key: '学习与研修', label: '学习与研修', count: teacher['学习与研修'], source: 'teacher' },
+    {
+      key: 'weeklyPlans',
+      label: DIMENSION_LABELS.weekly,
+      count: systemStats.weeklyPlans ?? 0,
+      source: 'system',
+    },
+    {
+      key: 'archivePlans',
+      label: DIMENSION_LABELS.archive,
+      count: systemStats.archivePlans ?? 0,
+      source: 'platform',
+    },
   ]
 }
 
 export function buildDimensions(
-  records: GrowthRecord[],
+  _records: GrowthRecord[],
   systemStats: SystemStats = {}
 ): ProfileDimension[] {
-  const teacher = countByTeacherCategory(records)
   const activityPlans = systemStats.activityPlans ?? 0
   const weeklyPlans = systemStats.weeklyPlans ?? 0
-  const activityCount = activityPlans + weeklyPlans
-  const researchCount = teacher['专业研究成果'] + teacher['学习与研修']
-  const contributionCount = teacher['获奖与荣誉']
+  const archivePlans = systemStats.archivePlans ?? 0
 
   return [
     {
       id: 'activity',
       label: DIMENSION_LABELS.activity,
-      count: activityCount,
-      description: '由系统生成的活动方案与周计划计入保教实施结构',
-      sources:
-        activityCount > 0
-          ? ['系统自动统计：活动方案', '系统自动统计：周计划']
-          : ['系统自动统计（待接入）'],
+      count: activityPlans,
+      description: '本人入库的活动方案（与成果库「活动方案」栏一致，MySQL 映射）',
+      sources: ['本人入库 · MySQL：活动方案'],
     },
     {
-      id: 'research',
-      label: DIMENSION_LABELS.research,
-      count: researchCount,
-      description: '专业研究成果与研修学习共同反映园本研究与学习结构',
-      sources: ['教师录入：专业研究成果', '教师录入：学习与研修'],
+      id: 'weekly',
+      label: DIMENSION_LABELS.weekly,
+      count: weeklyPlans,
+      description: '本人入库的周计划（与成果库「周计划」栏一致，MySQL 映射）',
+      sources: ['本人入库 · MySQL：周计划'],
     },
     {
-      id: 'contribution',
-      label: DIMENSION_LABELS.contribution,
-      count: contributionCount,
-      description: '获奖与荣誉记录体现实践展示与协同贡献结构',
-      sources: ['教师录入：获奖与荣誉'],
+      id: 'archive',
+      label: DIMENSION_LABELS.archive,
+      count: archivePlans,
+      description: '平台知识库「教师成果库」下本人手机号文件夹中的文档',
+      sources: ['平台知识库文件夹：教师成果库'],
     },
   ]
 }
@@ -178,126 +180,154 @@ export function buildRadarValues(
 }
 
 export function buildYearTrend(
-  records: GrowthRecord[],
+  _records: GrowthRecord[],
   years: number[] = [2024, 2025, 2026],
   systemStats: SystemStats = {}
 ): YearTrendSeries[] {
-  const dimensions = buildDimensions(records, systemStats)
+  const dimensions = buildDimensions([], systemStats)
+  const currentYear = new Date().getFullYear()
 
   return dimensions.map((dim) => {
-    const points = years.map((year) => {
-      if (dim.id === 'activity') {
-        const inRange = records.length === 0 && (systemStats.activityPlans || systemStats.weeklyPlans)
-        return { year, count: inRange ? dim.count : 0 }
-      }
-      let count = 0
-      if (dim.id === 'research') {
-        count = records.filter(
-          (r) =>
-            r.year === year &&
-            (r.category === '专业研究成果' || r.category === '学习与研修')
-        ).length
-      } else if (dim.id === 'contribution') {
-        count = records.filter((r) => r.year === year && r.category === '获奖与荣誉').length
-      }
-      return { year, count }
-    })
+    const points = years.map((year) => ({
+      year,
+      // 系统/平台计数暂无按年拆分，记入当前年
+      count: year === currentYear ? dim.count : 0,
+    }))
     return { dimensionId: dim.id, label: dim.label, points }
   })
 }
 
-function categoryLabel(category: GrowthCategory): string {
-  return category
-}
-
-export function buildStrengthsAndGaps(records: GrowthRecord[]): StrengthGapResult {
+/**
+ * 优劣势规则：只围绕三维度（活动方案 / 周计划 / 教师成果库）。
+ * 不做排名或绩效分，仅作个人成长结构观察。
+ */
+export function buildStrengthsAndGaps(
+  records: GrowthRecord[],
+  systemStats: SystemStats = {}
+): StrengthGapResult {
   const strengths: AnalysisItem[] = []
   const gaps: AnalysisItem[] = []
+  const dimensions = buildDimensions(records, systemStats)
+  const total = dimensions.reduce((sum, d) => sum + d.count, 0)
+  const maxCount = Math.max(...dimensions.map((d) => d.count), 0)
+  const filled = dimensions.filter((d) => d.count > 0).length
   const teacher = countByTeacherCategory(records)
-  const total = records.length
-  const categories = Object.entries(teacher) as [GrowthCategory, number][]
-  const maxCount = Math.max(...categories.map(([, c]) => c), 0)
-  const years = new Set(records.map((r) => r.year))
-  const repCount = records.filter((r) => r.representative).length
-  const highLevel = records.filter((r) =>
-    ['市级', '省级', '国家级'].includes(r.level)
-  ).length
+  const teacherTotal = Object.values(teacher).reduce((a, b) => a + b, 0)
+  const kbRecords = records.filter((r) => r.id.startsWith('kb_') || r.extra?.source === 'knowledge')
 
   if (total === 0) {
     gaps.push({
-      title: '尚无成长记录',
-      text: '建议先在成果库录入或生成保教成果，画像将据此形成个人成长结构观察。',
-      evidence: '当前录入 0 条',
-      source: '规则：空数据',
+      title: '三维度尚无记录',
+      text: '建议先在「活动方案」「周计划」入库，或在「教师成果库」个人文件夹沉淀文档，画像将据此形成结构观察。',
+      evidence: '活动方案 0 · 周计划 0 · 教师成果库 0',
+      source: '规则：三维度全空',
     })
     return { strengths, gaps }
   }
 
-  for (const [category, count] of categories) {
-    if (count >= 2 && count === maxCount) {
+  for (const dim of dimensions) {
+    if (dim.count > 0 && dim.count === maxCount && maxCount >= 1) {
       strengths.push({
-        title: `${categoryLabel(category)}积累较充分`,
-        text: `您在「${category}」方向已有 ${count} 条记录，成长结构在该维度较为丰富。`,
-        evidence: `${category} ${count} 条`,
-        source: '规则：录入类最高且≥2',
+        title: `「${dim.label}」结构相对充实`,
+        text: `当前「${dim.label}」有 ${dim.count} 条记录，在三维度中积累较多，可作为个人成长展示重点。`,
+        evidence: `${dim.label} ${dim.count} 条`,
+        source: '规则：维度最高且≥1',
       })
     }
-    if (count === 0 && total >= 1) {
+    if (dim.count === 0) {
       gaps.push({
-        title: `${categoryLabel(category)}待补充`,
-        text: `尚未录入「${category}」类成果，可结合近期工作补充 1–2 条代表性记录。`,
-        evidence: `${category} 0 条`,
-        source: '规则：录入类缺失',
+        title: `「${dim.label}」待补充`,
+        text:
+          dim.id === 'activity'
+            ? '尚未有入库的活动方案。可到「活动方案」页生成并选择上传到平台知识库 + MySQL。'
+            : dim.id === 'weekly'
+              ? '尚未有入库的周计划。可到「周计划」页生成并入库，与成果库周计划栏对齐。'
+              : '教师成果库本人文件夹暂无文档。可在成果库平台分区上传，或整理已有文件到手机号同名夹。',
+        evidence: `${dim.label} 0 条`,
+        source: '规则：维度缺失',
       })
     }
   }
 
-  if (years.size >= 2) {
+  if (filled === 3) {
     strengths.push({
-      title: '跨年度持续积累',
-      text: `成果分布在 ${years.size} 个年度，体现持续的专业成长轨迹。`,
-      evidence: `涉及年度：${[...years].sort().join('、')}`,
-      source: '规则：跨年度≥2',
+      title: '三维度均已起步',
+      text: '活动方案、周计划、教师成果库均有记录，成长结构较完整，适合生成年度报告作个人回顾。',
+      evidence: dimensions.map((d) => `${d.label} ${d.count}`).join(' · '),
+      source: '规则：三维度齐全',
     })
-  }
-
-  if (highLevel >= 1) {
+  } else if (filled === 2) {
     strengths.push({
-      title: '较高层级成果可见',
-      text: '已有市级及以上层级的记录，可在代表成果中重点展示。',
-      evidence: `高层级记录 ${highLevel} 条`,
-      source: '规则：level 权重',
+      title: '双维度已有积累',
+      text: '已有两个维度有记录，继续补齐空白维度可使画像更立体。',
+      evidence: dimensions
+        .filter((d) => d.count > 0)
+        .map((d) => `${d.label} ${d.count}`)
+        .join(' · '),
+      source: '规则：两维度有值',
     })
   }
 
-  if (repCount === 0 && total >= 2) {
+  const activity = systemStats.activityPlans ?? 0
+  const weekly = systemStats.weeklyPlans ?? 0
+  if (activity >= 1 && weekly === 0) {
     gaps.push({
-      title: '尚未标记代表成果',
-      text: '建议在成果库为 1–3 条最满意的作品开启「代表成果」，便于年度报告展示。',
-      evidence: '代表成果 0 条',
-      source: '规则：representative',
+      title: '周计划可与活动方案联动',
+      text: '已有活动方案入库，可将主题带入周计划生成，形成「单次活动 → 一周统筹」闭环。',
+      evidence: `活动方案 ${activity} · 周计划 ${weekly}`,
+      source: '规则：有教案无周计划',
+    })
+  }
+  if (weekly >= 1 && activity === 0) {
+    gaps.push({
+      title: '活动方案可从周计划展开',
+      text: '已有周计划入库，可从周看板点击活动跳转生成详细活动方案并入库。',
+      evidence: `周计划 ${weekly} · 活动方案 ${activity}`,
+      source: '规则：有周计划无教案',
     })
   }
 
-  if (teacher['学习与研修'] === 0 && teacher['专业研究成果'] >= 2) {
-    gaps.push({
-      title: '研修学习结构偏少',
-      text: '研究成果较多但研修记录较少，可补充培训、观摩或证书类成果以平衡结构。',
-      evidence: `专业研究成果 ${teacher['专业研究成果']} 条，学习与研修 0 条`,
-      source: '规则：research vs training',
+  if (kbRecords.length >= 2) {
+    strengths.push({
+      title: '教师成果库文档可展示',
+      text: `本人文件夹中已有 ${kbRecords.length} 份平台文档，可作为代表成果与智能画像材料。`,
+      evidence: `成果库文档 ${kbRecords.length} 份`,
+      source: '规则：成果库≥2',
+    })
+  }
+
+  if (teacherTotal >= 1) {
+    strengths.push({
+      title: '教师补充录入已起步',
+      text: `另有 ${teacherTotal} 条教师录入成长记录，可与三维度统计一并用于年度报告。`,
+      evidence: `教师录入 ${teacherTotal} 条`,
+      source: '规则：有本地录入',
     })
   }
 
   if (strengths.length === 0 && total >= 1) {
     strengths.push({
-      title: '成长记录已起步',
-      text: '您已开始沉淀个人成果，继续录入将让结构观察更清晰。',
-      evidence: `共 ${total} 条录入`,
+      title: '成长结构已起步',
+      text: '您已开始在三维度中沉淀记录，继续入库将让结构观察更清晰。',
+      evidence: dimensions.map((d) => `${d.label} ${d.count}`).join(' · '),
       source: '规则：fallback 正向',
     })
   }
 
-  return { strengths: strengths.slice(0, 4), gaps: gaps.slice(0, 4) }
+  // 去重（按 title）
+  const uniq = (items: AnalysisItem[]) => {
+    const seen = new Set<string>()
+    return items.filter((item) => {
+      if (seen.has(item.title)) return false
+      seen.add(item.title)
+      return true
+    })
+  }
+
+  return {
+    strengths: uniq(strengths).slice(0, 4),
+    gaps: uniq(gaps).slice(0, 4),
+  }
 }
 
 const STOP_WORDS = new Set(['的', '与', '及', '等', '和', '在', '了', '一个', '进行', '活动', '幼儿园'])
@@ -323,43 +353,46 @@ export function buildWordCloud(records: GrowthRecord[]): WordCloudItem[] {
     }
   }
 
+  // 用维度标签增强词云可读性（有数据时）
   return [...freq.entries()]
     .map(([word, weight]) => ({ word, weight }))
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 24)
 }
 
-export function buildGrowthPaths(records: GrowthRecord[], systemStats: SystemStats = {}): GrowthPath[] {
-  const teacher = countByTeacherCategory(records)
-  const activityTotal = (systemStats.activityPlans ?? 0) + (systemStats.weeklyPlans ?? 0)
-  const researchScore = teacher['专业研究成果'] * 2 + teacher['学习与研修']
-  const practiceScore = teacher['获奖与荣誉'] * 2 + activityTotal
-  const breadthScore = records.length + (records.filter((r) => r.representative).length > 0 ? 2 : 0)
+export function buildGrowthPaths(
+  _records: GrowthRecord[],
+  systemStats: SystemStats = {}
+): GrowthPath[] {
+  const activity = systemStats.activityPlans ?? 0
+  const weekly = systemStats.weeklyPlans ?? 0
+  const archive = systemStats.archivePlans ?? 0
+  const total = activity + weekly + archive
 
   const clampPercent = (score: number, max: number) =>
-    Math.min(98, Math.max(records.length === 0 ? 8 : 15, Math.round((score / Math.max(max, 1)) * 100)))
+    Math.min(98, Math.max(total === 0 ? 8 : 15, Math.round((score / Math.max(max, 1)) * 100)))
 
   return [
     {
-      id: 'path-research',
-      label: '园本教研深化',
-      description: '侧重论文、课题、研修与园本研究类成果的持续积累',
-      matchPercent: clampPercent(researchScore, 12),
-      relatedCategories: ['专业研究成果', '学习与研修'],
+      id: 'path-activity',
+      label: '活动方案沉淀',
+      description: '持续生成并入库活动方案，丰富单次保教设计结构',
+      matchPercent: clampPercent(activity * 3 + (weekly > 0 ? 2 : 0), 12),
+      relatedDimensions: ['activity'],
     },
     {
-      id: 'path-practice',
-      label: '保教创新实践',
-      description: '结合活动方案、周计划与教学比赛、荣誉的实践展示路径',
-      matchPercent: clampPercent(practiceScore, 14),
-      relatedCategories: ['获奖与荣誉'],
+      id: 'path-weekly',
+      label: '周计划统筹',
+      description: '通过周计划生成与保存，形成一周保教统筹记录',
+      matchPercent: clampPercent(weekly * 3 + (activity > 0 ? 2 : 0), 12),
+      relatedDimensions: ['weekly'],
     },
     {
-      id: 'path-balanced',
-      label: '综合成长',
-      description: '多类别均衡录入，形成全面的个人成长结构档案',
-      matchPercent: clampPercent(breadthScore, 10),
-      relatedCategories: ['专业研究成果', '获奖与荣誉', '学习与研修'],
+      id: 'path-archive',
+      label: '成果库积累',
+      description: '在教师成果库沉淀平台文档，支撑画像解读与年度报告',
+      matchPercent: clampPercent(archive * 3 + activity + weekly, 14),
+      relatedDimensions: ['archive'],
     },
   ]
 }
@@ -368,62 +401,82 @@ export function buildDefaultActionSeeds(
   gaps: AnalysisItem[],
   dimensions: ProfileDimension[] = []
 ): DefaultActionSeed[] {
-  const seeds: DefaultActionSeed[] = [
-    {
-      id: 'action-archive-rep',
-      title: '标记 1–3 条代表成果',
-      description: '在成果库中为最满意的作品开启「代表成果」，便于画像与年度报告展示。',
-      dimensionId: 'contribution',
-    },
-    {
-      id: 'action-training',
-      title: '补充一次研修学习记录',
-      description: '录入近期培训、观摩或证书，丰富「专业学习与园本研究」结构。',
-      dimensionId: 'research',
-    },
-    {
-      id: 'action-weekly',
-      title: '完成并保存本周周计划',
-      description: '通过周计划生成与保存，沉淀保教活动设计与实施记录（系统统计）。',
-      dimensionId: 'activity',
-    },
-  ]
+  const byId = new Map(dimensions.map((d) => [d.id, d]))
 
-  for (const gap of gaps.slice(0, 2)) {
-    if (gap.title.includes('专业研究成果')) {
-      seeds.unshift({
-        id: 'action-research-paper',
-        title: '录入一项专业研究成果',
-        description: gap.text,
-        dimensionId: 'research',
+  const seeds: DefaultActionSeed[] = []
+
+  // 优先补齐为 0 的维度
+  for (const dim of [...dimensions].sort((a, b) => a.count - b.count)) {
+    if (dim.count > 0) continue
+    if (dim.id === 'activity') {
+      seeds.push({
+        id: 'action-boost-activity',
+        title: '生成并入库一份活动方案',
+        description: '在「活动方案」页生成后选择「上传到平台知识库 + MySQL」，计入成长结构。',
+        dimensionId: 'activity',
       })
-    }
-    if (gap.title.includes('获奖与荣誉')) {
-      seeds.unshift({
-        id: 'action-award',
-        title: '录入一项获奖与荣誉',
-        description: gap.text,
-        dimensionId: 'contribution',
+    } else if (dim.id === 'weekly') {
+      seeds.push({
+        id: 'action-boost-weekly',
+        title: '完成并保存本周周计划',
+        description: '在「周计划」页生成并入库，与成果库「周计划」栏对齐。',
+        dimensionId: 'weekly',
+      })
+    } else {
+      seeds.push({
+        id: 'action-boost-archive',
+        title: '整理教师成果库文档',
+        description: '确认平台「教师成果库」本人手机号文件夹有可读文档。',
+        dimensionId: 'archive',
       })
     }
   }
 
-  const lowDim = [...dimensions].sort((a, b) => a.count - b.count)[0]
-  if (lowDim && lowDim.count === 0) {
-    seeds.unshift({
-      id: `action-boost-${lowDim.id}`,
-      title: `加强「${lowDim.label}」记录`,
-      description: lowDim.description,
-      dimensionId: lowDim.id,
+  // 已有维度的巩固建议
+  if ((byId.get('activity')?.count ?? 0) > 0) {
+    seeds.push({
+      id: 'action-activity-more',
+      title: '再沉淀 1 份活动方案',
+      description: '选择近期主题生成并入库，保持活动方案维度的持续积累。',
+      dimensionId: 'activity',
+    })
+  }
+  if ((byId.get('weekly')?.count ?? 0) > 0) {
+    seeds.push({
+      id: 'action-weekly-more',
+      title: '完成本周周计划入库',
+      description: '保持周计划节奏，便于与活动方案形成闭环。',
+      dimensionId: 'weekly',
+    })
+  }
+  if ((byId.get('archive')?.count ?? 0) > 0) {
+    seeds.push({
+      id: 'action-archive-review',
+      title: '回顾教师成果库代表文档',
+      description: '从本人文件夹中挑选可读文档，作为智能画像与年度报告材料。',
+      dimensionId: 'archive',
     })
   }
 
+  for (const gap of gaps.slice(0, 2)) {
+    if (gap.title.includes('周计划') && gap.title.includes('活动方案')) {
+      seeds.unshift({
+        id: 'action-link-activity-weekly',
+        title: '打通活动方案与周计划',
+        description: gap.text,
+        dimensionId: 'weekly',
+      })
+    }
+  }
+
   const seen = new Set<string>()
-  return seeds.filter((s) => {
-    if (seen.has(s.id)) return false
-    seen.add(s.id)
-    return true
-  }).slice(0, 6)
+  return seeds
+    .filter((s) => {
+      if (seen.has(s.id)) return false
+      seen.add(s.id)
+      return true
+    })
+    .slice(0, 6)
 }
 
 export function getRepresentativeRecords(records: GrowthRecord[]): GrowthRecord[] {
@@ -443,11 +496,12 @@ export function buildProfileSummary(records: GrowthRecord[], systemStats: System
   const categoryCounts = buildCategoryCounts(records, systemStats)
   const radar = buildRadarValues(records, systemStats)
   const trend = buildYearTrend(records, undefined, systemStats)
-  const analysis = buildStrengthsAndGaps(records)
+  const analysis = buildStrengthsAndGaps(records, systemStats)
   const wordCloud = buildWordCloud(records)
   const paths = buildGrowthPaths(records, systemStats)
   const actionSeeds = buildDefaultActionSeeds(analysis.gaps, dimensions)
   const representatives = getRepresentativeRecords(records)
+  const structureTotal = dimensions.reduce((sum, d) => sum + d.count, 0)
 
   return {
     dimensions,
@@ -459,7 +513,8 @@ export function buildProfileSummary(records: GrowthRecord[], systemStats: System
     paths,
     actionSeeds,
     representatives,
-    teacherRecordCount: records.length,
-    isEmpty: records.length === 0 && !(systemStats.activityPlans || systemStats.weeklyPlans),
+    teacherRecordCount: records.filter((r) => !r.id.startsWith('kb_')).length,
+    structureTotal,
+    isEmpty: structureTotal === 0,
   }
 }

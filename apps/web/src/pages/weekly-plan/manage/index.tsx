@@ -71,8 +71,16 @@ export default function WeeklyPlanManageSection() {
   const handleDelete = async (plan: TeachingPlan) => {
     if (!window.confirm(`确定删除「${plan.title}」？`)) return
     try {
-      await kb.deletePlan(plan)
-      toast.success('已删除')
+      const result = await kb.deletePlan(plan)
+      if (result && 'platformDeleted' in result && result.platformDeleted === false) {
+        toast.warning(
+          'hint' in result && result.hint
+            ? result.hint
+            : '已从本系统移除；平台侧无权删除，请到知识库手动处理'
+        )
+      } else {
+        toast.success('已删除')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '删除失败')
     }

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 import {
   fetchKnowledgePlans,
+  resolveLiveBusinessCategory,
   uploadKnowledgeDocument,
   deleteKnowledgeDocument,
   weeklyPlanKnowledgeScope,
@@ -12,6 +13,7 @@ import {
   saveMysqlOnlyGeneratedDoc,
   type UploadStorageMode,
 } from '@/api/teacherGeneratedDocs'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { parseDocxFiles } from '@/lib/parse-docx'
 import {
   buildKnowledgeDocTitle,
@@ -121,27 +123,24 @@ export function useWeeklyPlanKnowledge() {
           )
         }
       } else {
+        const live = await resolveLiveBusinessCategory('weekly')
         for (const item of pendingUploads) {
-          uploaded.push(
-            await uploadKnowledgeDocument({
-              title: item.title,
-              content: item.content,
-              knowledgeId: scope.knowledgeId,
-              categoryId: scope.categoryId,
-              categoryKey: scope.categoryKey,
-              forceKind: 'weekly',
-            })
-          )
+          const plan = await uploadKnowledgeDocument({
+            title: item.title,
+            content: item.content,
+            knowledgeId: live.knowledgeId,
+            categoryId: live.categoryId,
+            categoryKey: live.categoryKey,
+            forceKind: 'weekly',
+          })
+          uploaded.push(plan)
+          await recordTeacherGeneratedUpload({
+            docType: 'weekly',
+            plan,
+            categoryId: live.categoryId,
+            content: item.content,
+          })
         }
-        await Promise.all(
-          uploaded.map((plan) =>
-            recordTeacherGeneratedUpload({
-              docType: 'weekly',
-              plan,
-              categoryId: scope.categoryId,
-            })
-          )
-        )
       }
       setConfirmOpen(false)
       setPendingUploads([])
@@ -162,11 +161,25 @@ export function useWeeklyPlanKnowledge() {
       if (plan.source === 'mysql' || plan.id.startsWith('local_')) {
         await deleteTeacherGeneratedDocRecord(plan.id)
         setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
-        return
+        return { platformDeleted: true as const }
       }
-      await deleteKnowledgeDocument(plan.id)
+      try {
+        await deleteKnowledgeDocument(plan.id)
+      } catch (err) {
+        const msg = getApiErrorMessage(err, '删除知识库文档失败')
+        if (/403|没有权限|无权|forbidden/i.test(msg)) {
+          await deleteTeacherGeneratedDocRecord(plan.id)
+          setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
+          return {
+            platformDeleted: false as const,
+            hint: '已从本系统「我的」移除。平台侧无权删除该文件，请到平台知识库手动删除或改目录。',
+          }
+        }
+        throw err instanceof Error ? err : new Error(msg)
+      }
       await deleteTeacherGeneratedDocRecord(plan.id)
       setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
+      return { platformDeleted: true as const }
     } finally {
       setIsDeleting(false)
     }

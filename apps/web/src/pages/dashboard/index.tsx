@@ -5,18 +5,14 @@ import {
   FolderKanban,
   Radar,
   Sparkles,
-  Star,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listGrowthRecords } from '@/api/growth'
-import {
-  fetchKnowledgePlans,
-  resolveLiveBusinessCategory,
-} from '@/api/knowledge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
+import { useArchiveKnowledge } from '@/hooks/useArchiveKnowledge'
 import { authBridge } from '@/lib/authBridge'
+import { isArchiveKnowledgeConfigured } from '@/api/knowledge'
 
 const quickEntries = [
   {
@@ -52,73 +48,29 @@ const growthLoopSteps = [
 type CountState = number | null
 
 interface DashboardStats {
-  activityMine: CountState
-  activityTotal: CountState
-  weeklyMine: CountState
-  weeklyTotal: CountState
-  growthCount: CountState
-  representativeCount: CountState
-  kbNeedsLogin: boolean
-  growthError: string
-  loading: boolean
+  activityCount: CountState
+  weeklyCount: CountState
+  statsLoading: boolean
+  needsLogin: boolean
 }
 
-function formatRatio(mine: CountState, total: CountState): string {
-  if (mine === null && total === null) return '—'
-  const left = mine === null ? '—' : String(mine)
-  const right = total === null ? '—' : String(total)
-  return `${left}/${right}`
-}
-
-async function fetchCategoryTotal(kind: 'activity' | 'weekly'): Promise<number | null> {
-  try {
-    const scope = await resolveLiveBusinessCategory(kind)
-    const result = await fetchKnowledgePlans({
-      knowledgeId: scope.knowledgeId,
-      categoryId: scope.categoryId,
-      categoryKey: scope.categoryKey,
-      page: 1,
-      limit: 1,
-      fallbackPreset: false,
-    })
-    if (result.error) {
-      if (/登录|未授权|token|401|403/i.test(result.error)) return null
-      return typeof result.total === 'number' ? result.total : 0
-    }
-    return typeof result.total === 'number' ? result.total : result.plans.length
-  } catch {
-    return null
-  }
-}
-
-function StatCard({
+/** 与成果库 SummaryStat 同结构：来源提示 / 数值 / 维度名 */
+function SummaryStat({
   label,
   value,
   hint,
-  hintTone = 'muted',
-  loading,
+  muted,
 }: {
   label: string
   value: string
-  hint?: string
-  hintTone?: 'muted' | 'warn'
-  loading?: boolean
+  hint: string
+  muted?: boolean
 }) {
   return (
-    <div className="surface-panel flex flex-col gap-1 p-4">
-      <span className="text-xs text-nest-muted">{label}</span>
-      <span
-        className={`font-display text-2xl font-bold text-nest-ink ${loading ? 'animate-pulse text-nest-muted' : ''}`}
-      >
-        {value}
-      </span>
-      {hint ? (
-        <span
-          className={`text-[11px] ${hintTone === 'warn' ? 'text-amber-700' : 'text-nest-muted'}`}
-        >
-          {hint}
-        </span>
-      ) : null}
+    <div className={`surface-panel p-4 ${muted ? 'opacity-80' : ''}`}>
+      <p className="text-xs text-nest-muted">{hint}</p>
+      <p className="font-display mt-1 text-2xl font-bold text-nest-ink">{value}</p>
+      <p className="mt-0.5 text-sm font-medium text-nest-pine">{label}</p>
     </div>
   )
 }
@@ -126,79 +78,63 @@ function StatCard({
 export default function DashboardPage() {
   const navigate = useNavigate()
   const [authTick, setAuthTick] = useState(0)
+  const kb = useArchiveKnowledge()
+  const archiveConfigured = isArchiveKnowledgeConfigured()
+  const isLoggedIn = Boolean(authBridge.getAuthInfo()?.token)
+
   const [stats, setStats] = useState<DashboardStats>({
-    activityMine: null,
-    activityTotal: null,
-    weeklyMine: null,
-    weeklyTotal: null,
-    growthCount: null,
-    representativeCount: null,
-    kbNeedsLogin: false,
-    growthError: '',
-    loading: true,
+    activityCount: null,
+    weeklyCount: null,
+    statsLoading: true,
+    needsLogin: !isLoggedIn,
   })
 
   useEffect(() => authBridge.subscribe(() => setAuthTick((n) => n + 1)), [])
 
+  // 与成果库一致：登录后加载教师成果库个人文件夹文档
+  useEffect(() => {
+    void kb.loadPlatformPlans()
+  }, [authTick, kb.loadPlatformPlans])
+
+  // 与成果库一致：活动方案 / 周计划取 MySQL 本人入库计数
   useEffect(() => {
     let cancelled = false
 
     void (async () => {
-      setStats((prev) => ({ ...prev, loading: true }))
-      const isLoggedIn = Boolean(authBridge.getAuthInfo()?.token)
-      let activityMine: CountState = null
-      let activityTotal: CountState = null
-      let weeklyMine: CountState = null
-      let weeklyTotal: CountState = null
-      let growthCount: CountState = 0
-      let representativeCount: CountState = 0
-      let kbNeedsLogin = !isLoggedIn
-      let growthError = ''
+      setStats((prev) => ({ ...prev, statsLoading: true }))
+      const loggedIn = Boolean(authBridge.getAuthInfo()?.token)
 
-      // 先拉用户资料，写入 X-Uid-Hash，再读成果库，避免匿名 owner 导致恒为 0
-      if (isLoggedIn) {
-        try {
-          const phone = (await getCurrentTeacherPhone()).trim()
-          const [mineStats, activityKbTotal, weeklyKbTotal] = await Promise.all([
-            phone ? fetchTeacherGeneratedDocStats(phone) : Promise.resolve(null),
-            fetchCategoryTotal('activity'),
-            fetchCategoryTotal('weekly'),
-          ])
-          if (!cancelled) {
-            activityMine = mineStats?.activity ?? 0
-            weeklyMine = mineStats?.weekly ?? 0
-            activityTotal = activityKbTotal
-            weeklyTotal = weeklyKbTotal
-            kbNeedsLogin = activityKbTotal === null && weeklyKbTotal === null
-          }
-        } catch {
-          activityMine = 0
-          weeklyMine = 0
+      if (!loggedIn) {
+        if (!cancelled) {
+          setStats({
+            activityCount: null,
+            weeklyCount: null,
+            statsLoading: false,
+            needsLogin: true,
+          })
         }
+        return
       }
 
       try {
-        const growth = await listGrowthRecords()
-        growthCount = growth.length
-        representativeCount = growth.filter((r) => r.representative).length
-      } catch (err) {
-        growthError = err instanceof Error ? err.message : '成果数据加载失败'
-        growthCount = null
-        representativeCount = null
+        const phone = (await getCurrentTeacherPhone()).trim()
+        const mineStats = phone ? await fetchTeacherGeneratedDocStats(phone) : null
+        if (cancelled) return
+        setStats({
+          activityCount: mineStats?.activity ?? 0,
+          weeklyCount: mineStats?.weekly ?? 0,
+          statsLoading: false,
+          needsLogin: false,
+        })
+      } catch {
+        if (cancelled) return
+        setStats({
+          activityCount: 0,
+          weeklyCount: 0,
+          statsLoading: false,
+          needsLogin: false,
+        })
       }
-
-      if (cancelled) return
-      setStats({
-        activityMine,
-        activityTotal,
-        weeklyMine,
-        weeklyTotal,
-        growthCount,
-        representativeCount,
-        kbNeedsLogin,
-        growthError,
-        loading: false,
-      })
     })()
 
     return () => {
@@ -206,13 +142,23 @@ export default function DashboardPage() {
     }
   }, [authTick])
 
-  const kbHint = stats.kbNeedsLogin ? '需登录平台' : undefined
-  const activityValue = formatRatio(stats.activityMine, stats.activityTotal)
-  const weeklyValue = formatRatio(stats.weeklyMine, stats.weeklyTotal)
-  const growthValue =
-    stats.growthCount === null ? '—' : String(stats.growthCount)
-  const representativeValue =
-    stats.representativeCount === null ? '—' : String(stats.representativeCount)
+  const formatCount = (n: CountState) => {
+    if (stats.statsLoading) return '—'
+    if (n === null) return '—'
+    return String(n)
+  }
+
+  const archiveCountValue = !archiveConfigured
+    ? '—'
+    : kb.isLoadingPlatform
+      ? '—'
+      : String(kb.platformPlans.length)
+
+  const archiveHint = !archiveConfigured
+    ? '待配置分类 ID'
+    : kb.listHint.includes('登录') || stats.needsLogin
+      ? '需登录平台'
+      : '平台知识库文件夹'
 
   return (
     <div className="page-enter mx-auto max-w-5xl">
@@ -228,10 +174,10 @@ export default function DashboardPage() {
         <p className="relative inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1 text-xs text-emerald-50/90 ring-1 ring-white/15">
           <Sparkles size={12} /> 启芽智教持续陪伴您的保教工作与专业成长
         </p>
-        <h1 className="font-display relative mt-4 text-3xl font-bold tracking-wide md:text-4xl">
+        <h1 className="relative mt-4 font-display text-3xl font-bold tracking-wide md:text-4xl">
           华科附幼 · 智能工作与成长
         </h1>
-        <p className="relative mt-3 max-w-xl text-sm leading-relaxed text-emerald-50/85 md:text-[15px]">
+        <p className="relative mt-3 max-w-xl text-sm leading-relaxed text-emerald-50/85 md:text-base">
           从一周安排到单次活动实施，再到资源沉淀和教师画像，在这里形成完整闭环。
         </p>
         <button
@@ -246,46 +192,36 @@ export default function DashboardPage() {
 
       <section className="mb-6" aria-label="成果统计">
         <h2 className="mb-3 text-sm font-semibold text-nest-muted">数据概览</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard
-            label="活动方案（知识库）"
-            value={activityValue}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <SummaryStat
+            label="活动方案"
+            value={formatCount(stats.activityCount)}
             hint={
-              stats.activityMine === null
-                ? kbHint
-                : stats.loading
-                  ? undefined
-                  : '我的录入 / 总录入'
+              stats.activityCount === null
+                ? '需登录平台'
+                : stats.statsLoading
+                  ? '统计中…'
+                  : '本人入库 · MySQL'
             }
-            hintTone={stats.activityMine === null ? 'warn' : 'muted'}
-            loading={stats.loading}
+            muted={stats.activityCount === null}
           />
-          <StatCard
-            label="周计划（知识库）"
-            value={weeklyValue}
+          <SummaryStat
+            label="周计划"
+            value={formatCount(stats.weeklyCount)}
             hint={
-              stats.weeklyMine === null
-                ? kbHint
-                : stats.loading
-                  ? undefined
-                  : '我的录入 / 总录入'
+              stats.weeklyCount === null
+                ? '需登录平台'
+                : stats.statsLoading
+                  ? '统计中…'
+                  : '本人入库 · MySQL'
             }
-            hintTone={stats.weeklyMine === null ? 'warn' : 'muted'}
-            loading={stats.loading}
+            muted={stats.weeklyCount === null}
           />
-          <StatCard
-            label="教师录入成果"
-            value={growthValue}
-            hint={stats.growthError || undefined}
-            hintTone="warn"
-            loading={stats.loading}
-          />
-          <StatCard
-            label="代表成果"
-            value={representativeValue}
-            hint={stats.growthError || undefined}
-            hintTone="warn"
-            loading={stats.loading}
+          <SummaryStat
+            label="教师成果库"
+            value={archiveCountValue}
+            hint={archiveHint}
+            muted={!archiveConfigured || kb.platformPlans.length === 0}
           />
         </div>
       </section>
@@ -308,7 +244,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <p className="mt-2 text-[11px] text-nest-muted">
-          活动方案与周计划展示「我的 / 知识库合计」；教师录入与代表成果来自成长记录，画像仅用于个人发展，不进行排名。
+          三项统计与成果库同步：活动方案 / 周计划（本人入库 · MySQL）· 教师成果库（平台个人文件夹）；画像仅用于个人发展，不进行排名。
         </p>
       </section>
 
@@ -346,23 +282,14 @@ export default function DashboardPage() {
           <div>
             <h2 className="font-display text-base font-semibold text-nest-ink">成果库</h2>
             <p className="mt-1 text-sm text-nest-muted">
-              {stats.loading
+              {stats.statsLoading || kb.isLoadingPlatform
                 ? '正在加载成果数据…'
-                : stats.growthCount !== null && stats.growthCount > 0
-                  ? `已录入 ${stats.growthCount} 条教师成长成果${stats.representativeCount ? `，其中 ${stats.representativeCount} 条代表成果` : ''}；活动方案与周计划按「我的/合计」统计。`
-                  : '系统生成成果与教师录入成果在此汇集，可前往录入专业成长记录。'}
+                : `活动方案 ${formatCount(stats.activityCount)} · 周计划 ${formatCount(stats.weeklyCount)} · 教师成果库 ${archiveCountValue}，与成果库页统计一致。`}
             </p>
           </div>
         </div>
         <ArrowRight size={18} className="shrink-0 text-nest-muted" />
       </button>
-
-      {!stats.loading && stats.representativeCount !== null && stats.representativeCount > 0 ? (
-        <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200/80 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-800">
-          <Star size={14} className="shrink-0" />
-          您已标记 {stats.representativeCount} 条代表成果，可在教师画像中查看成长结构。
-        </div>
-      ) : null}
     </div>
   )
 }

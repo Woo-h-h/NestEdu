@@ -11,7 +11,7 @@ export default function PathCards({ paths, wordCloud }: PathCardsProps) {
       <section className="surface-panel p-5">
         <h3 className="font-display text-base font-semibold text-nest-ink">成长路径参考</h3>
         <p className="mt-1 text-xs text-nest-muted">
-          「当前匹配度」基于您的成果结构计算，仅供个人发展参考，非排名或绩效指标。
+          「当前匹配度」按活动方案 / 周计划 / 教师成果库三维度计算，仅供个人发展参考，非排名或绩效指标。
         </p>
         <ul className="mt-4 space-y-3">
           {paths.map((path) => (
