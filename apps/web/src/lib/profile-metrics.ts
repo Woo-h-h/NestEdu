@@ -252,7 +252,7 @@ export function buildStrengthsAndGaps(
   if (filled === 3) {
     strengths.push({
       title: '三维度均已起步',
-      text: '活动方案、周计划、教师成果库均有记录，成长结构较完整，适合生成年度报告作个人回顾。',
+      text: '活动方案、周计划、教师成果库均有记录，成长结构较完整，适合持续完善智能画像。',
       evidence: dimensions.map((d) => `${d.label} ${d.count}`).join(' · '),
       source: '规则：三维度齐全',
     })
@@ -299,7 +299,7 @@ export function buildStrengthsAndGaps(
   if (teacherTotal >= 1) {
     strengths.push({
       title: '教师补充录入已起步',
-      text: `另有 ${teacherTotal} 条教师录入成长记录，可与三维度统计一并用于年度报告。`,
+      text: `另有 ${teacherTotal} 条教师录入成长记录，可与三维度统计一并用于智能画像。`,
       evidence: `教师录入 ${teacherTotal} 条`,
       source: '规则：有本地录入',
     })
@@ -390,7 +390,7 @@ export function buildGrowthPaths(
     {
       id: 'path-archive',
       label: '成果库积累',
-      description: '在教师成果库沉淀平台文档，支撑画像解读与年度报告',
+      description: '在教师成果库沉淀平台文档，支撑智能画像解读',
       matchPercent: clampPercent(archive * 3 + activity + weekly, 14),
       relatedDimensions: ['archive'],
     },
@@ -453,7 +453,7 @@ export function buildDefaultActionSeeds(
     seeds.push({
       id: 'action-archive-review',
       title: '回顾教师成果库代表文档',
-      description: '从本人文件夹中挑选可读文档，作为智能画像与年度报告材料。',
+      description: '从本人文件夹中挑选可读文档，作为智能画像材料。',
       dimensionId: 'archive',
     })
   }

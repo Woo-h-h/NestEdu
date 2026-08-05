@@ -149,6 +149,7 @@
 - 列表：`POST /api/knowledge/document/list`（body: `knowledge_id`, `category_id?`, `category_key?`, `current`, `pageSize`）
 - 详情：`GET /api/knowledge/document/detail?document_id=`
 - 上传：`POST /api/knowledge/document/text`（body: `knowledge_id`, `category_id?`, `title`/`name`, `text`/`content`）
+- 原文件上传：`POST /api/knowledge/document/file`（multipart: `file`, `knowledge_id`, `category_id?`, `category_key?`, `title`/`name`）— 成果库 PDF/图片/Office 等
 
 默认知识库：[`teach/knowledge/detail/10298`](https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20806&category_key=custom_1784259353619)（`VITE_DEFAULT_KNOWLEDGE_ID=10298`，分类 `20806`）。鉴权头由 auth-bridge 注入。失败时前端回退本地预设教案。
 

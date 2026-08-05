@@ -32,7 +32,7 @@ const quickEntries = [
   {
     path: '/profile',
     title: '查看教师画像',
-    desc: '查看成长结构、优势短板、发展建议与年度报告',
+    desc: '查看成长结构、优势短板与发展建议',
     icon: Radar,
     tone: 'bg-teal-50 text-teal-700 ring-teal-200/80 group-hover:bg-teal-700 group-hover:text-white',
   },

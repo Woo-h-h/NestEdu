@@ -11,14 +11,11 @@ import DimensionCards from '@/components/profile/DimensionCards'
 import RadarChart from '@/components/profile/RadarChart'
 import DonutChart from '@/components/profile/DonutChart'
 import StrengthGapPanel from '@/components/profile/StrengthGapPanel'
-import AnnualReportPanel from '@/components/profile/AnnualReportPanel'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
 import { getProfileSnapshotByPhone, saveProfileSnapshot } from '@/api/profileSnapshot'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { getProfileAgentId } from '@/api/agent'
-
-const REPORT_YEAR = new Date().getFullYear()
 
 export default function ProfilePage() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
@@ -346,20 +343,6 @@ export default function ProfilePage() {
             </section>
           )}
         </div>
-      )}
-
-      {!loading && (
-        <AnnualReportPanel
-          displayName={displayName}
-          year={REPORT_YEAR}
-          dimensions={dimensions}
-          categoryCounts={categoryCounts}
-          radar={radar}
-          strengths={analysis.strengths}
-          gaps={analysis.gaps}
-          representatives={representatives}
-          teacherRecordCount={teacherRecordCount}
-        />
       )}
     </div>
   )

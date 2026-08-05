@@ -5,11 +5,11 @@ import {
   deleteKnowledgeDocument,
   fetchArchivePlansForOwnerFolder,
   isArchiveKnowledgeConfigured,
-  uploadKnowledgeDocument,
+  uploadKnowledgeFile,
   type KnowledgeCategory,
 } from '@/api/knowledge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
-import { parseDocxFiles } from '@/lib/parse-docx'
+import { prepareArchiveUploadFiles } from '@/lib/prepareArchiveUpload'
 import { ownerFolderNameMatches } from '@/lib/archiveTeacherScope'
 import { authBridge } from '@/lib/authBridge'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
@@ -123,24 +123,17 @@ export function useArchiveKnowledge() {
         `未找到与手机号「${currentPhone}」对应的文件夹，请先在教师成果库下创建同名文件夹`
       )
     }
-    if (uploadFiles.length === 0) throw new Error('请先选择要上传的 docx 文件')
-
-    const invalid = uploadFiles.find(
-      (f) => !f.name.toLowerCase().endsWith('.docx') && !f.name.toLowerCase().endsWith('.doc')
-    )
-    if (invalid) throw new Error('仅支持 .docx / .doc 文件')
+    if (uploadFiles.length === 0) throw new Error('请先选择要上传的文件')
 
     setIsPreparingUpload(true)
     try {
-      const parsed = await parseDocxFiles(uploadFiles)
-      if (parsed.length === 0) {
-        throw new Error('未能解析出有效文本，请确认文件为有效 docx')
-      }
+      const parsed = prepareArchiveUploadFiles(uploadFiles)
       setPendingUploads(
         parsed.map((file) => ({
-          fileName: file.name,
-          title: file.name.replace(/\.(docx|doc)$/i, ''),
-          content: file.content,
+          fileName: file.fileName,
+          title: file.title,
+          file: file.file,
+          uploadMode: 'file' as const,
         }))
       )
       setConfirmOpen(true)
@@ -163,16 +156,20 @@ export function useArchiveKnowledge() {
     try {
       const uploaded: TeachingPlan[] = []
       for (const item of pendingUploads) {
-        uploaded.push(
-          await uploadKnowledgeDocument({
-            title: item.title,
-            content: item.content,
-            knowledgeId: scope.knowledgeId,
-            categoryId: uploadTarget.id,
-            categoryKey: uploadTarget.key,
-            forceKind: 'archive',
-          })
-        )
+        if (item.uploadMode === 'file' && item.file) {
+          uploaded.push(
+            await uploadKnowledgeFile({
+              file: item.file,
+              title: item.title,
+              knowledgeId: scope.knowledgeId,
+              categoryId: uploadTarget.id,
+              categoryKey: uploadTarget.key,
+              forceKind: 'archive',
+            })
+          )
+          continue
+        }
+        throw new Error(`「${item.fileName}」缺少文件内容，请重新选择后上传`)
       }
       setConfirmOpen(false)
       setPendingUploads([])

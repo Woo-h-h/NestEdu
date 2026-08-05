@@ -10,6 +10,11 @@ import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
 import FileUploadCard from '@/pages/weekly-plan/components/FileUploadCard'
+import {
+  ARCHIVE_UPLOAD_ACCEPT,
+  ARCHIVE_UPLOAD_EXTENSIONS,
+  ARCHIVE_UPLOAD_FORMAT_LABEL,
+} from '@/lib/archiveUploadFormats'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
@@ -116,7 +121,7 @@ export default function ArchivePage() {
     try {
       await kb.prepareFileUpload()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '解析文件失败')
+      toast.error(err instanceof Error ? err.message : '准备上传失败')
     }
   }
 
@@ -327,7 +332,12 @@ export default function ArchivePage() {
                   ? `上传到「${kb.uploadTarget.name}」文件夹`
                   : '上传文件到个人成果文件夹'
               }
-              hint="将 docx 拖到此处；仅写入与您手机号同名的文件夹，确认后才会入库"
+              hint="将文件拖到此处；仅写入与您手机号同名的文件夹，确认后才会入库"
+              accept={ARCHIVE_UPLOAD_ACCEPT}
+              allowedExtensions={[...ARCHIVE_UPLOAD_EXTENSIONS]}
+              formatLabel={ARCHIVE_UPLOAD_FORMAT_LABEL}
+              formatHint="支持 Word、PDF、PPT、Excel、图片与文本；单文件建议不超过 50MB"
+              invalidFormatMessage="不支持的文件格式，请选择 Word、PDF、PPT、Excel、图片或常见文本文件"
             />
             <div className="flex flex-wrap justify-end gap-3">
               <button
@@ -359,7 +369,7 @@ export default function ArchivePage() {
                 className="btn-accent"
               >
                 <CloudUpload size={16} />
-                {kb.isPreparingUpload ? '解析中...' : '确认上传'}
+                {kb.isPreparingUpload ? '准备中...' : '确认上传'}
               </button>
             </div>
           </div>
@@ -373,7 +383,7 @@ export default function ArchivePage() {
           emptyHint={
             kb.configured
               ? kb.phone
-                ? `手机号「${kb.phone}」下暂无文档，可上传 docx 或在平台同名文件夹中添加`
+                ? `手机号「${kb.phone}」下暂无文档，可上传各类文档或在平台同名文件夹中添加`
                 : '获取手机号后将显示个人成果文件夹'
               : '配置分类后将显示教师成果库内容'
           }
@@ -394,8 +404,13 @@ export default function ArchivePage() {
         onConfirm={() => void handleConfirmUpload()}
         targetHint={
           kb.uploadTarget
-            ? `将上传到教师成果库个人文件夹「${kb.uploadTarget.name}」（分类 ${kb.uploadTarget.id}）。`
-            : '将上传到教师成果库个人文件夹。'
+            ? `将原文件上传到教师成果库个人文件夹「${kb.uploadTarget.name}」（分类 ${kb.uploadTarget.id}）。`
+            : '将原文件上传到教师成果库个人文件夹。'
+        }
+        confirmLabel={
+          kb.pendingUploads.length > 0
+            ? `确认上传到教师成果库（${kb.pendingUploads.length}）`
+            : undefined
         }
       />
 

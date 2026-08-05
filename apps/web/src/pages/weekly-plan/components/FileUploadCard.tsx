@@ -1,11 +1,26 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useId, useState } from 'react'
 import { Upload, X, FileText } from 'lucide-react'
+import { formatFileSize } from '@/lib/archiveUploadFormats'
 
 interface Props {
   files: File[]
   onChange: (files: File[]) => void
   title?: string
   hint?: string
+  /** input accept，默认 .docx,.doc */
+  accept?: string
+  /** 允许的扩展名（小写，含点），用于拖拽校验 */
+  allowedExtensions?: string[]
+  formatLabel?: string
+  formatHint?: string
+  invalidFormatMessage?: string
+}
+
+const DEFAULT_EXTENSIONS = ['.docx', '.doc']
+
+function matchesExtension(fileName: string, extensions: string[]): boolean {
+  const lower = fileName.toLowerCase()
+  return extensions.some((ext) => lower.endsWith(ext.toLowerCase()))
 }
 
 export default function FileUploadCard({
@@ -13,28 +28,41 @@ export default function FileUploadCard({
   onChange,
   title = '上传教案文件',
   hint = '将 docx 文件拖拽到此处，或点击选择文件',
+  accept = '.docx,.doc',
+  allowedExtensions = DEFAULT_EXTENSIONS,
+  formatLabel = '.docx / .doc',
+  formatHint = '仅支持 Word 文档，建议单文件文本不超过 2MB',
+  invalidFormatMessage = '仅支持 .docx 和 .doc 格式',
 }: Props) {
   const [dragOver, setDragOver] = useState(false)
+  const inputId = useId()
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
       setDragOver(false)
-      const dropped = Array.from(e.dataTransfer.files).filter(
-        (f) => f.name.endsWith('.docx') || f.name.endsWith('.doc')
+      const dropped = Array.from(e.dataTransfer.files).filter((f) =>
+        matchesExtension(f.name, allowedExtensions)
       )
       if (dropped.length === 0) {
-        alert('仅支持 .docx 和 .doc 格式')
+        alert(invalidFormatMessage)
         return
       }
       onChange([...files, ...dropped])
     },
-    [files, onChange]
+    [allowedExtensions, files, invalidFormatMessage, onChange]
   )
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || [])
-    onChange([...files, ...selected])
+    const selected = Array.from(e.target.files || []).filter((f) =>
+      matchesExtension(f.name, allowedExtensions)
+    )
+    if (selected.length === 0 && (e.target.files?.length || 0) > 0) {
+      alert(invalidFormatMessage)
+    }
+    if (selected.length > 0) {
+      onChange([...files, ...selected])
+    }
     e.target.value = ''
   }
 
@@ -44,7 +72,7 @@ export default function FileUploadCard({
         <Upload size={18} className="text-nest-leaf" />
         <span className="font-display">{title}</span>
         <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-muted">
-          .docx / .doc
+          {formatLabel}
         </span>
       </div>
 
@@ -63,16 +91,16 @@ export default function FileUploadCard({
       >
         <input
           type="file"
-          accept=".docx,.doc"
+          accept={accept}
           multiple
           onChange={handleFileInput}
           className="hidden"
-          id="file-upload"
+          id={inputId}
         />
-        <label htmlFor="file-upload" className="cursor-pointer">
+        <label htmlFor={inputId} className="cursor-pointer">
           <Upload size={40} className="mx-auto mb-3 text-nest-moss/40" />
           <p className="text-nest-muted">{hint}</p>
-          <p className="mt-1 text-xs text-nest-muted/60">仅支持 Word 文档，建议单文件文本不超过 2MB</p>
+          <p className="mt-1 text-xs text-nest-muted/60">{formatHint}</p>
         </label>
       </div>
 
@@ -85,6 +113,7 @@ export default function FileUploadCard({
             >
               <FileText size={14} className="text-nest-leaf" />
               <span className="flex-1 truncate">{f.name}</span>
+              <span className="shrink-0 text-xs text-nest-muted">{formatFileSize(f.size)}</span>
               <button
                 type="button"
                 onClick={() => onChange(files.filter((_, j) => j !== i))}

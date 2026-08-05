@@ -7,12 +7,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, Cloud } from 'lucide-react'
+import { FileText, Loader2, Cloud, Paperclip } from 'lucide-react'
+import { formatFileSize } from '@/lib/archiveUploadFormats'
 
 export interface PendingUploadItem {
   fileName: string
   title: string
-  content: string
+  content?: string
+  file?: File
+  uploadMode?: 'text' | 'file'
 }
 
 interface Props {
@@ -23,6 +26,8 @@ interface Props {
   onCancel: () => void
   /** 入库目标说明 */
   targetHint?: string
+  /** 确认按钮文案 */
+  confirmLabel?: string
 }
 
 export default function UploadConfirmDialog({
@@ -32,7 +37,12 @@ export default function UploadConfirmDialog({
   onConfirm,
   onCancel,
   targetHint = '请确认下列文件无误后再提交；确认后将同时写入平台知识库与本系统数据库。',
+  confirmLabel,
 }: Props) {
+  const defaultConfirmLabel =
+    items.length > 0 && items.every((item) => item.uploadMode === 'file')
+      ? `上传到平台知识库（${items.length}）`
+      : `上传到平台知识库 + 数据库（${items.length}）`
   return (
     <Dialog
       open={open}
@@ -53,17 +63,29 @@ export default function UploadConfirmDialog({
               className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm"
             >
               <div className="flex items-center gap-2 font-medium text-gray-800 mb-1">
-                <FileText size={14} className="text-blue-500 shrink-0" />
+                {item.uploadMode === 'file' ? (
+                  <Paperclip size={14} className="text-blue-500 shrink-0" />
+                ) : (
+                  <FileText size={14} className="text-blue-500 shrink-0" />
+                )}
                 <span className="truncate">{item.title}</span>
               </div>
               <p className="text-xs text-gray-400 mb-2">{item.fileName}</p>
-              <p className="text-xs text-gray-500 line-clamp-4 whitespace-pre-wrap">
-                {item.content.slice(0, 280)}
-                {item.content.length > 280 ? '…' : ''}
-              </p>
-              <p className="text-[11px] text-gray-400 mt-1">
-                约 {item.content.length.toLocaleString()} 字
-              </p>
+              {item.uploadMode === 'file' && item.file ? (
+                <p className="text-xs text-gray-500">
+                  原文件上传 · {formatFileSize(item.file.size)}
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500 line-clamp-4 whitespace-pre-wrap">
+                    {(item.content || '').slice(0, 280)}
+                    {(item.content || '').length > 280 ? '…' : ''}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    约 {(item.content || '').length.toLocaleString()} 字
+                  </p>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -90,7 +112,7 @@ export default function UploadConfirmDialog({
               </>
             ) : (
               <>
-                <Cloud size={16} /> 上传到平台知识库 + 数据库（{items.length}）
+                <Cloud size={16} /> {confirmLabel || defaultConfirmLabel}
               </>
             )}
           </Button>

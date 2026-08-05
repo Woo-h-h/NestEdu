@@ -2,6 +2,12 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-05 — 成果库支持多格式文件上传
+
+- 业务：教师成果库上传区支持 Word、PDF、PPT、Excel、图片与常见文本，不再仅限 `.docx/.doc`。
+- 技术：新增 `uploadKnowledgeFile()` 走平台 `/api/knowledge/document/file`；`FileUploadCard` 可配置 accept；成果库页文案与确认弹窗适配原文件上传。
+- 验证：`pnpm --filter ./apps/web build`
+
 ## 维护约定
 
 - **每次有实质更新**（功能、修复、配置、部署相关改动）都应在本文**顶部**追加一条，不要改写历史条目。
