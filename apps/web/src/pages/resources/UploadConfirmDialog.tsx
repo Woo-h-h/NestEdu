@@ -7,8 +7,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2, Database, Cloud } from 'lucide-react'
-import type { UploadStorageMode } from '@/api/teacherGeneratedDocs'
+import { FileText, Loader2, Cloud } from 'lucide-react'
 
 export interface PendingUploadItem {
   fileName: string
@@ -20,13 +19,8 @@ interface Props {
   open: boolean
   items: PendingUploadItem[]
   uploading?: boolean
-  onConfirm: (mode: UploadStorageMode) => void
+  onConfirm: () => void
   onCancel: () => void
-  /**
-   * true：活动方案/周计划，展示「仅 MySQL」与「平台+MySQL」
-   * false：成果库等，仅平台上传（仍回调 platform）
-   */
-  showStorageChoice?: boolean
   /** 入库目标说明 */
   targetHint?: string
 }
@@ -37,8 +31,7 @@ export default function UploadConfirmDialog({
   uploading = false,
   onConfirm,
   onCancel,
-  showStorageChoice = false,
-  targetHint = '请确认下列文件无误后再提交。',
+  targetHint = '请确认下列文件无误后再提交；确认后将同时写入平台知识库与本系统数据库。',
 }: Props) {
   return (
     <Dialog
@@ -49,9 +42,7 @@ export default function UploadConfirmDialog({
     >
       <DialogContent className="max-w-lg sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>
-            {showStorageChoice ? '选择入库方式' : '确认上传到平台知识库'}
-          </DialogTitle>
+          <DialogTitle>确认上传到平台知识库</DialogTitle>
           <DialogDescription>{targetHint}</DialogDescription>
         </DialogHeader>
 
@@ -87,61 +78,22 @@ export default function UploadConfirmDialog({
           >
             取消
           </Button>
-          {showStorageChoice ? (
-            <>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full"
-                disabled={uploading || items.length === 0}
-                onClick={() => onConfirm('mysql')}
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="animate-spin" /> 保存中…
-                  </>
-                ) : (
-                  <>
-                    <Database size={16} /> 仅保存到 MySQL（仅自己可见）
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                className="w-full"
-                disabled={uploading || items.length === 0}
-                onClick={() => onConfirm('platform')}
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="animate-spin" /> 上传中…
-                  </>
-                ) : (
-                  <>
-                    <Cloud size={16} /> 上传到平台知识库 + MySQL（{items.length}）
-                  </>
-                )}
-              </Button>
-              <p className="text-[11px] leading-relaxed text-nest-muted">
-                「仅 MySQL」不写 AI101 知识库，只在本系统「我的」中可见；「平台 + MySQL」写入教案/周计划库并同步本人统计。
-              </p>
-            </>
-          ) : (
-            <Button
-              type="button"
-              className="w-full"
-              disabled={uploading || items.length === 0}
-              onClick={() => onConfirm('platform')}
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="animate-spin" /> 上传中…
-                </>
-              ) : (
-                `确认上传（${items.length}）`
-              )}
-            </Button>
-          )}
+          <Button
+            type="button"
+            className="w-full"
+            disabled={uploading || items.length === 0}
+            onClick={onConfirm}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="animate-spin" /> 上传中…
+              </>
+            ) : (
+              <>
+                <Cloud size={16} /> 上传到平台知识库 + 数据库（{items.length}）
+              </>
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

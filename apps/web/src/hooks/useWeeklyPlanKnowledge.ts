@@ -10,8 +10,6 @@ import {
 import {
   deleteTeacherGeneratedDocRecord,
   recordTeacherGeneratedUpload,
-  saveMysqlOnlyGeneratedDoc,
-  type UploadStorageMode,
 } from '@/api/teacherGeneratedDocs'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { parseDocxFiles } from '@/lib/parse-docx'
@@ -107,40 +105,28 @@ export function useWeeklyPlanKnowledge() {
     setPendingUploads([])
   }, [isUploading])
 
-  const confirmPendingUpload = useCallback(async (mode: UploadStorageMode = 'platform') => {
+  const confirmPendingUpload = useCallback(async () => {
     if (pendingUploads.length === 0) throw new Error('没有待上传内容')
     setIsUploading(true)
     try {
       const uploaded: TeachingPlan[] = []
-      if (mode === 'mysql') {
-        for (const item of pendingUploads) {
-          uploaded.push(
-            await saveMysqlOnlyGeneratedDoc({
-              docType: 'weekly',
-              title: item.title,
-              content: item.content,
-            })
-          )
-        }
-      } else {
-        const live = await resolveLiveBusinessCategory('weekly')
-        for (const item of pendingUploads) {
-          const plan = await uploadKnowledgeDocument({
-            title: item.title,
-            content: item.content,
-            knowledgeId: live.knowledgeId,
-            categoryId: live.categoryId,
-            categoryKey: live.categoryKey,
-            forceKind: 'weekly',
-          })
-          uploaded.push(plan)
-          await recordTeacherGeneratedUpload({
-            docType: 'weekly',
-            plan,
-            categoryId: live.categoryId,
-            content: item.content,
-          })
-        }
+      const live = await resolveLiveBusinessCategory('weekly')
+      for (const item of pendingUploads) {
+        const plan = await uploadKnowledgeDocument({
+          title: item.title,
+          content: item.content,
+          knowledgeId: live.knowledgeId,
+          categoryId: live.categoryId,
+          categoryKey: live.categoryKey,
+          forceKind: 'weekly',
+        })
+        uploaded.push(plan)
+        await recordTeacherGeneratedUpload({
+          docType: 'weekly',
+          plan,
+          categoryId: live.categoryId,
+          content: item.content,
+        })
       }
       setConfirmOpen(false)
       setPendingUploads([])

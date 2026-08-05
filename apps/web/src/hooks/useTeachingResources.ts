@@ -11,8 +11,6 @@ import {
 import {
   deleteTeacherGeneratedDocRecord,
   recordTeacherGeneratedUpload,
-  saveMysqlOnlyGeneratedDoc,
-  type UploadStorageMode,
 } from '@/api/teacherGeneratedDocs'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { parseDocxFiles } from '@/lib/parse-docx'
@@ -190,7 +188,7 @@ export function useTeachingResources() {
     setPendingUploads([])
   }, [isUploading, isUploadingGenerated])
 
-  const confirmPendingUpload = useCallback(async (mode: UploadStorageMode = 'platform') => {
+  const confirmPendingUpload = useCallback(async () => {
     if (pendingUploads.length === 0) throw new Error('没有待上传内容')
 
     const uploadingGenerated = confirmMode === 'generated'
@@ -199,37 +197,23 @@ export function useTeachingResources() {
 
     try {
       const uploaded: TeachingPlan[] = []
-
-      if (mode === 'mysql') {
-        for (const item of pendingUploads) {
-          uploaded.push(
-            await saveMysqlOnlyGeneratedDoc({
-              docType: 'activity',
-              title: item.title,
-              content: item.content,
-            })
-          )
-        }
-      } else {
-        // 对齐周计划：resolve「教案知识库管理」真实 id + key 后上传（缺 key 会落到知识库根目录）
-        const live = await resolveLiveBusinessCategory('activity')
-        for (const item of pendingUploads) {
-          const plan = await uploadKnowledgeDocument({
-            title: item.title,
-            content: item.content,
-            knowledgeId: live.knowledgeId,
-            categoryId: live.categoryId,
-            categoryKey: live.categoryKey,
-            forceKind: 'activity',
-          })
-          uploaded.push(plan)
-          await recordTeacherGeneratedUpload({
-            docType: 'activity',
-            plan,
-            categoryId: live.categoryId,
-            content: item.content,
-          })
-        }
+      const live = await resolveLiveBusinessCategory('activity')
+      for (const item of pendingUploads) {
+        const plan = await uploadKnowledgeDocument({
+          title: item.title,
+          content: item.content,
+          knowledgeId: live.knowledgeId,
+          categoryId: live.categoryId,
+          categoryKey: live.categoryKey,
+          forceKind: 'activity',
+        })
+        uploaded.push(plan)
+        await recordTeacherGeneratedUpload({
+          docType: 'activity',
+          plan,
+          categoryId: live.categoryId,
+          content: item.content,
+        })
       }
 
       setConfirmOpen(false)

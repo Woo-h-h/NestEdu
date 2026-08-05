@@ -391,7 +391,7 @@ export default function ArchivePage() {
         items={kb.pendingUploads}
         uploading={kb.isUploading}
         onCancel={kb.cancelPendingUpload}
-        onConfirm={(mode) => void handleConfirmUpload()}
+        onConfirm={() => void handleConfirmUpload()}
         targetHint={
           kb.uploadTarget
             ? `将上传到教师成果库个人文件夹「${kb.uploadTarget.name}」（分类 ${kb.uploadTarget.id}）。`

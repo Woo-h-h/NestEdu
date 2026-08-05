@@ -26,7 +26,6 @@ import UploadConfirmDialog, {
   type PendingUploadItem,
 } from '@/pages/resources/UploadConfirmDialog'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
-import type { UploadStorageMode } from '@/api/teacherGeneratedDocs'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
 /** 周计划生成分区（嵌入「周计划管理」页 Tab） */
@@ -110,36 +109,26 @@ export default function WeeklyPlanCreateSection() {
     }
   }
 
-  const handleConfirmUpload = async (mode: UploadStorageMode) => {
+  const handleConfirmUpload = async () => {
     if (pendingUploads.length === 0) return
     setIsUploading(true)
     try {
       const item = pendingUploads[0]
-      if (mode === 'mysql') {
-        const { saveMysqlOnlyGeneratedDoc } = await import('@/api/teacherGeneratedDocs')
-        await saveMysqlOnlyGeneratedDoc({
-          docType: 'weekly',
-          title: item.title,
-          content: item.content,
-        })
-        toast.success('已保存到 MySQL（仅自己可见，请在「我的」查看）')
-      } else {
-        const plan = await uploadKnowledgeDocument({
-          title: item.title,
-          content: item.content,
-          knowledgeId: scope.knowledgeId,
-          categoryId: scope.categoryId,
-          categoryKey: scope.categoryKey,
-          forceKind: 'weekly',
-        })
-        const { recordTeacherGeneratedUpload } = await import('@/api/teacherGeneratedDocs')
-        await recordTeacherGeneratedUpload({
-          docType: 'weekly',
-          plan,
-          categoryId: scope.categoryId,
-        })
-        toast.success(`已上传到周计划知识库 + MySQL：${item.title}`)
-      }
+      const plan = await uploadKnowledgeDocument({
+        title: item.title,
+        content: item.content,
+        knowledgeId: scope.knowledgeId,
+        categoryId: scope.categoryId,
+        categoryKey: scope.categoryKey,
+        forceKind: 'weekly',
+      })
+      const { recordTeacherGeneratedUpload } = await import('@/api/teacherGeneratedDocs')
+      await recordTeacherGeneratedUpload({
+        docType: 'weekly',
+        plan,
+        categoryId: scope.categoryId,
+      })
+      toast.success(`已上传到周计划知识库 + 数据库：${item.title}`)
       wp.setIsModified(false)
       setConfirmOpen(false)
       setPendingUploads([])
@@ -191,14 +180,13 @@ export default function WeeklyPlanCreateSection() {
           open={confirmOpen}
           items={pendingUploads}
           uploading={isUploading}
-          showStorageChoice
           onCancel={() => {
             if (isUploading) return
             setConfirmOpen(false)
             setPendingUploads([])
           }}
-          onConfirm={(mode) => void handleConfirmUpload(mode)}
-          targetHint="请选择入库方式。上传平台时写入「周计划管理」；仅 MySQL 则只在本系统「我的」可见。"
+          onConfirm={() => void handleConfirmUpload()}
+          targetHint="确认后将写入平台「周计划管理」分类，并同步记录到本系统数据库。"
         />
       </div>
     )
