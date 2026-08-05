@@ -327,7 +327,7 @@ export default function ResourcesPage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
             <p className="mt-1 text-sm text-nest-muted">
-              上传 docx 到「教案知识库管理」；顶部展示「我的/总录入」与本页筛选统计；点击卡片可查看完整活动方案
+              上传 docx 到「教案知识库管理」；顶部区分本人入库 / 仅本地 / 已上平台；「仅本地」可一键上传到平台
             </p>
           </div>
           {!isLoggedIn && (

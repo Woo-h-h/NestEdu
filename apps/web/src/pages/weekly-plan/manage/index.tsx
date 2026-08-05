@@ -106,7 +106,7 @@ export default function WeeklyPlanManageSection() {
         <div>
           <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
           <p className="mt-1 text-sm text-nest-muted">
-            管理「周计划」知识库文档：上传、查看、导出（「班级第N周计划.docx」）、删除；顶部展示「我的/总录入」与本页筛选统计
+            管理「周计划」知识库文档：上传、查看、导出、删除；顶部区分本人入库 / 仅本地 / 已上平台，「仅本地」可上传到平台
           </p>
         </div>
 

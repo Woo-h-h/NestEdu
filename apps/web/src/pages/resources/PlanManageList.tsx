@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
-import { Check, Download, Eye, Loader2, Search, Trash2, Wrench } from 'lucide-react'
+import { Check, CloudUpload, Download, Eye, Loader2, Search, Trash2, Wrench } from 'lucide-react'
 import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
 import {
   ACTIVITY_DOMAINS,
@@ -12,7 +12,11 @@ import {
 } from '@/lib/planTaxonomy'
 import { authBridge } from '@/lib/authBridge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
-import { listTeacherGeneratedDocs, teacherDocToPlan } from '@/api/teacherGeneratedDocs'
+import {
+  listTeacherGeneratedDocs,
+  promoteMysqlPlanToPlatform,
+  teacherDocToPlan,
+} from '@/api/teacherGeneratedDocs'
 import { fetchKnowledgePlanById } from '@/api/knowledge'
 import { relocateMissingMineDocs } from '@/api/relocateTeacherDocs'
 import { getApiErrorMessage } from '@/lib/apiError'
@@ -25,7 +29,7 @@ interface Props {
   plans: TeachingPlan[]
   loading?: boolean
   sourceHint?: string
-  /** 知识库分类文档合计（平台 total）；用于「我的/总录入」分母 */
+  /** 知识库分类文档合计（平台）；仅作次要参考 */
   kbTotal?: number | null
   emptyHint?: string
   /** 开启后可勾选（用于决定是否上传） */
@@ -35,7 +39,7 @@ interface Props {
   onDelete?: (plan: TeachingPlan) => void | Promise<void>
   onView?: (plan: TeachingPlan) => void
   onExport?: (plan: TeachingPlan) => void | Promise<void>
-  /** 「我的」纠正入库后刷新父级列表 */
+  /** 「我的」纠正/上传平台后刷新父级列表 */
   onRefresh?: () => void | Promise<void>
   deleting?: boolean
   exporting?: boolean
@@ -53,9 +57,35 @@ interface Props {
 
 const sourceTag: Record<string, string> = {
   ai: '主题生成',
-  platform: '平台',
+  platform: '已上平台',
   preset: '预设',
-  mysql: '仅本人',
+  mysql: '仅本地',
+}
+
+function SummaryCell({
+  label,
+  value,
+  hint,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  hint: string
+  tone?: 'default' | 'local' | 'ok'
+}) {
+  const toneClass =
+    tone === 'local'
+      ? 'border-amber-200/80 bg-amber-50/80'
+      : tone === 'ok'
+        ? 'border-nest-leaf/20 bg-nest-mist/60'
+        : 'border-nest-leaf/10 bg-white'
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${toneClass}`}>
+      <p className="text-[11px] text-nest-muted">{label}</p>
+      <p className="font-display mt-0.5 text-xl font-bold text-nest-ink">{value}</p>
+      <p className="mt-0.5 text-[10px] leading-snug text-nest-muted">{hint}</p>
+    </div>
+  )
 }
 
 function ChipRow<T extends string>({
@@ -129,11 +159,13 @@ export default function PlanManageList({
   const [mineLoading, setMineLoading] = useState(false)
   const [mineError, setMineError] = useState('')
   const [relocating, setRelocating] = useState(false)
+  const [promotingId, setPromotingId] = useState('')
+  const [mineReloadToken, setMineReloadToken] = useState(0)
 
   const showTaxonomy = taxonomy === 'activity' || taxonomy === 'weekly'
   const mineDocType = taxonomy === 'activity' ? 'activity' : taxonomy === 'weekly' ? 'weekly' : null
 
-  // 有 taxonomy 时始终拉本人入库映射，供顶部「我的/总录入」；仅「我的」时再补拉误入库文档
+  // 有 taxonomy 时始终拉本人入库映射；仅「我的」时再组装可展示列表
   useEffect(() => {
     if (!showTaxonomy || !mineDocType) {
       setMineExtraPlans([])
@@ -183,12 +215,8 @@ export default function PlanManageList({
         if (cancelled) return
         const docIds = new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean))
         const titles = new Set(rows.map((r) => r.title.trim()).filter(Boolean))
-        const presentIds = new Set(
-          plans.map((p) => (p.id || '').trim()).filter(Boolean)
-        )
-        const presentTitles = new Set(
-          plans.map((p) => (p.title || '').trim()).filter(Boolean)
-        )
+        const presentIds = new Set(plans.map((p) => (p.id || '').trim()).filter(Boolean))
+        const presentTitles = new Set(plans.map((p) => (p.title || '').trim()).filter(Boolean))
 
         let mysqlCount = 0
         let inCategoryCount = 0
@@ -199,9 +227,9 @@ export default function PlanManageList({
             continue
           }
           const id = (row.knowledgeDocId || '').trim()
-          const title = (row.title || '').trim()
+          const titleText = (row.title || '').trim()
           const inList =
-            (id && presentIds.has(id)) || (title && presentTitles.has(title))
+            (id && presentIds.has(id)) || (titleText && presentTitles.has(titleText))
           if (inList) inCategoryCount += 1
           else misroutedCount += 1
         }
@@ -219,11 +247,10 @@ export default function PlanManageList({
           return
         }
 
-        // 「我的」以数据库记录为准：有全文直接展示；否则尝试平台列表/详情补全
         const built: TeachingPlan[] = []
         for (const row of rows) {
           const id = (row.knowledgeDocId || '').trim()
-          const title = (row.title || '').trim()
+          const titleText = (row.title || '').trim()
           const dbContent = (row.content || '').trim()
 
           if ((row.storage || 'platform') === 'mysql' || dbContent.length >= 20) {
@@ -238,27 +265,27 @@ export default function PlanManageList({
 
           const fromPlatform =
             plans.find((p) => (p.id || '').trim() === id) ||
-            plans.find((p) => (p.title || '').trim() === title)
+            plans.find((p) => (p.title || '').trim() === titleText)
           if (fromPlatform) {
             built.push({
               ...fromPlatform,
               content: fromPlatform.content || dbContent,
               objectives:
                 fromPlatform.objectives ||
-                (fromPlatform.content || dbContent || title).slice(0, 120),
+                (fromPlatform.content || dbContent || titleText).slice(0, 120),
             })
             continue
           }
 
           const fetched = id ? await fetchKnowledgePlanById(id) : null
-          if (fetched && ((fetched.content || fetched.objectives || '').trim().length >= 20)) {
+          if (fetched && (fetched.content || fetched.objectives || '').trim().length >= 20) {
             built.push(fetched)
             continue
           }
 
           built.push({
-            id: id || `missing_${title}`,
-            title: title || id,
+            id: id || `missing_${titleText}`,
+            title: titleText || id,
             domain: '综合',
             gradeLevel: '通用',
             objectives:
@@ -291,16 +318,13 @@ export default function PlanManageList({
     return () => {
       cancelled = true
     }
-  }, [showTaxonomy, ownership, mineDocType, plans])
+  }, [showTaxonomy, ownership, mineDocType, plans, mineReloadToken])
 
   const normalizedPlans = useMemo(() => plans.map(enrichPlanTaxonomy), [plans])
 
   const filtered = useMemo(() => {
-    // 「全部」：平台教案库当前分类列表；「我的」：以 MySQL 入库记录组装的列表
     let next =
-      ownership === '我的'
-        ? mineExtraPlans.map(enrichPlanTaxonomy)
-        : normalizedPlans
+      ownership === '我的' ? mineExtraPlans.map(enrichPlanTaxonomy) : normalizedPlans
     if (taxonomy === 'activity' || taxonomy === 'weekly') {
       next = filterPlansByTaxonomy(next, {
         classLevel,
@@ -308,17 +332,40 @@ export default function PlanManageList({
       })
     }
     return filterPlansByKeyword(next, query)
-  }, [
-    ownership,
-    mineExtraPlans,
-    normalizedPlans,
-    taxonomy,
-    classLevel,
-    domain,
-    query,
-  ])
+  }, [ownership, mineExtraPlans, normalizedPlans, taxonomy, classLevel, domain, query])
+
+  // 保留映射集合供后续扩展；当前「我的」列表以 mineExtraPlans 为准
+  void mineDocIds
+  void mineTitles
+
+  const minePlatformCount = Math.max(0, (mineMappedCount ?? 0) - mineMysqlCount)
+  const mineLabel =
+    mineMappedCount === null ? (mineLoading ? '…' : '—') : String(mineMappedCount)
+  const localLabel = mineMappedCount === null ? (mineLoading ? '…' : '—') : String(mineMysqlCount)
+  const platformLabel =
+    mineMappedCount === null ? (mineLoading ? '…' : '—') : String(minePlatformCount)
+
+  const sourceHintIsError = Boolean(
+    sourceHint &&
+      (/失败|错误|登录|暂无|预设|未配置|无法/.test(sourceHint) ||
+        sourceHint.includes('平台失败'))
+  )
 
   const misroutedCount = mineMisroutedCount
+
+  const toggle = (plan: TeachingPlan) => {
+    if (!onChange) return
+    const exists = selected.some((p) => p.id === plan.id)
+    onChange(exists ? selected.filter((p) => p.id !== plan.id) : [...selected, plan])
+  }
+
+  const openView = (plan: TeachingPlan) => {
+    onView?.(plan)
+  }
+
+  const submitSearch = () => {
+    void onSearch?.(query.trim())
+  }
 
   const handleRelocate = async () => {
     if (!mineDocType || relocating) return
@@ -339,12 +386,12 @@ export default function PlanManageList({
       })
       if (moved > 0) {
         toast.success(`已纠正 ${moved} 份到${mineDocType === 'activity' ? '教案库' : '周计划库'}`)
-        setMineExtraPlans([])
+        setMineReloadToken((n) => n + 1)
         await onRefresh?.()
       }
       if (cleaned > 0) {
         toast.message(`已清理 ${cleaned} 条无法纠正的无效映射，请重新生成并入库`)
-        setMineExtraPlans([])
+        setMineReloadToken((n) => n + 1)
         await onRefresh?.()
       }
       if (failed.length > 0 && moved === 0 && cleaned === 0) {
@@ -362,71 +409,30 @@ export default function PlanManageList({
     }
   }
 
-  const toggle = (plan: TeachingPlan) => {
-    if (!selectable || !onChange) return
-    onChange(
-      selected.some((p) => p.id === plan.id)
-        ? selected.filter((p) => p.id !== plan.id)
-        : [...selected, plan]
-    )
+  const handlePromoteToPlatform = async (plan: TeachingPlan) => {
+    if (!mineDocType) return
+    if (plan.source !== 'mysql' && !plan.id.startsWith('local_')) return
+    if (!window.confirm(`将「${plan.title}」上传到平台知识库？上传后他人按平台权限可见。`)) {
+      return
+    }
+    setPromotingId(plan.id)
+    try {
+      await promoteMysqlPlanToPlatform({ plan, docType: mineDocType })
+      toast.success('已上传到平台，并更新本人入库记录')
+      setMineReloadToken((n) => n + 1)
+      await onRefresh?.()
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, '上传到平台失败'))
+    } finally {
+      setPromotingId('')
+    }
   }
-
-  const openView = (plan: TeachingPlan) => {
-    onView?.(plan)
-  }
-
-  const submitSearch = () => {
-    void onSearch?.(query.trim())
-  }
-
-  const totalEntryCount =
-    typeof kbTotal === 'number' && kbTotal >= 0 ? kbTotal : plans.length
-  const mineEntryCount = mineMappedCount
-  const showStats = showTaxonomy
-  const sourceHintIsError = Boolean(
-    sourceHint &&
-      (/失败|错误|登录|暂无|预设|未配置|无法/.test(sourceHint) ||
-        sourceHint.includes('平台失败'))
-  )
-  const mineLabel =
-    mineEntryCount === null ? (mineLoading ? '…' : '—') : String(mineEntryCount)
-  const inCategoryLabel =
-    mineEntryCount === null ? (mineLoading ? '…' : '—') : String(mineInCategoryCount)
 
   return (
     <div className="rounded-2xl border border-nest-leaf/10 bg-nest-mist/25 p-5">
-      <div className="mb-4 flex flex-wrap items-center gap-2 font-medium text-nest-ink">
+      <div className="mb-3 flex flex-wrap items-center gap-2 font-medium text-nest-ink">
         <span className="font-display">{title}</span>
-        {showStats ? (
-          <>
-            <span
-              className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted"
-              title="本人入库记录数 / 知识库分类文档合计"
-            >
-              {mineLabel} / {totalEntryCount}
-              <span className="ml-1 text-[10px] text-nest-muted/80">我的/总录入</span>
-            </span>
-            <span
-              className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted"
-              title="当前分类内本人文档 / 本人入库总数"
-            >
-              {inCategoryLabel} / {mineLabel}
-              <span className="ml-1 text-[10px] text-nest-muted/80">分类内/我的</span>
-            </span>
-            <span
-              className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf"
-              title="仅保存在 MySQL、未上传平台知识库的文档数"
-            >
-              本地可见 {mineMysqlCount}
-            </span>
-            <span
-              className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf"
-              title="本人入库但未出现在当前教案/周计划分类中的文档数"
-            >
-              待纠正 {mineMisroutedCount}
-            </span>
-          </>
-        ) : plans.length > 0 ? (
+        {!showTaxonomy && plans.length > 0 ? (
           <span className="rounded-full border border-nest-leaf/10 bg-white px-2 py-0.5 text-xs text-nest-muted">
             共 {filtered.length}
             {filtered.length !== plans.length ? ` / ${plans.length}` : ''} 份
@@ -443,6 +449,38 @@ export default function PlanManageList({
           </span>
         )}
       </div>
+
+      {showTaxonomy ? (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          <SummaryCell
+            label="本人入库"
+            value={mineLabel}
+            hint={
+              typeof kbTotal === 'number' && kbTotal >= 0
+                ? `数据库记录 · 平台分类约 ${kbTotal} 份`
+                : '数据库中的本人记录'
+            }
+          />
+          <SummaryCell
+            label="仅本地"
+            value={localLabel}
+            hint="未上传平台，可点卡片上传"
+            tone="local"
+          />
+          <SummaryCell
+            label="已上平台"
+            value={platformLabel}
+            hint={
+              mineMisroutedCount > 0
+                ? `分类内可见约 ${mineInCategoryCount} 份 · ${mineMisroutedCount} 份待纠正`
+                : mineInCategoryCount > 0
+                  ? `分类内可见约 ${mineInCategoryCount} 份`
+                  : '已在知识库分类中'
+            }
+            tone="ok"
+          />
+        </div>
+      ) : null}
 
       {showSearch && (
         <div className="mb-4 flex flex-wrap gap-2">
@@ -479,7 +517,7 @@ export default function PlanManageList({
         </div>
       )}
 
-      {(taxonomy === 'activity' || taxonomy === 'weekly') && plans.length > 0 && (
+      {(taxonomy === 'activity' || taxonomy === 'weekly') && (
         <div className="mb-4 rounded-xl border border-nest-leaf/10 bg-white/70 p-3">
           <ChipRow
             label="归属"
@@ -502,22 +540,17 @@ export default function PlanManageList({
           {ownership === '我的' && (
             <div className="mt-2 space-y-2">
               <p className="text-[11px] leading-relaxed text-nest-muted">
-                「全部」展示平台「
-                {taxonomy === 'weekly' ? '周计划管理' : '教案知识库管理'}
-                」中的全部文档；「我的」展示本系统数据库中的本人入库记录。
-                {minePhone ? ` 当前账号：${minePhone}` : ''}
+                「全部」看平台知识库分类；「我的」看本系统数据库本人记录（含仅本地保存）。
+                {minePhone ? ` 当前：${minePhone}` : ''}
                 {mineLoading ? ' 加载中…' : ''}
                 {mineError ? ` ${mineError}` : ''}
-                {!mineLoading && !mineError && mineMappedCount !== null
-                  ? ` 数据库已映射 ${mineMappedCount} 条。`
-                  : ''}
               </p>
               {misroutedCount > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <span>
-                    有 {misroutedCount} 份本人文档不在当前
+                    有 {misroutedCount} 份已上平台文档不在当前
                     {taxonomy === 'weekly' ? '周计划库' : '教案库'}
-                    分类中（多半误入教师成果库）。
+                    分类中（多半误入其他文件夹）。
                   </span>
                   <button
                     type="button"
@@ -554,7 +587,7 @@ export default function PlanManageList({
           {ownership === '我的'
             ? mineMappedCount && mineMappedCount > 0
               ? '数据库有入库记录，但暂无可展示正文。可点「纠正到教案库」，或重新生成并入库。'
-              : '「我的」下暂无数据库入库记录（生成后请选择上传到平台，会同步写入数据库）'
+              : '「我的」下暂无入库记录。生成后可选择「仅保存到数据库」或「上传到平台」。'
             : plans.length === 0
               ? emptyHint
               : '当前分类下没有匹配文档'}
@@ -566,6 +599,11 @@ export default function PlanManageList({
         {filtered.map((plan) => {
           const isSel = selected.some((p) => p.id === plan.id)
           const canDelete = Boolean(onDelete) && plan.source !== 'preset'
+          const canPromote =
+            showTaxonomy &&
+            (plan.source === 'mysql' || plan.id.startsWith('local_')) &&
+            (plan.content || '').trim().length >= 20
+          const isPromoting = promotingId === plan.id
           return (
             <div
               key={plan.id}
@@ -594,6 +632,24 @@ export default function PlanManageList({
               <div className="mb-2 flex items-start justify-between gap-2">
                 <h4 className="text-sm font-semibold text-nest-ink">{plan.title}</h4>
                 <div className="flex shrink-0 items-center gap-1">
+                  {canPromote && (
+                    <button
+                      type="button"
+                      title="上传到平台知识库"
+                      disabled={Boolean(promotingId)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handlePromoteToPlatform(plan)
+                      }}
+                      className="p-1 text-nest-muted hover:text-nest-leaf disabled:opacity-50"
+                    >
+                      {isPromoting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <CloudUpload size={14} />
+                      )}
+                    </button>
+                  )}
                   {onView && (
                     <button
                       type="button"
@@ -640,7 +696,13 @@ export default function PlanManageList({
               </div>
               <div className="mb-2 flex flex-wrap gap-1">
                 {plan.source && (
-                  <span className="rounded bg-nest-sand/80 px-1.5 py-0.5 text-xs text-nest-pine">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-xs ${
+                      plan.source === 'mysql'
+                        ? 'bg-amber-50 text-amber-800'
+                        : 'bg-nest-sand/80 text-nest-pine'
+                    }`}
+                  >
                     {sourceTag[plan.source] || plan.source}
                   </span>
                 )}
@@ -654,18 +716,23 @@ export default function PlanManageList({
                   .map((d) => d.replace(/\uFFFD/g, '').trim())
                   .filter(Boolean)
                   .map((d) => (
-                  <span
-                    key={d}
-                    className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
-                  >
-                    {d}
-                  </span>
-                ))}
+                    <span
+                      key={d}
+                      className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
+                    >
+                      {d}
+                    </span>
+                  ))}
               </div>
               <p className="line-clamp-2 text-xs text-nest-muted/80">
                 {(plan.objectives || '').replace(/\uFFFD+/g, '').trim()}
               </p>
-              {onView && !selectable && (
+              {canPromote && (
+                <p className="mt-2 text-[11px] text-amber-800">
+                  仅保存在本系统 · 可点上方云图标上传到平台
+                </p>
+              )}
+              {onView && !selectable && !canPromote && (
                 <p className="mt-2 text-[11px] text-nest-leaf">点击查看完整内容</p>
               )}
             </div>

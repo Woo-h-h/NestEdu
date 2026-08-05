@@ -220,6 +220,10 @@ export const loginWithAi101 = async (): Promise<void> => {
     return;
   }
 
+  // 主动登录前清掉上一位教师的手机号 / uid 缓存，避免短暂串号
+  const { clearTeacherPhoneCache } = await import("@/api/platformUser");
+  clearTeacherPhoneCache();
+
   if (window.parent !== window) {
     await authBridge.requestAuthInfo({ force: true });
     return;
@@ -243,6 +247,16 @@ export const startAuthBridge = async () => {
   try {
     const authInfo = await ai101Auth.start();
     started = true;
+    const { clearTeacherPhoneCache } = await import("@/api/platformUser");
+    clearTeacherPhoneCache();
+    // iframe 父页换账号时 token 会变，立即清用户缓存
+    let lastToken = (authInfo?.token || "").trim();
+    authBridge.subscribe((next) => {
+      const token = (next?.token || "").trim();
+      if (token === lastToken) return;
+      lastToken = token;
+      void import("@/api/platformUser").then(({ clearTeacherPhoneCache: clear }) => clear());
+    });
     logAuthDebug(authInfo, "start");
     void probePlatformUserSelf();
     if (startedWithTicket && !authInfo?.token) {

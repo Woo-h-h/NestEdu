@@ -200,6 +200,41 @@ export async function recordTeacherGeneratedUpload(params: {
   }
 }
 
+/**
+ * 将「仅 MySQL」文档上传到对应平台分类，并改写入库映射为 platform。
+ * 成功后旧的 local_* 记录会删除。
+ */
+export async function promoteMysqlPlanToPlatform(params: {
+  plan: TeachingPlan
+  docType: TeacherGeneratedDocType
+}): Promise<TeachingPlan> {
+  const { resolveLiveBusinessCategory, uploadKnowledgeDocument } = await import('@/api/knowledge')
+  const oldId = (params.plan.id || '').trim()
+  if (!oldId) throw new Error('文档 ID 无效')
+  const content = (params.plan.content || '').trim()
+  if (content.length < 20) {
+    throw new Error('本地文档正文过短或缺失，无法上传到平台')
+  }
+  const title = (params.plan.title || '').trim() || '未命名方案'
+  const live = await resolveLiveBusinessCategory(params.docType)
+  const uploaded = await uploadKnowledgeDocument({
+    title,
+    content,
+    knowledgeId: live.knowledgeId,
+    categoryId: live.categoryId,
+    categoryKey: live.categoryKey,
+    forceKind: params.docType,
+  })
+  await deleteTeacherGeneratedDocRecord(oldId)
+  await recordTeacherGeneratedUpload({
+    docType: params.docType,
+    plan: uploaded,
+    categoryId: live.categoryId,
+    content,
+  })
+  return uploaded
+}
+
 export async function deleteTeacherGeneratedDocRecord(knowledgeDocId: string): Promise<void> {
   const id = knowledgeDocId.trim()
   if (!id) return

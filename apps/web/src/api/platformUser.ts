@@ -92,8 +92,13 @@ export function resolvePhoneFromUserSelf(user: PlatformUserSelf | null | undefin
 
 const SELF_CACHE_TTL_MS = 60_000
 
-let cachedSelf: { value: PlatformUserSelf | null; at: number } | null = null
+let cachedSelf: { value: PlatformUserSelf | null; at: number; token: string } | null = null
 let inflightSelf: Promise<PlatformUserSelf | null> | null = null
+
+function currentAuthToken(): string {
+  return (authBridge.getAuthInfo()?.token || '').trim()
+}
+
 /** 清除用户资料缓存（登出或切换账号时调用） */
 export function clearTeacherPhoneCache() {
   cachedSelf = null
@@ -105,16 +110,35 @@ export function clearTeacherPhoneCache() {
 export { getCachedUidHash } from '@/lib/uidHashCache'
 
 async function getCachedPlatformUserSelf(): Promise<PlatformUserSelf | null> {
+  const token = currentAuthToken()
+  if (!token) {
+    clearTeacherPhoneCache()
+    return null
+  }
+
   const now = Date.now()
-  if (cachedSelf && now - cachedSelf.at < SELF_CACHE_TTL_MS) {
+  if (
+    cachedSelf &&
+    cachedSelf.token === token &&
+    now - cachedSelf.at < SELF_CACHE_TTL_MS
+  ) {
     return cachedSelf.value
+  }
+  // token 已变：丢弃旧账号缓存（含进行中的旧请求结果）
+  if (cachedSelf && cachedSelf.token !== token) {
+    clearTeacherPhoneCache()
   }
   if (inflightSelf) return inflightSelf
 
   inflightSelf = (async () => {
     try {
+      const tokenAtStart = currentAuthToken()
+      if (!tokenAtStart) return null
       const user = await fetchPlatformUserSelf()
-      cachedSelf = { value: user, at: Date.now() }
+      if (currentAuthToken() !== tokenAtStart) {
+        return null
+      }
+      cachedSelf = { value: user, at: Date.now(), token: tokenAtStart }
       if (user?.uidHash) setCachedUidHash(user.uidHash)
       return user
     } finally {
