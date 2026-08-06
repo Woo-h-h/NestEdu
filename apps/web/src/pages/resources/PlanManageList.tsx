@@ -53,6 +53,7 @@ interface Props {
    * weekly：仅一级大班/中班/小班 +「我的」
    */
   taxonomy?: PlanListTaxonomy
+  showPlanTags?: boolean
 }
 
 const sourceTag: Record<string, string> = {
@@ -143,6 +144,7 @@ export default function PlanManageList({
   searchPlaceholder = '搜索方案名、手机号、内容关键词…',
   showSearch = true,
   taxonomy = 'none',
+  showPlanTags = true,
 }: Props) {
   const [classLevel, setClassLevel] = useState<ClassLevel | '全部'>('全部')
   const [domain, setDomain] = useState<ActivityDomain | '全部'>('全部')
@@ -664,7 +666,7 @@ export default function PlanManageList({
                   {onExport && (
                     <button
                       type="button"
-                      title="导出周计划 DOC"
+                      title={taxonomy === 'weekly' ? '导出周计划 DOC' : '导出 Word'}
                       disabled={exporting}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -704,23 +706,24 @@ export default function PlanManageList({
                     {sourceTag[plan.source] || plan.source}
                   </span>
                 )}
-                {plan.gradeLevel && plan.gradeLevel !== '通用' && (
+                {showPlanTags && plan.gradeLevel && plan.gradeLevel !== '通用' && (
                   <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
                     {plan.gradeLevel}
                   </span>
                 )}
-                {plan.domain
-                  .split('、')
-                  .map((d) => d.replace(/\uFFFD/g, '').trim())
-                  .filter(Boolean)
-                  .map((d) => (
-                    <span
-                      key={d}
-                      className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
-                    >
-                      {d}
-                    </span>
-                  ))}
+                {showPlanTags &&
+                  plan.domain
+                    .split('、')
+                    .map((d) => d.replace(/\uFFFD/g, '').trim())
+                    .filter(Boolean)
+                    .map((d) => (
+                      <span
+                        key={d}
+                        className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
+                      >
+                        {d}
+                      </span>
+                    ))}
               </div>
               <p className="line-clamp-2 text-xs text-nest-muted/80">
                 {(plan.objectives || '').replace(/\uFFFD+/g, '').trim()}

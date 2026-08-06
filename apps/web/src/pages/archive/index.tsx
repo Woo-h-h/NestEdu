@@ -373,6 +373,7 @@ export default function ArchivePage() {
           title="教师成果文档"
           plans={kb.platformPlans}
           loading={kb.isLoadingPlatform}
+          showPlanTags={false}
           sourceHint={kb.listHint}
           emptyHint={
             kb.configured

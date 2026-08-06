@@ -14,6 +14,12 @@
 - 技术：上传前实时解析个人文件夹 `category_id` + `category_key`；成果库对齐平台 SPA **两步入库**（先 `document/text` 不带分类，再 `document/edit` 指定 `category_id`）；跳过不可靠的 `document/file`；上传后校验落点。
 - 验证：`pnpm --filter ./apps/web build`
 
+## 2026-08-06 — 教案新增导出，周计划导出贴近样表
+
+- 业务：活动方案知识库文档新增 Word 导出；周计划导出样式调整为更接近参考文件。
+- 技术：`export-doc.ts` 新增活动方案导出模板；活动方案管理页接入导出按钮；周计划 Word 模板补齐固定表格布局、页边距与标题区排版。
+- 验证：`pnpm --filter ./apps/web build`
+
 ## 2026-08-06 — AI 生成草稿会话内保留
 
 - 业务：活动方案 / 周计划 AI 生成后，切换到其他页面再回来，生成内容与表单可自动恢复（同一浏览器标签页内）。

@@ -9,6 +9,8 @@ import ActivityPlanPreview from '@/pages/resources/ActivityPlanPreview'
 import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
+import { fetchKnowledgePlanById } from '@/api/knowledge'
+import { exportTeachingPlanToDoc } from '@/lib/export-doc'
 import { Upload, BookOpen, Wand2, RefreshCw, CloudUpload } from 'lucide-react'
 import { isBackendApiEnabled } from '@/api/llm'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
@@ -30,6 +32,7 @@ export default function ResourcesPage() {
   const isLoggedIn = Boolean(authInfo?.token)
   const [viewPlan, setViewPlan] = useState<TeachingPlan | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [durationMinutes, setDurationMinutes] = useState<number>(30)
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
   useEffect(() => {
@@ -134,6 +137,18 @@ export default function ResourcesPage() {
   const handleView = (plan: TeachingPlan) => {
     setViewPlan(plan)
     setDetailOpen(true)
+  }
+  const handleExport = async (plan: TeachingPlan) => {
+    setExporting(true)
+    try {
+      const detail = (await fetchKnowledgePlanById(plan.id)) || plan
+      await exportTeachingPlanToDoc(detail)
+      toast.success(`已导出 ${detail.title.replace(/\.md$/i, '') || '活动方案'}.docx`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '导出失败')
+    } finally {
+      setExporting(false)
+    }
   }
   return (
     <div className="page-enter mx-auto max-w-6xl">
@@ -377,8 +392,10 @@ export default function ResourcesPage() {
             }
             onView={handleView}
             onDelete={handleDelete}
+            onExport={handleExport}
             onRefresh={() => res.loadPlatformPlans()}
             deleting={res.isDeleting}
+            exporting={exporting}
             searchPlaceholder="搜寻活动方案（姓名、手机号、方案名）"
             onSearch={async (keyword) => {
               try {
