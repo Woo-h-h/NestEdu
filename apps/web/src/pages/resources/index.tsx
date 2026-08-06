@@ -31,7 +31,6 @@ export default function ResourcesPage() {
   const [viewPlan, setViewPlan] = useState<TeachingPlan | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [durationMinutes, setDurationMinutes] = useState<number>(30)
-  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null)
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
   useEffect(() => {
     const topic = searchParams.get('topic')
@@ -47,11 +46,6 @@ export default function ResourcesPage() {
       void res.loadPlatformPlans()
     }
   }, [isLoggedIn, res.section, res.loadPlatformPlans])
-  useEffect(() => {
-    if (res.generatedPlans.length > 0 && !previewPlanId) {
-      setPreviewPlanId(res.generatedPlans[0].id)
-    }
-  }, [res.generatedPlans, previewPlanId])
   const toggleDomain = (domain: FocusDomain) => {
     if (res.focusDomains.includes(domain)) {
       res.setFocusDomains(res.focusDomains.filter((d) => d !== domain))
@@ -81,7 +75,6 @@ export default function ResourcesPage() {
     }
     try {
       const plans = await res.generateTeachingPlansFromTheme({ durationMinutes })
-      setPreviewPlanId(plans[0]?.id ?? null)
       toast.success(
         `已生成 ${plans.length} 份活动方案，勾选后可确认上传到知识库`
       )
@@ -293,8 +286,8 @@ export default function ResourcesPage() {
               <ActivityPlanPreview
                 plans={res.generatedPlans}
                 loading={res.isGeneratingPlans}
-                activePlanId={previewPlanId}
-                onActivePlanChange={(p) => setPreviewPlanId(p.id)}
+                activePlanId={res.previewPlanId}
+                onActivePlanChange={(p) => res.setPreviewPlanId(p.id)}
               />
             </div>
           </div>

@@ -281,7 +281,7 @@ export function buildStrengthsAndGaps(
   if (weekly >= 1 && activity === 0) {
     gaps.push({
       title: '活动方案可从周计划展开',
-      text: '已有周计划入库，可从周看板点击活动跳转生成详细活动方案并入库。',
+      text: '已有周计划入库，可到「活动方案」页继续生成详细单次活动并入库。',
       evidence: `周计划 ${weekly} · 活动方案 ${activity}`,
       source: '规则：有周计划无教案',
     })

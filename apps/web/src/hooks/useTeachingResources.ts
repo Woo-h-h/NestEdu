@@ -22,24 +22,44 @@ import {
 import { buildTaxonomyContentPrefix, splitDomainTokens } from '@/lib/planTaxonomy'
 import { authBridge } from '@/lib/authBridge'
 import { isApiConfigured } from '@/api/weeklyPlan'
+import {
+  clearActivityPlanDraft,
+  loadActivityPlanDraft,
+  saveActivityPlanDraft,
+} from '@/lib/generationDraft'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
 import type { FocusDomain } from '@/pages/resources/DomainSelector'
 
 export type ResourcesSection = 'generate' | 'manage'
 
 export function useTeachingResources() {
-  const [section, setSection] = useState<ResourcesSection>('generate')
+  const initialDraft = loadActivityPlanDraft()
+
+  const [section, setSection] = useState<ResourcesSection>(
+    () => initialDraft?.section ?? 'generate'
+  )
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
-  const [generatedPlans, setGeneratedPlans] = useState<TeachingPlan[]>([])
-  const [uploadSelection, setUploadSelection] = useState<TeachingPlan[]>([])
+  const [generatedPlans, setGeneratedPlans] = useState<TeachingPlan[]>(
+    () => initialDraft?.generatedPlans ?? []
+  )
+  const [uploadSelection, setUploadSelection] = useState<TeachingPlan[]>(
+    () => initialDraft?.uploadSelection ?? []
+  )
+  const [previewPlanId, setPreviewPlanId] = useState<string | null>(
+    () => initialDraft?.previewPlanId ?? null
+  )
   const [platformPlans, setPlatformPlans] = useState<TeachingPlan[]>([])
   const [listHint, setListHint] = useState('')
   /** 知识库分类文档合计（平台 total，可能大于本页加载条数） */
   const [kbTotal, setKbTotal] = useState<number | null>(null)
-  const [themeName, setThemeName] = useState('')
-  const [className, setClassName] = useState<ClassType | ''>('')
-  const [focusDomains, setFocusDomains] = useState<FocusDomain[]>([])
-  const [notes, setNotes] = useState('')
+  const [themeName, setThemeName] = useState(() => initialDraft?.themeName ?? '')
+  const [className, setClassName] = useState<ClassType | ''>(
+    () => (initialDraft?.className as ClassType | '') ?? ''
+  )
+  const [focusDomains, setFocusDomains] = useState<FocusDomain[]>(
+    () => (initialDraft?.focusDomains as FocusDomain[]) ?? []
+  )
+  const [notes, setNotes] = useState(() => initialDraft?.notes ?? '')
   const [isGeneratingPlans, setIsGeneratingPlans] = useState(false)
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -84,6 +104,45 @@ export function useTeachingResources() {
     }
   }, [section, loadPlatformPlans])
 
+  // 会话内草稿：切到其他页面再回来可恢复 AI 生成结果与表单
+  useEffect(() => {
+    const hasDraft =
+      generatedPlans.length > 0 ||
+      themeName.trim() ||
+      className ||
+      focusDomains.length > 0 ||
+      notes.trim()
+    if (!hasDraft) {
+      clearActivityPlanDraft()
+      return
+    }
+    saveActivityPlanDraft({
+      section,
+      themeName,
+      className,
+      focusDomains,
+      notes,
+      generatedPlans,
+      uploadSelection,
+      previewPlanId,
+    })
+  }, [
+    section,
+    themeName,
+    className,
+    focusDomains,
+    notes,
+    generatedPlans,
+    uploadSelection,
+    previewPlanId,
+  ])
+
+  useEffect(() => {
+    if (generatedPlans.length === 0) return
+    if (previewPlanId && generatedPlans.some((p) => p.id === previewPlanId)) return
+    setPreviewPlanId(generatedPlans[0]?.id ?? null)
+  }, [generatedPlans, previewPlanId])
+
   const generateTeachingPlansFromTheme = useCallback(
     async (options?: { durationMinutes?: number }) => {
       if (!themeName.trim()) throw new Error('请先填写主题名称')
@@ -107,6 +166,7 @@ export function useTeachingResources() {
         })
         setGeneratedPlans(generated)
         setUploadSelection(generated)
+        setPreviewPlanId(generated[0]?.id ?? null)
         return generated
       } finally {
         setIsGeneratingPlans(false)
@@ -219,7 +279,10 @@ export function useTeachingResources() {
       setConfirmOpen(false)
       setPendingUploads([])
       if (uploadingGenerated) {
+        setGeneratedPlans([])
         setUploadSelection([])
+        setPreviewPlanId(null)
+        clearActivityPlanDraft()
       } else {
         setUploadFiles([])
       }
@@ -282,6 +345,8 @@ export function useTeachingResources() {
     generatedPlans,
     uploadSelection,
     setUploadSelection,
+    previewPlanId,
+    setPreviewPlanId,
     platformPlans,
     listHint,
     kbTotal,

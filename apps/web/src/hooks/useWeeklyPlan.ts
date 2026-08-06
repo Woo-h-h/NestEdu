@@ -12,6 +12,11 @@ import {
   isTeachingContextComplete,
   type TeachingContext,
 } from '@/lib/teachingContext'
+import {
+  clearWeeklyPlanDraft,
+  loadWeeklyPlanDraft,
+  saveWeeklyPlanDraft,
+} from '@/lib/generationDraft'
 
 function mergePlans(existing: TeachingPlan[], incoming: TeachingPlan[]): TeachingPlan[] {
   const map = new Map<string, TeachingPlan>()
@@ -22,6 +27,7 @@ function mergePlans(existing: TeachingPlan[], incoming: TeachingPlan[]): Teachin
 
 export function useWeeklyPlan() {
   const initialCtx = loadTeachingContext()
+  const initialDraft = loadWeeklyPlanDraft()
   const [themeName, setThemeName] = useState(initialCtx?.themeName ?? '')
   const [className, setClassName] = useState<ClassType | ''>(initialCtx?.className ?? '')
   const [weekNumber, setWeekNumber] = useState<number | null>(initialCtx?.weekNumber ?? null)
@@ -40,9 +46,13 @@ export function useWeeklyPlan() {
   const [poolSourceHint, setPoolSourceHint] = useState('')
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [currentPlan, setCurrentPlan] = useState<WeeklyPlan | null>(null)
-  const [isModified, setIsModified] = useState(false)
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [currentPlan, setCurrentPlan] = useState<WeeklyPlan | null>(
+    () => initialDraft?.currentPlan ?? null
+  )
+  const [isModified, setIsModified] = useState(() => initialDraft?.isModified ?? false)
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(
+    () => initialDraft?.chatHistory ?? []
+  )
   const [isAiModifying, setIsAiModifying] = useState(false)
 
   const persistMeta = useCallback(
@@ -175,6 +185,19 @@ export function useWeeklyPlan() {
     void loadPlatformPlans()
   }, [refreshContext, loadPlatformPlans])
 
+  // 会话内草稿：已生成的周计划与 AI 改稿记录，切页回来可恢复
+  useEffect(() => {
+    if (!currentPlan) {
+      clearWeeklyPlanDraft()
+      return
+    }
+    saveWeeklyPlanDraft({
+      currentPlan,
+      chatHistory,
+      isModified,
+    })
+  }, [currentPlan, chatHistory, isModified])
+
   const metaReady = Boolean(themeName.trim() && className && weekNumber && weekNumber > 0)
 
   const generatePlan = useCallback(async () => {
@@ -243,6 +266,7 @@ export function useWeeklyPlan() {
     setCurrentPlan(null)
     setIsModified(false)
     setChatHistory([])
+    clearWeeklyPlanDraft()
     refreshContext()
   }, [refreshContext])
 

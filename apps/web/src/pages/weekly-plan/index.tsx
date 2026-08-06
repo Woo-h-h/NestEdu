@@ -15,7 +15,7 @@ export default function WeeklyPlanPage() {
           周计划
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-nest-muted">
-          统筹一周保教安排：勾选教案生成周看板，可跳转活动方案生成详细单次活动；支持编辑导出与知识库入库
+          统筹一周保教安排：勾选教案智能生成周计划，支持编辑、导出与知识库入库
         </p>
       </div>
 
