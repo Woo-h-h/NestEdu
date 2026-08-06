@@ -136,6 +136,7 @@ func (s *KnowledgeService) UploadDocument(
 		input.CategoryKey,
 		s.cfg,
 	)
+	archiveTwoStep := strings.TrimSpace(input.ForceKind) == "archive"
 	contentOut := content
 	if scrubPhones {
 		contentOut = scrubElevenDigitPhones(contentOut)
@@ -148,15 +149,17 @@ func (s *KnowledgeService) UploadDocument(
 		"text":         contentOut,
 		"content":      contentOut,
 	}
-	if categoryID != "" {
-		body["category_id"] = parseIDValue(categoryID)
-	}
-	// 无 key 时不传：勿把 env 旧 key 拼到前端 live id 上（会导致平台智能分类进成果库）
-	if categoryKey != "" {
-		body["category_key"] = categoryKey
-	}
-	if name := strings.TrimSpace(input.CategoryName); name != "" {
-		body["category_name"] = name
+	// 成果库子文件夹：平台 SPA 为先 text 再 edit；一步带 category 易落到根目录
+	if !archiveTwoStep {
+		if categoryID != "" {
+			body["category_id"] = parseIDValue(categoryID)
+		}
+		if categoryKey != "" {
+			body["category_key"] = categoryKey
+		}
+		if name := strings.TrimSpace(input.CategoryName); name != "" {
+			body["category_name"] = name
+		}
 	}
 
 	var envelope struct {
@@ -189,12 +192,17 @@ func (s *KnowledgeService) UploadDocument(
 		}
 		plan.Source = "platform"
 		plan.KnowledgeID = knowledgeID
+		if archiveTwoStep {
+			if err := s.assignDocumentCategoryAfterArchiveUpload(ctx, headers, plan.ID, categoryID, categoryKey); err != nil {
+				return model.TeachingPlan{}, err
+			}
+		}
 		return plan, nil
 	}
 
 	// 宽松回退：平台只返回 id
 	docID := pickDocumentID(envelope.Result)
-	return model.TeachingPlan{
+	plan := model.TeachingPlan{
 		ID:          docID,
 		Title:       title,
 		Domain:      "综合",
@@ -203,7 +211,53 @@ func (s *KnowledgeService) UploadDocument(
 		Content:     content,
 		Source:      "platform",
 		KnowledgeID: knowledgeID,
-	}, nil
+	}
+	if archiveTwoStep {
+		if err := s.assignDocumentCategoryAfterArchiveUpload(ctx, headers, plan.ID, categoryID, categoryKey); err != nil {
+			return model.TeachingPlan{}, err
+		}
+	}
+	return plan, nil
+}
+
+func (s *KnowledgeService) assignDocumentCategoryAfterArchiveUpload(
+	ctx context.Context,
+	headers ForwardHeaders,
+	documentID string,
+	categoryID string,
+	categoryKey string,
+) error {
+	docID := strings.TrimSpace(documentID)
+	catID := strings.TrimSpace(categoryID)
+	if docID == "" {
+		return fmt.Errorf("upload succeeded but missing document id")
+	}
+	if catID == "" {
+		return fmt.Errorf("archive folder category is required")
+	}
+	body := map[string]any{
+		"id":          parseIDValue(docID),
+		"category_id": parseIDValue(catID),
+	}
+	if key := strings.TrimSpace(categoryKey); key != "" {
+		body["category_key"] = key
+	}
+	var envelope struct {
+		Success      bool   `json:"success"`
+		ErrorMessage string `json:"errorMessage"`
+	}
+	editPath := "/api/knowledge/document/edit"
+	if err := s.platform.PostJSON(ctx, editPath, body, headers, &envelope); err != nil {
+		return err
+	}
+	if !envelope.Success {
+		msg := strings.TrimSpace(envelope.ErrorMessage)
+		if msg == "" {
+			msg = "assign archive folder failed"
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
 }
 
 func pickDocumentID(raw json.RawMessage) string {

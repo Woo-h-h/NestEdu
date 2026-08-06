@@ -11,7 +11,7 @@
 ## 2026-08-06 — 成果库上传落入个人文件夹
 
 - 业务：修复教师成果库上传时文件误入「教师成果库」根目录、未进入手机号同名文件夹的问题。
-- 技术：上传前实时解析个人文件夹 `category_id` + `category_key`；成果库跳过不可靠的 `document/file` 登记，统一走 `document/text` 并带上 `category_name`；上传后校验落点（标题忽略扩展名差异、按文件夹 id 直查），误入根目录时自动撤回并报错。
+- 技术：上传前实时解析个人文件夹 `category_id` + `category_key`；成果库对齐平台 SPA **两步入库**（先 `document/text` 不带分类，再 `document/edit` 指定 `category_id`）；跳过不可靠的 `document/file`；上传后校验落点。
 - 验证：`pnpm --filter ./apps/web build`
 
 ## 2026-08-06 — AI 生成草稿会话内保留

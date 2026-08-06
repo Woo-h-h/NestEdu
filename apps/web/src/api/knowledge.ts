@@ -43,6 +43,7 @@ const PLATFORM_LIST_PATH = '/api/knowledge/document/list'
 const PLATFORM_DETAIL_PATH = '/api/knowledge/document/detail'
 const PLATFORM_UPLOAD_PATH = '/api/knowledge/document/text'
 const PLATFORM_FILE_UPLOAD_PATH = '/api/knowledge/document/file'
+const PLATFORM_EDIT_PATH = '/api/knowledge/document/edit'
 const PLATFORM_BINARY_UPLOAD_PATH = '/api/file/upload'
 const PLATFORM_DELETE_PATH = '/api/knowledge/document/delete'
 
@@ -279,6 +280,37 @@ export async function resolveLiveArchiveOwnerFolder(
   }
   console.info('[Knowledge] resolveLiveArchiveOwnerFolder', resolved)
   return resolved
+}
+
+/**
+ * 平台 SPA 入库子文件夹的标准两步：先 document/text，再 document/edit 指定 category_id。
+ * 一步带 category_id/category_key 写入子文件夹时，平台常会落到「教师成果库」根目录。
+ */
+async function assignKnowledgeDocumentCategory(params: {
+  documentId: string
+  categoryId: string
+  categoryKey?: string
+}): Promise<void> {
+  const documentId = params.documentId.trim()
+  const categoryId = params.categoryId.trim()
+  if (!documentId) throw new Error('缺少文档 ID，无法归入目标文件夹')
+  if (!categoryId) throw new Error('缺少目标文件夹 ID')
+
+  const body: Record<string, unknown> = {
+    id: parseIdValue(documentId),
+    category_id: parseIdValue(categoryId),
+  }
+  const categoryKey = (params.categoryKey || '').trim()
+  if (categoryKey) body.category_key = categoryKey
+
+  console.info('[Knowledge] assign category via document/edit', {
+    documentId,
+    categoryId,
+    categoryKey: categoryKey || '(omit)',
+  })
+
+  const envelope = await request.post<ApiEnvelope>(PLATFORM_EDIT_PATH, body)
+  assertSuccess(envelope, '归入目标文件夹失败')
 }
 
 /** 从文件夹内已有文档反推 category_key（分类树未带 key 时的兜底） */
@@ -1159,7 +1191,10 @@ export async function uploadKnowledgeDocument(params: {
     categoryName: categoryName || '(n/a)',
     forceKind: forceKind || null,
     title,
+    archiveTwoStep: forceKind === 'archive',
   })
+
+  const archiveTwoStep = forceKind === 'archive'
 
   let envelope: ApiEnvelope
   try {
@@ -1181,12 +1216,14 @@ export async function uploadKnowledgeDocument(params: {
         text: content,
         content,
       }
-      if (categoryId) body.category_id = parseIdValue(categoryId)
-      if (categoryKey) body.category_key = categoryKey
-      // 显式分类名，降低平台落到未分类/手机号夹的概率
-      if (categoryName) {
-        body.category_name = categoryName
-        body.display_name = categoryName
+      // 成果库子文件夹：第一步不带分类（对齐平台 SPA），创建后再 edit 归入
+      if (!archiveTwoStep) {
+        if (categoryId) body.category_id = parseIdValue(categoryId)
+        if (categoryKey) body.category_key = categoryKey
+        if (categoryName) {
+          body.category_name = categoryName
+          body.display_name = categoryName
+        }
       }
       envelope = await request.post<ApiEnvelope>(PLATFORM_UPLOAD_PATH, body)
     }
@@ -1215,6 +1252,28 @@ export async function uploadKnowledgeDocument(params: {
         source: 'platform',
         knowledgeId,
       }
+
+  if (archiveTwoStep && archiveOwner && !USE_BFF) {
+    const docId = (uploaded.id || '').trim()
+    const syntheticId = !docId || docId.startsWith('upload_')
+    if (syntheticId) {
+      throw new Error('上传成功但未返回文档 ID，无法归入个人成果文件夹')
+    }
+    try {
+      await assignKnowledgeDocumentCategory({
+        documentId: docId,
+        categoryId: archiveOwner.categoryId,
+        categoryKey: archiveOwner.categoryKey,
+      })
+    } catch (err) {
+      try {
+        await deleteKnowledgeDocument(docId)
+      } catch (rollbackErr) {
+        console.warn('[Knowledge] rollback orphan archive doc failed', rollbackErr)
+      }
+      throw err instanceof Error ? err : new Error('归入个人成果文件夹失败')
+    }
+  }
 
   if (forceKind === 'activity' || forceKind === 'weekly') {
     await assertLandedInBusinessCategory(forceKind, uploaded, title)
