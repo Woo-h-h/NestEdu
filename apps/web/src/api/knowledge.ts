@@ -784,6 +784,19 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : text.slice(0, max)
 }
 
+/** 成果库文档标题比对：平台常带 .md/.png 等后缀，上传侧可能不带 */
+function normalizeArchiveDocTitle(title: string): string {
+  return title.trim().replace(/\.[^.]+$/, '').toLowerCase()
+}
+
+function archiveDocTitlesMatch(a: string, b: string): boolean {
+  const left = a.trim()
+  const right = b.trim()
+  if (!left || !right) return false
+  if (left === right) return true
+  return normalizeArchiveDocTitle(left) === normalizeArchiveDocTitle(right)
+}
+
 function mapTeachingPlan(plan: Partial<TeachingPlan> & Record<string, unknown>): TeachingPlan {
   return enrichPlanTaxonomy({
     id: String(plan.id || ''),
@@ -1571,7 +1584,7 @@ async function assertLandedInBusinessCategory(
 async function assertLandedInArchiveOwnerFolder(
   plan: TeachingPlan,
   title: string,
-  ownerFolder: { categoryName: string }
+  ownerFolder: { categoryId: string; categoryKey: string; categoryName: string }
 ): Promise<void> {
   const phone = ownerFolder.categoryName.trim()
   const planId = (plan.id || '').trim()
@@ -1582,26 +1595,32 @@ async function assertLandedInArchiveOwnerFolder(
     items.some(
       (item) =>
         (planId && !isSyntheticId && item.id && item.id === planId) ||
-        (item.title || '').trim() === planTitle
+        archiveDocTitlesMatch(item.title || '', planTitle)
     )
 
-  const themeKw = planTitle.replace(/\.md$/i, '').slice(0, 40)
+  const scope = archiveKnowledgeScope()
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 900 + attempt * 800))
 
-    const archive = await fetchArchivePlansForOwnerFolder(phone, {
-      keyword: themeKw.length >= 2 ? themeKw : undefined,
+    // 直接按个人文件夹 category 拉列表（比 keyword 更可靠）
+    const folderListed = await fetchKnowledgePlans({
+      knowledgeId: scope.knowledgeId,
+      categoryId: ownerFolder.categoryId,
+      categoryKey: ownerFolder.categoryKey,
+      page: 1,
       limit: 50,
+      fallbackPreset: false,
     })
+    if (matchPlan(folderListed.plans)) return
+
+    const archive = await fetchArchivePlansForOwnerFolder(phone, { limit: 50 })
     if (matchPlan(archive.plans)) return
 
-    const scope = archiveKnowledgeScope()
     const rootListed = await fetchKnowledgePlans({
       knowledgeId: scope.knowledgeId,
       categoryId: scope.categoryId,
       categoryKey: scope.categoryKey,
-      keyword: themeKw.length >= 2 ? themeKw : planTitle.slice(0, 40),
       page: 1,
       limit: 30,
       fallbackPreset: false,
@@ -1609,11 +1628,12 @@ async function assertLandedInArchiveOwnerFolder(
     const rootHit = rootListed.plans.find(
       (item) =>
         (planId && !isSyntheticId && item.id && item.id === planId) ||
-        (item.title || '').trim() === planTitle
+        archiveDocTitlesMatch(item.title || '', planTitle)
     )
-    if (rootHit) {
+    // 仅撤回「本次上传」误入根目录的文档，避免误删同名旧文件
+    if (rootHit && planId && !isSyntheticId && rootHit.id === planId) {
       try {
-        if (rootHit.id) await deleteKnowledgeDocument(rootHit.id)
+        await deleteKnowledgeDocument(rootHit.id)
       } catch (err) {
         console.warn('[Knowledge] 撤回误入教师成果库根目录文档失败', err)
       }
@@ -1624,7 +1644,7 @@ async function assertLandedInArchiveOwnerFolder(
   }
 
   throw new Error(
-    `上传后未在您的个人文件夹「${phone}」中确认到该文档。请到平台核对分类后重试。`
+    `上传后未在您的个人文件夹「${phone}」中确认到该文档。若平台已显示成功，请刷新列表；否则请重试。`
   )
 }
 

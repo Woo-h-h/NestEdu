@@ -1,6 +1,5 @@
 import {
   ARCHIVE_MAX_FILE_BYTES,
-  archiveUploadTitleFromFileName,
   formatFileSize,
   isArchiveUploadExtension,
 } from '@/lib/archiveUploadFormats'
@@ -40,7 +39,8 @@ export function prepareArchiveUploadFiles(files: File[]): PreparedArchiveFileUpl
   validateArchiveUploadFiles(files)
   return files.map((file) => ({
     fileName: file.name,
-    title: archiveUploadTitleFromFileName(file.name),
+    // 与平台列表一致保留扩展名，避免入库后标题对不上
+    title: file.name,
     file,
   }))
 }
