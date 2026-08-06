@@ -8,8 +8,8 @@ import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
 import { CloudUpload, RefreshCw } from 'lucide-react'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import { fetchKnowledgePlanById } from '@/api/knowledge'
-import { exportToDoc } from '@/lib/export-doc'
-import { parseWeeklyPlanFromDocument, weeklyPlanFileName } from '@/lib/weeklyPlanText'
+import { exportToPdf } from '@/lib/export-pdf'
+import { parseWeeklyPlanFromDocument } from '@/lib/weeklyPlanText'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
@@ -87,8 +87,8 @@ export default function WeeklyPlanManageSection() {
     try {
       const detail = (await fetchKnowledgePlanById(plan.id)) || plan
       const weekly = parseWeeklyPlanFromDocument(detail)
-      await exportToDoc(weekly)
-      toast.success(`已导出 ${weeklyPlanFileName(weekly)}`)
+      await exportToPdf(weekly)
+      toast.success(`已导出 ${weekly.className}第${weekly.weekNumber}周计划.pdf`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '导出失败')
     } finally {

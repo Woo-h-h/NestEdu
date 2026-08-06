@@ -666,7 +666,7 @@ export default function PlanManageList({
                   {onExport && (
                     <button
                       type="button"
-                      title={taxonomy === 'weekly' ? '导出周计划 DOC' : '导出 Word'}
+                      title={taxonomy === 'weekly' ? '导出周计划 PDF' : '导出 Word'}
                       disabled={exporting}
                       onClick={(e) => {
                         e.stopPropagation()
