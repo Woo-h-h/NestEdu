@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// registerWebStatic 生产环境由 Go 托管前端构建产物（SPA fallback 到 index.html）。
 func registerWebStatic(r *gin.Engine, dir, basePath string) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {

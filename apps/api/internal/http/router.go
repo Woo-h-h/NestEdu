@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// RouterConfig 组装路由所需依赖：DB、静态资源目录、LLM / 平台 / 知识库配置。
 type RouterConfig struct {
 	DB           *gorm.DB
 	WebStaticDir string
@@ -16,6 +17,8 @@ type RouterConfig struct {
 	Knowledge    service.KnowledgeConfig
 }
 
+// NewRouter 创建 Gin 引擎：挂载中间件、/api/v1 业务路由、平台反代与静态资源。
+// store → service → handler 在此完成依赖注入。
 func NewRouter(cfg RouterConfig) *gin.Engine {
 	sampleStore := store.NewSampleStore(cfg.DB)
 	sampleService := service.NewSampleService(sampleStore)

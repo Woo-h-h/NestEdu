@@ -4,7 +4,7 @@ import "time"
 
 var ProfileSnapshotTableName = "profile_snapshots"
 
-// ProfileSnapshot 教师智能画像快照：同一手机号仅保留一份，新生成覆盖旧记录。
+// ProfileSnapshot 教师智能画像快照表实体（MySQL: profile_snapshots）：同一手机号仅保留一份，新生成覆盖旧记录。
 type ProfileSnapshot struct {
 	ID               string    `json:"id" gorm:"column:id;primaryKey;type:varchar(64)"`
 	Phone            string    `json:"phone" gorm:"column:phone;type:varchar(32);not null;uniqueIndex"`

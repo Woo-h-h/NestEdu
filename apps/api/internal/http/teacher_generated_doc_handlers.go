@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
 
+// teacherGeneratedDocHandler 本人教案/周计划入库计数映射的 HTTP 入口。
 type teacherGeneratedDocHandler struct {
 	service *service.TeacherGeneratedDocService
 }

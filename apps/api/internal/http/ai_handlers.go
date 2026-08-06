@@ -8,6 +8,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
 
+// aiHandler 智能体生成相关 HTTP 入口（周计划 / 活动方案），业务在 LLMService。
 type aiHandler struct {
 	llm *service.LLMService
 }

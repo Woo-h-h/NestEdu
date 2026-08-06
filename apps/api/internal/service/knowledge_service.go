@@ -11,6 +11,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/model"
 )
 
+// KnowledgeConfig 知识库对接路径与默认分类（教案 / 周计划），用于上传时强制纠正。
 type KnowledgeConfig struct {
 	ListPath   string
 	DetailPath string
@@ -24,6 +25,7 @@ type KnowledgeConfig struct {
 	WeeklyCategoryKey   string
 }
 
+// UploadDocumentInput 上传文档到平台知识库的入参。
 type UploadDocumentInput struct {
 	KnowledgeID string `json:"knowledgeId"`
 	Title       string `json:"title"`
@@ -36,6 +38,8 @@ type UploadDocumentInput struct {
 	ForceKind string `json:"forceKind"`
 }
 
+// KnowledgeService 对接 AI101 知识库：列表/详情/上传/删除，并把平台响应映射为 TeachingPlan。
+// 不落 MySQL 教案正文；分类纠正与手机号清洗在此完成。
 type KnowledgeService struct {
 	platform *PlatformClient
 	cfg      KnowledgeConfig
@@ -94,6 +98,7 @@ func (s *KnowledgeService) GetPlan(ctx context.Context, headers ForwardHeaders, 
 
 const maxUploadContentRunes = 2 * 1024 * 1024 // ~2MB 文本上限
 
+// UploadDocument 上传文本到平台知识库：校验 → 纠正分类 → 调平台 → 映射为 TeachingPlan。
 func (s *KnowledgeService) UploadDocument(
 	ctx context.Context,
 	headers ForwardHeaders,

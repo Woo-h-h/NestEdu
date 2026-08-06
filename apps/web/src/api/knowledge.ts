@@ -5,6 +5,7 @@ import { authBridge } from '@/lib/authBridge'
 import { getApiErrorMessage } from '@/lib/apiError'
 import {
   listArchiveChildFolderNames,
+  ownerFolderNameMatches,
   resolveArchiveParentId,
   resolveTeacherArchiveFolders,
 } from '@/lib/archiveTeacherScope'
@@ -218,6 +219,90 @@ export function archiveKnowledgeScope() {
     categoryId: getArchiveCategoryId(),
     categoryKey: getArchiveCategoryKey(),
   }
+}
+
+/**
+ * 上传前从平台分类树解析登录教师个人成果文件夹（id + key + 显示名）。
+ * 平台入库需 category_id 与 category_key 配对；缺 key 或误走 document/file 易落到「教师成果库」根目录。
+ */
+export async function resolveLiveArchiveOwnerFolder(
+  phoneInput?: string
+): Promise<{
+  knowledgeId: string
+  categoryId: string
+  categoryKey: string
+  categoryName: string
+}> {
+  const { getCurrentTeacherPhone } = await import('@/api/platformUser')
+  const phone = (phoneInput || (await getCurrentTeacherPhone())).trim()
+  if (!phone) {
+    throw new Error('未能获取手机号，无法上传到个人成果文件夹')
+  }
+
+  const scope = archiveKnowledgeScope()
+  if (!scope.categoryId) {
+    throw new Error('未配置教师成果库分类')
+  }
+
+  const { categories } = await fetchKnowledgeCategories(scope.knowledgeId)
+  const archiveParentId = resolveArchiveParentId(categories, scope.categoryId)
+  const folders = resolveTeacherArchiveFolders(categories, archiveParentId, phone)
+  const folder =
+    folders.find(
+      (item) => item.id !== archiveParentId && ownerFolderNameMatches(item.name, phone)
+    ) || folders[0]
+
+  if (!folder) {
+    const childNames = listArchiveChildFolderNames(categories, archiveParentId)
+    const hint =
+      childNames.length > 0
+        ? `教师成果库下现有文件夹：${childNames.join('、')}`
+        : '请先在教师成果库下创建与手机号同名的文件夹'
+    throw new Error(`未找到与手机号「${phone}」对应的文件夹。${hint}`)
+  }
+
+  let categoryKey = (folder.key || '').trim()
+  if (!categoryKey) {
+    categoryKey = await resolveCategoryKeyFromFolderDocuments(scope.knowledgeId, folder.id)
+  }
+  if (!categoryKey) {
+    throw new Error(
+      `文件夹「${folder.name}」缺少 category_key，无法准确入库。请在平台打开该文件夹复制地址栏中的 category_key，或先在该文件夹上传一份文档后重试。`
+    )
+  }
+
+  const resolved = {
+    knowledgeId: scope.knowledgeId,
+    categoryId: folder.id,
+    categoryKey,
+    categoryName: folder.name,
+  }
+  console.info('[Knowledge] resolveLiveArchiveOwnerFolder', resolved)
+  return resolved
+}
+
+/** 从文件夹内已有文档反推 category_key（分类树未带 key 时的兜底） */
+async function resolveCategoryKeyFromFolderDocuments(
+  knowledgeId: string,
+  folderId: string
+): Promise<string> {
+  try {
+    const envelope = await request.post<ApiEnvelope>(PLATFORM_LIST_PATH, {
+      knowledge_id: parseIdValue(knowledgeId),
+      category_id: parseIdValue(folderId),
+      current: 1,
+      pageSize: 5,
+    })
+    assertSuccess(envelope, '读取文件夹文档失败')
+    const items = extractDocumentItems(envelope.result)
+    for (const item of items) {
+      const key = pickString(item, ['category_key', 'categoryKey', 'custom_key'])
+      if (key) return key
+    }
+  } catch (err) {
+    console.warn('[Knowledge] resolveCategoryKeyFromFolderDocuments failed', err)
+  }
+  return ''
 }
 
 export function isArchiveKnowledgeConfigured(): boolean {
@@ -994,6 +1079,7 @@ export async function uploadKnowledgeDocument(params: {
 
   // 活动方案 / 周计划：强制纠正到业务库，并清除正文中的手机号信号（防智能分类进 173… 文件夹）
   let categoryName = ''
+  let archiveOwner: Awaited<ReturnType<typeof resolveLiveArchiveOwnerFolder>> | null = null
   if (forceKind === 'activity' || (forceKind !== 'archive' && titleIsActivity)) {
     const activity = await resolveLiveBusinessCategory('activity')
     console.warn('[Knowledge] 活动方案目标分类', {
@@ -1018,6 +1104,11 @@ export async function uploadKnowledgeDocument(params: {
     categoryKey = weekly.categoryKey
     categoryName = weekly.categoryName
     content = await scrubBusinessUploadContent(content)
+  } else if (forceKind === 'archive') {
+    archiveOwner = await resolveLiveArchiveOwnerFolder()
+    categoryId = archiveOwner.categoryId
+    categoryKey = archiveOwner.categoryKey
+    categoryName = archiveOwner.categoryName
   }
 
   if (!categoryId && !categoryKey) {
@@ -1042,6 +1133,10 @@ export async function uploadKnowledgeDocument(params: {
 
   if (mustGuardBusinessLib && !categoryKey) {
     throw new Error('上传失败：知识库分类配置不完整，请联系管理员后重试')
+  }
+
+  if (forceKind === 'archive' && !categoryKey) {
+    throw new Error('上传失败：个人成果文件夹缺少 category_key，无法准确入库')
   }
 
   console.info('[Knowledge] upload', {
@@ -1110,6 +1205,10 @@ export async function uploadKnowledgeDocument(params: {
 
   if (forceKind === 'activity' || forceKind === 'weekly') {
     await assertLandedInBusinessCategory(forceKind, uploaded, title)
+  }
+
+  if (forceKind === 'archive' && archiveOwner) {
+    await assertLandedInArchiveOwnerFolder(uploaded, title, archiveOwner)
   }
 
   return uploaded
@@ -1267,6 +1366,18 @@ export async function uploadKnowledgeFile(params: {
 
   const uploadedFile = await uploadPlatformBinaryFile(file)
   const content = buildArchiveFileDocumentContent(file, uploadedFile, title)
+
+  // 成果库：跳过 document/file（易忽略 category_key / category_name 并落到根目录），统一走 text + 入库校验
+  if (params.forceKind === 'archive') {
+    return uploadKnowledgeDocument({
+      title,
+      content,
+      knowledgeId,
+      categoryId,
+      categoryKey,
+      forceKind: 'archive',
+    })
+  }
 
   // 优先：用 file_id / url 调 document/file（若平台支持）
   const fileRegisterAttempts: Array<Record<string, unknown>> = []
@@ -1451,6 +1562,69 @@ async function assertLandedInBusinessCategory(
 
   throw new Error(
     `上传后未在「${libName}」中确认到该文档。请到平台该文件夹核对；若在「未分类」或手机号文件夹，请手动移入「${libName}」或修正分类权限后重试。`
+  )
+}
+
+/**
+ * 成果库上传后校验：必须出现在手机号同名个人文件夹，不能落在「教师成果库」根目录。
+ */
+async function assertLandedInArchiveOwnerFolder(
+  plan: TeachingPlan,
+  title: string,
+  ownerFolder: { categoryName: string }
+): Promise<void> {
+  const phone = ownerFolder.categoryName.trim()
+  const planId = (plan.id || '').trim()
+  const planTitle = title.trim()
+  const isSyntheticId = !planId || planId.startsWith('upload_')
+
+  const matchPlan = (items: TeachingPlan[]) =>
+    items.some(
+      (item) =>
+        (planId && !isSyntheticId && item.id && item.id === planId) ||
+        (item.title || '').trim() === planTitle
+    )
+
+  const themeKw = planTitle.replace(/\.md$/i, '').slice(0, 40)
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 900 + attempt * 800))
+
+    const archive = await fetchArchivePlansForOwnerFolder(phone, {
+      keyword: themeKw.length >= 2 ? themeKw : undefined,
+      limit: 50,
+    })
+    if (matchPlan(archive.plans)) return
+
+    const scope = archiveKnowledgeScope()
+    const rootListed = await fetchKnowledgePlans({
+      knowledgeId: scope.knowledgeId,
+      categoryId: scope.categoryId,
+      categoryKey: scope.categoryKey,
+      keyword: themeKw.length >= 2 ? themeKw : planTitle.slice(0, 40),
+      page: 1,
+      limit: 30,
+      fallbackPreset: false,
+    })
+    const rootHit = rootListed.plans.find(
+      (item) =>
+        (planId && !isSyntheticId && item.id && item.id === planId) ||
+        (item.title || '').trim() === planTitle
+    )
+    if (rootHit) {
+      try {
+        if (rootHit.id) await deleteKnowledgeDocument(rootHit.id)
+      } catch (err) {
+        console.warn('[Knowledge] 撤回误入教师成果库根目录文档失败', err)
+      }
+      throw new Error(
+        `文档被存到了「教师成果库」根目录，而不是您的个人文件夹「${phone}」（已尝试撤回）。请刷新后重新上传。`
+      )
+    }
+  }
+
+  throw new Error(
+    `上传后未在您的个人文件夹「${phone}」中确认到该文档。请到平台核对分类后重试。`
   )
 }
 

@@ -10,6 +10,8 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
 
+// knowledgeHandler 知识库 HTTP 入口：只做绑参、转发鉴权头、调用 KnowledgeService。
+// 分类纠正与平台字段映射在 service 层完成。
 type knowledgeHandler struct {
 	service *service.KnowledgeService
 }
@@ -113,6 +115,7 @@ func (h *knowledgeHandler) deleteDocument(c *gin.Context) {
 	jsonResult(c, http.StatusOK, gin.H{"deleted": true})
 }
 
+// forwardPlatformHeaders 从请求中取出需透传给 AI101 的鉴权与客户端头。
 func forwardPlatformHeaders(c *gin.Context) service.ForwardHeaders {
 	headers := service.ForwardHeaders{}
 	for _, key := range []string{

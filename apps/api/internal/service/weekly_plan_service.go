@@ -26,6 +26,7 @@ type WeeklyPlanRepository interface {
 	Delete(ctx context.Context, ownerID string, id string) error
 }
 
+// WeeklyPlanService 本地周计划 CRUD 编排（校验 + store）。
 type WeeklyPlanService struct {
 	repo WeeklyPlanRepository
 }

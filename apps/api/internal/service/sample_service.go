@@ -21,6 +21,7 @@ type SampleRepository interface {
 	DeleteItem(ctx context.Context, id uint) error
 }
 
+// SampleService 模板样例业务编排（非 NestEdu 核心域）。
 type SampleService struct {
 	repo SampleRepository
 }

@@ -20,6 +20,7 @@ var (
 	ErrGrowthCategoryRequired = errors.New("growth record category is required")
 )
 
+// GrowthRepository 成果库持久化接口（由 store.GrowthStore 实现）。
 type GrowthRepository interface {
 	ListByOwner(ctx context.Context, ownerID string, filter store.GrowthListFilter) ([]model.GrowthRecord, error)
 	GetByID(ctx context.Context, ownerID string, id string) (model.GrowthRecord, error)
@@ -28,6 +29,7 @@ type GrowthRepository interface {
 	Delete(ctx context.Context, ownerID string, id string) error
 }
 
+// GrowthService 教师录入成果的业务编排：校验字段后委托 store，并在 payload ↔ 表实体间转换。
 type GrowthService struct {
 	repo GrowthRepository
 }

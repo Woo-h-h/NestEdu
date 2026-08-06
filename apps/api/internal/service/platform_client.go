@@ -12,12 +12,15 @@ import (
 	"time"
 )
 
+// PlatformClientConfig AI101 平台 HTTP 客户端配置。
 type PlatformClientConfig struct {
 	BaseURL string
 	Referer string
 	MVP     string
 }
 
+// PlatformClient 调用 AI101（api.zcat.cn）的薄封装：转发鉴权头、超时、解析 JSON。
+// KnowledgeService / LLMService 通过它对接知识库与智能体，而不是各自写 HTTP。
 type PlatformClient struct {
 	cfg    PlatformClientConfig
 	client *http.Client
@@ -38,6 +41,7 @@ func NewPlatformClient(cfg PlatformClientConfig) *PlatformClient {
 	}
 }
 
+// ForwardHeaders 从前端请求透传给平台的鉴权与客户端头（Authorization、X-Uid* 等）。
 type ForwardHeaders map[string]string
 
 func (c *PlatformClient) GetJSON(

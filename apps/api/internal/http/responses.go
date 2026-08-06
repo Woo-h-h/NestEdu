@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// jsonResult 统一成功响应：success=true，业务数据放在 result。
 func jsonResult(c *gin.Context, code int, data any, other ...gin.H) {
 	resp := make(gin.H)
 	for _, item := range other {
@@ -23,6 +24,7 @@ func jsonResult(c *gin.Context, code int, data any, other ...gin.H) {
 	c.JSON(code, resp)
 }
 
+// jsonErr 统一失败响应：success=false，附带 errorCode / errorMessage。
 func jsonErr(c *gin.Context, code int, err error, other ...gin.H) {
 	if err == nil {
 		err = errors.New("unknown error")
@@ -40,6 +42,7 @@ func jsonErr(c *gin.Context, code int, err error, other ...gin.H) {
 	c.JSON(code, resp)
 }
 
+// cors 允许带凭证的跨域，并放行平台鉴权相关请求头（Authorization、X-Uid*、X-Bid 等）。
 func cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")

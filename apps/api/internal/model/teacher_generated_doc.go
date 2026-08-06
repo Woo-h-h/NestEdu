@@ -4,7 +4,7 @@ import "time"
 
 var TeacherGeneratedDocTableName = "teacher_generated_docs"
 
-// TeacherGeneratedDoc 记录教师本人成功入库的教案/周计划，供成果库与画像按人统计。
+// TeacherGeneratedDoc 记录教师本人成功入库的教案/周计划，供成果库与画像按人统计（MySQL: teacher_generated_docs）。
 // Storage=mysql：仅存 NestEdu MySQL，本人可见；Storage=platform：已上传 AI101 知识库并写映射。
 type TeacherGeneratedDoc struct {
 	ID             string    `json:"id" gorm:"column:id;primaryKey;type:varchar(64)"`

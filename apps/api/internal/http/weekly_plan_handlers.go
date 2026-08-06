@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
 
+// weeklyPlanHandler 本地周计划 CRUD 的 HTTP 入口。
 type weeklyPlanHandler struct {
 	service *service.WeeklyPlanService
 }
@@ -108,6 +109,7 @@ func (h *weeklyPlanHandler) deletePlan(c *gin.Context) {
 	jsonResult(c, http.StatusOK, gin.H{"deleted": true})
 }
 
+// resolveOwnerID 从鉴权相关请求头解析归属用户；均无则 anonymous（不做 JWT 验签）。
 func resolveOwnerID(c *gin.Context) string {
 	for _, header := range []string{"X-Uid-Hash", "X-Uid", "X-User-Id"} {
 		if value := strings.TrimSpace(c.GetHeader(header)); value != "" {

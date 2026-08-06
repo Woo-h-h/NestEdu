@@ -4,6 +4,7 @@ import "time"
 
 var WeeklyPlanTableName = "weekly_plans"
 
+// WeeklyPlan 本地周计划表实体（MySQL: weekly_plans）；DailyPlans 在库中为 JSON 文本。
 type WeeklyPlan struct {
 	ID          string    `json:"id" gorm:"column:id;primaryKey;type:varchar(64)"`
 	OwnerID     string    `json:"-" gorm:"column:owner_id;type:varchar(128);not null;index"`
@@ -30,6 +31,7 @@ type DayPlan struct {
 	OutdoorSports      string `json:"outdoorSports"`
 }
 
+// WeeklyPlanPayload 周计划对前端的 JSON 形状（DailyPlans 为结构化数组）。
 type WeeklyPlanPayload struct {
 	ID          string    `json:"id"`
 	ThemeName   string    `json:"themeName"`

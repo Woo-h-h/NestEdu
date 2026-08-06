@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// WeeklyPlanStore 用 GORM 访问 weekly_plans 表。
 type WeeklyPlanStore struct {
 	db *gorm.DB
 }

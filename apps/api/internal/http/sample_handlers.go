@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
 
+// sampleHandler 模板样例 CRUD 的 HTTP 入口（非核心业务）。
 type sampleHandler struct {
 	service *service.SampleService
 }

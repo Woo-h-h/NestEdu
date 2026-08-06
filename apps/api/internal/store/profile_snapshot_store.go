@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// ProfileSnapshotStore 用 GORM 访问 profile_snapshots 表。
 type ProfileSnapshotStore struct {
 	db *gorm.DB
 }

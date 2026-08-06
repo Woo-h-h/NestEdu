@@ -9,6 +9,8 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/model"
 )
 
+// llm_prompts.go：周计划 / 活动方案智能体的系统提示词与用户消息拼装、返回 JSON 解析。
+
 const kindergartenContext = `你是"附属幼儿园"的资深教研组长，拥有20年幼儿教育经验。
 
 【办园理念】自然和谐、共同成长

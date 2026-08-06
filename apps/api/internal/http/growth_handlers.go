@@ -12,6 +12,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/store"
 )
 
+// growthHandler 教师录入成果（growth_records）的 HTTP 入口。
 type growthHandler struct {
 	service *service.GrowthService
 }

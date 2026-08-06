@@ -29,6 +29,7 @@ type TeacherGeneratedDocRepository interface {
 	DeleteByKnowledgeDocID(ctx context.Context, knowledgeDocID string) error
 }
 
+// TeacherGeneratedDocService 本人入库计数映射编排（activity/weekly，storage=mysql|platform）。
 type TeacherGeneratedDocService struct {
 	repo TeacherGeneratedDocRepository
 }

@@ -5,6 +5,7 @@ import {
   deleteKnowledgeDocument,
   fetchArchivePlansForOwnerFolder,
   isArchiveKnowledgeConfigured,
+  resolveLiveArchiveOwnerFolder,
   uploadKnowledgeFile,
   type KnowledgeCategory,
 } from '@/api/knowledge'
@@ -148,10 +149,11 @@ export function useArchiveKnowledge() {
 
   const confirmPendingUpload = useCallback(async (_mode?: 'mysql' | 'platform') => {
     if (!configured) throw new Error('请先配置教师成果库分类 ID')
-    if (!uploadTarget) throw new Error('未找到个人成果文件夹，无法上传')
     if (pendingUploads.length === 0) throw new Error('没有待上传内容')
     setIsUploading(true)
     try {
+      const currentPhone = phone || (await getCurrentTeacherPhone())
+      const liveFolder = await resolveLiveArchiveOwnerFolder(currentPhone)
       const uploaded: TeachingPlan[] = []
       for (const item of pendingUploads) {
         if (item.uploadMode === 'file' && item.file) {
@@ -159,9 +161,9 @@ export function useArchiveKnowledge() {
             await uploadKnowledgeFile({
               file: item.file,
               title: item.title,
-              knowledgeId: scope.knowledgeId,
-              categoryId: uploadTarget.id,
-              categoryKey: uploadTarget.key,
+              knowledgeId: liveFolder.knowledgeId,
+              categoryId: liveFolder.categoryId,
+              categoryKey: liveFolder.categoryKey,
               forceKind: 'archive',
             })
           )
@@ -177,7 +179,7 @@ export function useArchiveKnowledge() {
     } finally {
       setIsUploading(false)
     }
-  }, [configured, pendingUploads, loadPlatformPlans, scope.knowledgeId, uploadTarget])
+  }, [configured, pendingUploads, loadPlatformPlans, phone])
 
   const deletePlan = useCallback(async (plan: TeachingPlan) => {
     if (plan.source === 'preset') {

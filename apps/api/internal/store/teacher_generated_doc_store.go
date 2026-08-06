@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// TeacherGeneratedDocStore 用 GORM 访问 teacher_generated_docs（按 knowledge_doc_id Upsert）。
 type TeacherGeneratedDocStore struct {
 	db *gorm.DB
 }

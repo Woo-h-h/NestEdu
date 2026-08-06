@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// GrowthListFilter 成果库列表筛选条件（由 http 从 query 组装，经 service 传入）。
 type GrowthListFilter struct {
 	Year     *int
 	Category string
@@ -16,6 +17,7 @@ type GrowthListFilter struct {
 	Keyword  string
 }
 
+// GrowthStore 用 GORM 访问 growth_records 表。
 type GrowthStore struct {
 	db *gorm.DB
 }

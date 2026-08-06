@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// SampleStore 用 GORM 访问 sample_items（模板样例表）。
 type SampleStore struct {
 	db *gorm.DB
 }

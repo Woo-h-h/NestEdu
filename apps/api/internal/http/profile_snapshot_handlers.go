@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/service"
 )
 
+// profileSnapshotHandler 教师画像快照的 HTTP 入口。
 type profileSnapshotHandler struct {
 	service *service.ProfileSnapshotService
 }

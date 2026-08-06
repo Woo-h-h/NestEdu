@@ -2,6 +2,18 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-06 — 后端四层补充包与类型注释
+
+- 业务：无行为变更。
+- 技术：为 `http` / `service` / `store` / `model` 增加 `doc.go` 包说明，并在路由、知识库/智能体编排、GORM store、表实体与 DTO 等关键类型上补充中文注释。
+- 验证：`cd apps/api && go test ./internal/http/ ./internal/service/ ./internal/store/ ./internal/model/`
+
+## 2026-08-06 — 成果库上传落入个人文件夹
+
+- 业务：修复教师成果库上传时文件误入「教师成果库」根目录、未进入手机号同名文件夹的问题。
+- 技术：上传前实时解析个人文件夹 `category_id` + `category_key`；成果库跳过不可靠的 `document/file` 登记，统一走 `document/text` 并带上 `category_name`；上传后校验落点，误入根目录时自动撤回并报错。
+- 验证：`pnpm --filter ./apps/web build`
+
 ## 2026-08-06 — AI 生成草稿会话内保留
 
 - 业务：活动方案 / 周计划 AI 生成后，切换到其他页面再回来，生成内容与表单可自动恢复（同一浏览器标签页内）。

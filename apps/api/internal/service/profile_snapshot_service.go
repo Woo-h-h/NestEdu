@@ -28,6 +28,7 @@ type ProfileSnapshotRepository interface {
 	DeleteByPhone(ctx context.Context, phone string) error
 }
 
+// ProfileSnapshotService 教师画像快照编排：按手机号读写，新生成覆盖旧记录。
 type ProfileSnapshotService struct {
 	repo ProfileSnapshotRepository
 }

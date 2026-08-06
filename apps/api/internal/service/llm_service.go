@@ -14,6 +14,7 @@ import (
 	"github.com/your-org/mvp-template/apps/api/internal/model"
 )
 
+// LLMConfig 智能体 / 可选 DeepSeek 相关配置。
 type LLMConfig struct {
 	APIKey          string
 	BaseURL         string
@@ -22,6 +23,7 @@ type LLMConfig struct {
 	TeachingAgentID int
 }
 
+// LLMService 编排周计划 / 活动方案生成：优先平台智能体，解析 JSON，失败有限次重试。
 type LLMService struct {
 	cfg      LLMConfig
 	platform *PlatformClient
