@@ -289,7 +289,7 @@ export default function PlanManageList({
             domain: '综合',
             gradeLevel: '通用',
             objectives:
-              '（数据库有入库记录；平台正文暂不可读。请重新生成入库，或到平台「教案知识库管理」确认文件）',
+              '（已有入库记录，但正文暂不可读。请重新生成入库，或到平台「教案知识库管理」确认文件）',
             content: '',
             source: 'platform',
           })
@@ -462,7 +462,7 @@ export default function PlanManageList({
             hint={
               mineLegacyLocalCount > 0
                 ? `含 ${mineLegacyLocalCount} 份历史本地记录，可补传平台`
-                : '生成/上传后同步写入数据库'
+                : '生成/上传后计入本人入库'
             }
           />
           <SummaryCell
@@ -538,7 +538,7 @@ export default function PlanManageList({
           {ownership === '我的' && (
             <div className="mt-2 space-y-2">
               <p className="text-[11px] leading-relaxed text-nest-muted">
-                「全部」看平台知识库分类；「我的」看本系统数据库中的本人入库记录。
+                「全部」看平台知识库分类；「我的」看本人入库记录。
                 {minePhone ? ` 当前：${minePhone}` : ''}
                 {mineLoading ? ' 加载中…' : ''}
                 {mineError ? ` ${mineError}` : ''}
@@ -584,7 +584,7 @@ export default function PlanManageList({
         <p className="mb-3 text-sm text-nest-muted/80">
           {ownership === '我的'
             ? mineMappedCount && mineMappedCount > 0
-              ? '数据库有入库记录，但暂无可展示正文。可点「纠正到教案库」，或重新生成并上传。'
+              ? '已有本人入库记录，但暂无可展示正文。可点「纠正到教案库」，或重新生成并上传。'
               : '「我的」下暂无入库记录。生成后可上传到平台知识库。'
             : plans.length === 0
               ? emptyHint

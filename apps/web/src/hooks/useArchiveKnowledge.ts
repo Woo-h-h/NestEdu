@@ -40,9 +40,7 @@ export function useArchiveKnowledge() {
         setPlatformPlans([])
         setTeacherFolders([])
         setPhone('')
-        setListHint(
-          '未配置教师成果库分类：请在知识库打开「教师成果库」文件夹，将 URL 中的 category_id / category_key 写入 .env'
-        )
+        setListHint('教师成果库尚未配置完成，请联系管理员后再使用')
         return [] as TeachingPlan[]
       }
 

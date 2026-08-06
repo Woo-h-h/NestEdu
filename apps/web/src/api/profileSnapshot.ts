@@ -75,6 +75,6 @@ export async function saveProfileSnapshot(input: ProfileSnapshotInput): Promise<
     })
     return unwrapResult(data)
   } catch (err) {
-    throw new Error(getApiErrorMessage(err, '保存画像到数据库失败（请确认已启动 pnpm dev:backend）'))
+    throw new Error(getApiErrorMessage(err, '保存画像失败，请稍后重试'))
   }
 }

@@ -49,7 +49,7 @@ export default function WeeklyPlanManageSection() {
   const handleConfirmUpload = async () => {
     try {
       const uploaded = await kb.confirmPendingUpload()
-      toast.success(`已成功上传 ${uploaded.length} 份到周计划知识库，并写入数据库`)
+      toast.success(`已成功上传 ${uploaded.length} 份到周计划知识库`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
     }
@@ -102,7 +102,7 @@ export default function WeeklyPlanManageSection() {
         <div>
           <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
           <p className="mt-1 text-sm text-nest-muted">
-            管理「周计划」知识库文档：上传、查看、导出、删除；确认后同时写入平台与本系统数据库
+            管理「周计划」知识库文档：上传、查看、导出、删除；确认后计入本人入库
           </p>
         </div>
 
@@ -194,7 +194,7 @@ export default function WeeklyPlanManageSection() {
         uploading={kb.isUploading}
         onCancel={kb.cancelPendingUpload}
         onConfirm={() => void handleConfirmUpload()}
-        targetHint="确认后将写入平台「周计划管理」分类，并同步记录到本系统数据库。"
+        targetHint="确认后将写入平台「周计划管理」分类，并计入本人入库。"
       />
 
       <PlanDetailDialog plan={viewPlan} open={detailOpen} onOpenChange={setDetailOpen} />

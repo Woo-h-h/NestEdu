@@ -72,12 +72,12 @@ function extractAxiosErrorMessage(err: unknown): string {
       if (msg) return msg
     }
     if (err.response?.status === 401 || err.response?.status === 403) {
-      return '请先登录平台后再使用智能体生成'
+      return '请先登录后再使用智能生成'
     }
     if (err.response?.status) {
-      return `智能体请求失败 (${err.response.status})`
+      return `生成请求失败，请稍后重试`
     }
-    return err.message || '智能体网络请求失败'
+    return err.message || '网络异常，请稍后重试'
   }
   if (err instanceof Error) return err.message
   return String(err)
@@ -98,12 +98,12 @@ export async function generateAgentText(
     throw new Error('生成内容不能为空')
   }
   if (!options.agentId || options.agentId <= 0) {
-    throw new Error('智能体 ID 无效')
+    throw new Error('智能助手配置无效')
   }
 
   const auth = authBridge.getAuthInfo()
   if (!auth?.token) {
-    throw new Error('请先登录平台后再使用智能体生成')
+    throw new Error('请先登录后再使用智能生成')
   }
 
   const agentId = options.agentId
@@ -128,7 +128,7 @@ export async function generateAgentText(
   if (envelope && envelope.success === false) {
     const msg =
       (envelope.errorMessage || envelope.error_message || envelope.message || '').trim() ||
-      `智能体 ${agentId} 生成失败`
+      '生成失败，请稍后重试'
     throw new Error(msg)
   }
 
@@ -142,5 +142,5 @@ export async function generateAgentText(
   const out = candidates.find((s) => s.length > 0)
   if (out) return out
 
-  throw new Error(`智能体 ${agentId} 返回内容为空`)
+  throw new Error('生成结果为空，请稍后重试')
 }

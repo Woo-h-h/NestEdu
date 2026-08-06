@@ -323,12 +323,12 @@ export default function PlanSelector({
             />
           )}
           <p className="mt-2 text-[11px] leading-relaxed text-nest-muted">
-            「全部」为平台教案知识库文档；「我的」为本系统数据库中的本人入库记录。
+            「全部」为平台教案知识库文档；「我的」为本人入库记录。
             {minePhone ? ` 当前账号：${minePhone}` : ''}
             {mineLoading ? ' 加载中…' : ''}
             {mineError ? ` ${mineError}` : ''}
             {!mineLoading && !mineError && mineMappedCount !== null
-              ? ` 数据库已映射 ${mineMappedCount} 条。`
+              ? ` 本人入库 ${mineMappedCount} 条。`
               : ''}
           </p>
         </div>

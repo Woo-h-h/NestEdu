@@ -64,6 +64,15 @@ export default defineConfig(({ mode }) => {
             Referer: env.VITE_PLATFORM_REFERER || "https://www.zcat.cn",
           },
         },
+        // 平台通用文件上传：/api/file/upload（成果库多格式）
+        "/api/file": {
+          target: env.VITE_PLATFORM_API_BASE_URL || env.VITE_AI101_API_BASE_URL || "https://api.zcat.cn",
+          changeOrigin: true,
+          secure: true,
+          headers: {
+            Referer: env.VITE_PLATFORM_REFERER || "https://www.zcat.cn",
+          },
+        },
         // 仅本地 Go BFF（/api/v1/*），不要用宽泛的 /api 以免误伤知识库路径
         "/api/v1": {
           target: env.LOCAL_API_BASE_URL || "http://127.0.0.1:8088",

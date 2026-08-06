@@ -66,6 +66,7 @@ func registerPlatformProxy(r *gin.Engine, cfg service.PlatformClientConfig) {
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/api/knowledge") ||
 			strings.HasPrefix(path, "/api/user") ||
+			strings.HasPrefix(path, "/api/file") ||
 			path == "/v1" ||
 			strings.HasPrefix(path, "/v1/") {
 			handler(c)

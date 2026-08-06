@@ -74,7 +74,7 @@ export async function modifyWeeklyPlan(
     const agentId = getWeeklyPlanAgentId()
     const detail = err instanceof Error ? err.message : String(err)
     console.error(`[LLM] 周计划修改智能体 ${agentId} 失败:`, err)
-    throw new Error(`周计划智能体（ID ${agentId}）修改失败：${detail}`)
+    throw new Error(`周计划生成失败：${detail}`)
   }
 }
 
@@ -200,7 +200,7 @@ export async function generateWeeklyPlan(
     const detail = err instanceof Error ? err.message : String(err)
     console.error(`[LLM] 周计划智能体 ${agentId} 失败:`, err)
     throw new Error(
-      `周计划智能体（ID ${agentId}）生成失败：${detail}。请确认已登录，且智能体 ${agentId} 可用。`
+      `周计划生成失败：${detail}。请确认已登录后再试。`
     )
   }
 }
@@ -311,7 +311,7 @@ export async function generateTeachingPlans(params: {
     const detail = err instanceof Error ? err.message : String(err)
     console.error(`[LLM] 教案智能体 ${agentId} 失败:`, err)
     throw new Error(
-      `教案智能体（ID ${agentId}）生成失败：${detail}。请确认已登录，且智能体 ${agentId} 可用。`
+      `活动方案生成失败：${detail}。请确认已登录后再试。`
     )
   }
 }

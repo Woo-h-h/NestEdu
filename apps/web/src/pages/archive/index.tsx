@@ -172,7 +172,7 @@ export default function ArchivePage() {
               ? '需登录平台'
               : statsLoading
                 ? '统计中…'
-                : '本人入库 · MySQL'
+                : '本人入库'
           }
           muted={activityCount === null}
         />
@@ -184,7 +184,7 @@ export default function ArchivePage() {
               ? '需登录平台'
               : statsLoading
                 ? '统计中…'
-                : '本人入库 · MySQL'
+                : '本人入库'
           }
           muted={weeklyCount === null}
         />
@@ -228,13 +228,7 @@ export default function ArchivePage() {
 
         {!kb.configured && (
           <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
-            请在平台打开「教师成果库」文件夹，复制地址栏中的{' '}
-            <code className="rounded bg-white/80 px-1">category_id</code> 与{' '}
-            <code className="rounded bg-white/80 px-1">category_key</code>
-            ，写入根目录{' '}
-            <code className="rounded bg-white/80 px-1">.env</code> 的{' '}
-            <code className="rounded bg-white/80 px-1">VITE_ARCHIVE_KNOWLEDGE_CATEGORY_*</code>
-            ，然后重启 <code className="rounded bg-white/80 px-1">pnpm dev</code>。
+            教师成果库尚未配置完成，请联系管理员完成知识库分类设置后再使用。
           </div>
         )}
 

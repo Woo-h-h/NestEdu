@@ -10,6 +10,12 @@ import {
 } from '@/lib/archiveTeacherScope'
 import { NestEduKnowledgeCategoryCodec } from '@/lib/knowledgeCategoryMap'
 import { enrichPlanTaxonomy } from '@/lib/planTaxonomy'
+import { uploadPlatformFile } from '@/api/platformFile'
+import {
+  buildArchiveAttachmentContent,
+  extractArchiveFileText,
+  isArchiveTextExtractable,
+} from '@/lib/extractArchiveFileText'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 
@@ -36,6 +42,7 @@ const PLATFORM_LIST_PATH = '/api/knowledge/document/list'
 const PLATFORM_DETAIL_PATH = '/api/knowledge/document/detail'
 const PLATFORM_UPLOAD_PATH = '/api/knowledge/document/text'
 const PLATFORM_FILE_UPLOAD_PATH = '/api/knowledge/document/file'
+const PLATFORM_BINARY_UPLOAD_PATH = '/api/file/upload'
 const PLATFORM_DELETE_PATH = '/api/knowledge/document/delete'
 
 const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024
@@ -1034,9 +1041,7 @@ export async function uploadKnowledgeDocument(params: {
   }
 
   if (mustGuardBusinessLib && !categoryKey) {
-    throw new Error(
-      `上传失败：缺少「${categoryName || '业务库'}」的 category_key。请打开平台该分类，把 URL 中的 category_key 写入 .env 后重试。`
-    )
+    throw new Error('上传失败：知识库分类配置不完整，请联系管理员后重试')
   }
 
   console.info('[Knowledge] upload', {
@@ -1110,7 +1115,107 @@ export async function uploadKnowledgeDocument(params: {
   return uploaded
 }
 
-/** 原文件上传（PDF / 图片 / Office 等）；走平台 `/api/knowledge/document/file` */
+interface PlatformUploadedFile {
+  id: string
+  url: string
+  name: string
+  text: string
+}
+
+/**
+ * 平台通用文件上传（与 SPA `YN()` / 网盘上传同源）。
+ * 知识库原文件接口参数不稳定时，先落地文件再写入 document/text。
+ */
+async function uploadPlatformBinaryFile(file: File): Promise<PlatformUploadedFile> {
+  const attempts: Array<Record<string, string>> = [
+    { convert: 'md', tag: 'knowledge' },
+    { convert: 'md', tag: 'net_disk', type_id: '5', request_by: 'net_disk' },
+    { tag: 'knowledge' },
+  ]
+
+  let lastError = '文件上传失败'
+  for (const extra of attempts) {
+    const formData = new FormData()
+    formData.append('file', file, file.name)
+    for (const [key, value] of Object.entries(extra)) {
+      formData.append(key, value)
+    }
+    try {
+      const envelope = await request.post<ApiEnvelope>(PLATFORM_BINARY_UPLOAD_PATH, formData, {
+        timeout: 120000,
+      })
+      assertSuccess(envelope, '文件上传失败')
+      const parsed = parseUploadedFileResult(envelope.result, file.name)
+      if (parsed.url || parsed.text || parsed.id) {
+        return parsed
+      }
+      lastError = '文件上传成功但未返回可用地址'
+    } catch (err) {
+      lastError = getApiErrorMessage(err, '文件上传失败')
+      console.warn('[Knowledge] /api/file/upload attempt failed', extra, lastError)
+    }
+  }
+  throw new Error(lastError)
+}
+
+function parseUploadedFileResult(raw: unknown, fallbackName: string): PlatformUploadedFile {
+  const root =
+    raw && typeof raw === 'object' ? flattenDocumentFields(raw as Record<string, unknown>) : {}
+  const fileObj =
+    root.file && typeof root.file === 'object'
+      ? flattenDocumentFields(root.file as Record<string, unknown>)
+      : root
+
+  const id = pickString(fileObj, ['id', 'file_id', 'fileId'])
+  const url = pickString(fileObj, ['url', 'file_url', 'fileUrl', 'path', 'oss_url'])
+  const name =
+    pickString(fileObj, ['name', 'file_name', 'fileName', 'title', 'original_name']) || fallbackName
+  const text = pickString(fileObj, [
+    'content',
+    'text',
+    'markdown',
+    'md',
+    'md_content',
+    'parsed_content',
+    'ocr_text',
+    'ocrText',
+  ]).trim()
+
+  return { id, url, name, text }
+}
+
+function buildArchiveFileDocumentContent(
+  file: File,
+  uploaded: PlatformUploadedFile,
+  title: string
+): string {
+  const lines: string[] = [
+    `# ${title}`,
+    '',
+    `- 原始文件：${file.name}`,
+    `- 大小：${file.size} 字节`,
+  ]
+  if (uploaded.url) {
+    lines.push(`- 文件地址：${uploaded.url}`)
+    if (/\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name) || file.type.startsWith('image/')) {
+      lines.push('', `![${title}](${uploaded.url})`)
+    } else {
+      lines.push('', `[打开原文件](${uploaded.url})`)
+    }
+  }
+  if (uploaded.text) {
+    lines.push('', '## 解析正文', '', uploaded.text)
+  }
+  if (!uploaded.url && !uploaded.text) {
+    lines.push('', '（平台未返回文件地址或解析正文，请到知识库核对）')
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 成果库多格式上传：先 `/api/file/upload`，再写入知识库文本文档。
+ * 直接打 `/api/knowledge/document/file` 易返回「参数错误」（字段契约与 SPA 不一致）。
+ */
 export async function uploadKnowledgeFile(params: {
   file: File
   title?: string
@@ -1125,7 +1230,7 @@ export async function uploadKnowledgeFile(params: {
     throw new Error(`文件过大，请控制在 ${Math.round(MAX_UPLOAD_FILE_BYTES / 1024 / 1024)}MB 以内`)
   }
 
-  const title = (params.title || file.name).trim()
+  const title = (params.title || file.name.replace(/\.[^.]+$/, '') || file.name).trim()
   if (!title) throw new Error('文档标题不能为空')
 
   const auth = authBridge.getAuthInfo()
@@ -1134,122 +1239,109 @@ export async function uploadKnowledgeFile(params: {
   const knowledgeId = (params.knowledgeId || getDefaultKnowledgeId()).trim()
   const hasExplicitCategory =
     params.categoryId !== undefined || params.categoryKey !== undefined
-  let categoryId = (
+  const categoryId = (
     hasExplicitCategory ? params.categoryId || '' : getDefaultCategoryId()
   ).trim()
-  let categoryKey = (
+  const categoryKey = (
     hasExplicitCategory ? params.categoryKey || '' : getDefaultCategoryKey()
   ).trim()
 
-  const titleIsActivity = /_活动方案_/.test(title)
-  const titleIsWeekly = /_周计划_/.test(title)
-  const forceKind =
-    params.forceKind ||
-    (titleIsActivity ? 'activity' : titleIsWeekly ? 'weekly' : undefined)
-
-  if (forceKind === 'archive' && (titleIsActivity || titleIsWeekly)) {
+  if (params.forceKind === 'archive' && (/_活动方案_/.test(title) || /_周计划_/.test(title))) {
     throw new Error(
       '活动方案 / 周计划请到「活动方案」或「周计划」页入库，不能上传到教师成果库'
     )
   }
-
-  let categoryName = ''
-  if (forceKind === 'activity' || (forceKind !== 'archive' && titleIsActivity)) {
-    const activity = await resolveLiveBusinessCategory('activity')
-    categoryId = activity.categoryId
-    categoryKey = activity.categoryKey
-    categoryName = activity.categoryName
-  } else if (forceKind === 'weekly' || (forceKind !== 'archive' && titleIsWeekly)) {
-    const weekly = await resolveLiveBusinessCategory('weekly')
-    categoryId = weekly.categoryId
-    categoryKey = weekly.categoryKey
-    categoryName = weekly.categoryName
-  }
-
   if (!categoryId && !categoryKey) {
     throw new Error('上传失败：未指定知识库分类（教案库 / 周计划库 / 成果库）')
   }
 
-  const mustGuardBusinessLib =
-    forceKind === 'activity' ||
-    forceKind === 'weekly' ||
-    (forceKind !== 'archive' && (titleIsActivity || titleIsWeekly))
-  if (
-    mustGuardBusinessLib &&
-    (/^1\d{10}$/.test(categoryId) ||
-      /^1\d{10}$/.test(categoryKey) ||
-      categoryId === getArchiveCategoryId() ||
-      categoryKey === getArchiveCategoryKey())
-  ) {
-    throw new Error(
-      '上传目标异常：活动方案/周计划不能写入教师成果库或手机号文件夹，请检查分类配置后重试'
-    )
-  }
-
-  if (mustGuardBusinessLib && !categoryKey) {
-    throw new Error(
-      `上传失败：缺少「${categoryName || '业务库'}」的 category_key。请打开平台该分类，把 URL 中的 category_key 写入 .env 后重试。`
-    )
-  }
-
-  const formData = new FormData()
-  formData.append('file', file, file.name)
-  formData.append('knowledge_id', String(parseIdValue(knowledgeId)))
-  formData.append('name', title)
-  formData.append('title', title)
-  if (categoryId) formData.append('category_id', String(parseIdValue(categoryId)))
-  if (categoryKey) formData.append('category_key', categoryKey)
-  if (categoryName) {
-    formData.append('category_name', categoryName)
-    formData.append('display_name', categoryName)
-  }
-
-  console.info('[Knowledge] upload file', {
+  console.info('[Knowledge] upload file via /api/file/upload → document/text', {
     knowledgeId,
     categoryId,
     categoryKey: categoryKey || '(omit)',
-    categoryName: categoryName || '(n/a)',
-    forceKind: forceKind || null,
+    forceKind: params.forceKind || null,
     title,
     fileName: file.name,
     fileSize: file.size,
   })
 
-  let envelope: ApiEnvelope
-  try {
-    envelope = await request.post<ApiEnvelope>(PLATFORM_FILE_UPLOAD_PATH, formData, {
-      timeout: 120000,
-    })
-  } catch (err) {
-    throw new Error(getApiErrorMessage(err, '上传文件到知识库失败'))
+  const uploadedFile = await uploadPlatformBinaryFile(file)
+  const content = buildArchiveFileDocumentContent(file, uploadedFile, title)
+
+  // 优先：用 file_id / url 调 document/file（若平台支持）
+  const fileRegisterAttempts: Array<Record<string, unknown>> = []
+  if (uploadedFile.id || uploadedFile.url) {
+    const base: Record<string, unknown> = {
+      knowledge_id: parseIdValue(knowledgeId),
+      name: title,
+      title,
+    }
+    if (categoryId) base.category_id = parseIdValue(categoryId)
+    if (categoryKey) base.category_key = categoryKey
+    if (uploadedFile.id) {
+      fileRegisterAttempts.push({
+        ...base,
+        file_id: parseIdValue(uploadedFile.id),
+        id: parseIdValue(uploadedFile.id),
+      })
+    }
+    if (uploadedFile.url) {
+      fileRegisterAttempts.push({
+        ...base,
+        file_url: uploadedFile.url,
+        url: uploadedFile.url,
+      })
+    }
   }
 
-  assertSuccess(envelope, '上传文件到知识库失败')
-  const plans = mapPlatformResult(envelope.result, knowledgeId)
-  const uploaded: TeachingPlan = plans[0]
-    ? {
-        ...plans[0],
-        title: plans[0].title || title,
-        objectives: plans[0].objectives || title,
-        source: 'platform',
-        knowledgeId,
+  for (const body of fileRegisterAttempts) {
+    try {
+      const envelope = await request.post<ApiEnvelope>(PLATFORM_FILE_UPLOAD_PATH, body, {
+        timeout: 60000,
+      })
+      assertSuccess(envelope, '登记知识库文件失败')
+      const plans = mapPlatformResult(envelope.result, knowledgeId)
+      if (plans[0]) {
+        return {
+          ...plans[0],
+          title: plans[0].title || title,
+          content: plans[0].content || content,
+          objectives: plans[0].objectives || truncate(content, 100),
+          source: 'platform',
+          knowledgeId,
+        }
       }
-    : {
-        id: `upload_${Date.now()}`,
-        title,
-        domain: '综合',
-        gradeLevel: '通用',
-        objectives: title,
-        content: '',
-        source: 'platform',
-        knowledgeId,
+      // 平台只回 success，仍视为可能已入库，继续用 text 兜底会重复；有 id 才信任
+      const docId = pickString(
+        flattenDocumentFields((envelope.result as Record<string, unknown>) || {}),
+        ['document_id', 'id', 'doc_id']
+      )
+      if (docId) {
+        return {
+          id: docId,
+          title,
+          domain: '综合',
+          gradeLevel: '通用',
+          objectives: truncate(content, 100),
+          content,
+          source: 'platform',
+          knowledgeId,
+        }
       }
-
-  if (forceKind === 'activity' || forceKind === 'weekly') {
-    await assertLandedInBusinessCategory(forceKind, uploaded, title)
+    } catch (err) {
+      console.warn('[Knowledge] document/file register failed, fallback to text', err)
+    }
   }
 
-  return uploaded
+  // 兜底：写入可检索的文本文档（含原文件链接 / OCR 正文）
+  return uploadKnowledgeDocument({
+    title,
+    content,
+    knowledgeId,
+    categoryId,
+    categoryKey,
+    forceKind: params.forceKind,
+  })
 }
 
 /** 业务库上传：清除正文手机号信号，避免智能分类进「17362955307」等文件夹 */

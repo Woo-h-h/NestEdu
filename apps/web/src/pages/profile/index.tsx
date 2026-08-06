@@ -50,11 +50,10 @@ export default function ProfilePage() {
   } = useProfileMetrics()
 
   const isLoggedIn = Boolean(authInfo?.token)
-  const profileAgentId = getProfileAgentId()
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
-  // 换账号时清空已加载的 MySQL 画像，避免短暂展示上一教师内容
+  // 换账号时清空已加载的画像，避免短暂展示上一教师内容
   useEffect(() => {
     let lastIdentity = getAuthIdentityKey(authBridge.getAuthInfo())
     return authBridge.subscribe((info) => {
@@ -69,7 +68,7 @@ export default function ProfilePage() {
     })
   }, [])
 
-  // 登录后独立解析手机号并加载 MySQL 画像（不依赖成长指标是否加载成功）
+  // 登录后独立解析手机号并加载已保存的画像（不依赖成长指标是否加载成功）
   useEffect(() => {
     if (!isLoggedIn) {
       setAgentMarkdown('')
@@ -159,15 +158,15 @@ export default function ProfilePage() {
         // 回读确认已落库，避免「生成成功但未持久化」假象
         const verified = await getProfileSnapshotByPhone(result.phone)
         if (!verified?.markdown?.trim()) {
-          throw new Error('保存后未能读回画像，请确认后端与 MySQL 已启动')
+          throw new Error('保存后未能读回画像，请稍后重试或联系管理员')
         }
         setSnapshotSavedAt(saved.updatedAt || saved.generatedAt || verified.updatedAt || '')
         setSnapshotError('')
-        toast.success('已生成并保存到 MySQL（同一手机号仅保留最新一份，下次登录可查看）')
+        toast.success('已生成并保存（同一账号仅保留最新一份，下次登录可查看）')
       } catch (saveErr) {
         const saveMsg = saveErr instanceof Error ? saveErr.message : '保存失败'
         setSnapshotError(saveMsg)
-        toast.warning(`画像已生成，但保存到数据库失败：${saveMsg}`)
+        toast.warning(`画像已生成，但保存失败：${saveMsg}`)
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '生成失败'
@@ -188,7 +187,7 @@ export default function ProfilePage() {
 
       {phone ? (
         <p className="mt-3 text-xs text-nest-muted">
-          画像三维度：活动方案 / 周计划（MySQL 本人入库）· 教师成果库（手机号「{phone}」同名文件夹）。
+          画像三维度：活动方案 / 周计划（本人入库）· 教师成果库（个人文件夹）。
         </p>
       ) : null}
 
@@ -199,9 +198,8 @@ export default function ProfilePage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">智能画像解读</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-nest-muted">
-              围绕三维度（活动方案、周计划、教师成果库）生成解读。前端先按手机号隔离个人文件夹文档，再把摘要与三维度计数注入智能体；
-              <strong className="font-medium text-nest-pine">不把整库交给 Agent 检索</strong>
-              ，避免看到其他教师材料。
+              围绕三维度（活动方案、周计划、教师成果库）生成个人成长解读，仅使用您本人的成果材料，
+              不会看到其他教师的内容。
             </p>
           </div>
           <button
@@ -230,25 +228,16 @@ export default function ProfilePage() {
 
         {agentMeta && (
           <p className="text-xs text-nest-muted">
-            本次注入：活动方案 {agentMeta.activityPlanCount} 份、周计划 {agentMeta.weeklyPlanCount}{' '}
+            本次依据：活动方案 {agentMeta.activityPlanCount} 份、周计划 {agentMeta.weeklyPlanCount}{' '}
             份（含正文摘要）+ 成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入{' '}
-            {agentMeta.localRecordCount} 条 · 智能体{' '}
-            <a
-              href={`https://www.zcat.cn/teach/agent/config/${agentMeta.agentId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-nest-pine underline-offset-2 hover:underline"
-            >
-              #{agentMeta.agentId}
-            </a>
-            。画像文案按手机号保存在 MySQL，重新生成会覆盖旧版。
+            {agentMeta.localRecordCount} 条。重新生成会覆盖旧版画像。
             {snapshotSavedAt ? ` 最近保存：${new Date(snapshotSavedAt).toLocaleString()}` : ''}
           </p>
         )}
 
         {snapshotError && (
           <p className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-900">
-            画像存取异常：{snapshotError}。请确认已启动后端（`pnpm dev:backend`）且 MySQL 可写。
+            画像保存异常：{snapshotError}。请稍后重试，或确认已登录且网络正常。
           </p>
         )}
 
@@ -269,8 +258,7 @@ export default function ProfilePage() {
           !agentLoading &&
           !snapshotLoading && (
             <p className="text-sm text-nest-muted">
-              点击「生成智能画像」后，将调用智能体 #{profileAgentId}
-              ，仅基于您手机号文件夹与本地录入生成解读文案，并保存到数据库供下次登录查看。
+              点击「生成智能画像」后，将根据您本人的活动方案、周计划与成果库材料生成解读，并保存供下次登录查看。
             </p>
           )
         )}

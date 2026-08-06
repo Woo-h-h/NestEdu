@@ -57,7 +57,7 @@ func registerWebStatic(r *gin.Engine, dir, basePath string) {
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		// 兜底：未匹配到显式反代路由时，仍转发平台路径，避免「api route not found」
-		if strings.HasPrefix(path, "/api/knowledge") || strings.HasPrefix(path, "/api/user") || path == "/v1" || strings.HasPrefix(path, "/v1/") {
+		if strings.HasPrefix(path, "/api/knowledge") || strings.HasPrefix(path, "/api/user") || strings.HasPrefix(path, "/api/file") || path == "/v1" || strings.HasPrefix(path, "/v1/") {
 			if proxy := getPlatformProxyHandler(); proxy != nil {
 				proxy(c)
 				return

@@ -146,15 +146,15 @@ export function buildDimensions(
       id: 'activity',
       label: DIMENSION_LABELS.activity,
       count: activityPlans,
-      description: '本人入库的活动方案（与成果库「活动方案」栏一致，MySQL 映射）',
-      sources: ['本人入库 · MySQL：活动方案'],
+      description: '本人入库的活动方案（与成果库「活动方案」栏一致）',
+      sources: ['本人入库：活动方案'],
     },
     {
       id: 'weekly',
       label: DIMENSION_LABELS.weekly,
       count: weeklyPlans,
-      description: '本人入库的周计划（与成果库「周计划」栏一致，MySQL 映射）',
-      sources: ['本人入库 · MySQL：周计划'],
+      description: '本人入库的周计划（与成果库「周计划」栏一致）',
+      sources: ['本人入库：周计划'],
     },
     {
       id: 'archive',
@@ -239,7 +239,7 @@ export function buildStrengthsAndGaps(
         title: `「${dim.label}」待补充`,
         text:
           dim.id === 'activity'
-            ? '尚未有入库的活动方案。可到「活动方案」页生成并选择上传到平台知识库 + MySQL。'
+            ? '尚未有入库的活动方案。可到「活动方案」页生成并确认上传到知识库。'
             : dim.id === 'weekly'
               ? '尚未有入库的周计划。可到「周计划」页生成并入库，与成果库周计划栏对齐。'
               : '教师成果库本人文件夹暂无文档。可在成果库平台分区上传，或整理已有文件到手机号同名夹。',
@@ -412,7 +412,7 @@ export function buildDefaultActionSeeds(
       seeds.push({
         id: 'action-boost-activity',
         title: '生成并入库一份活动方案',
-        description: '在「活动方案」页生成后选择「上传到平台知识库 + MySQL」，计入成长结构。',
+        description: '在「活动方案」页生成后确认上传到知识库，计入成长结构。',
         dimensionId: 'activity',
       })
     } else if (dim.id === 'weekly') {

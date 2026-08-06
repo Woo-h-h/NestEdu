@@ -65,6 +65,15 @@ const createApiInstance = (): ApiClient => {
     }
 
     config.headers = AxiosHeaders.concat(authHeaders, config.headers);
+
+    // FormData 必须由运行时自动带 multipart boundary，不能沿用 application/json
+    if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+      const headers = AxiosHeaders.from(config.headers);
+      headers.delete("Content-Type");
+      headers.delete("content-type");
+      config.headers = headers;
+    }
+
     return config;
   });
 

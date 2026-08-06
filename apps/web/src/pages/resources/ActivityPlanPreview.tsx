@@ -37,7 +37,7 @@ export default function ActivityPlanPreview({
     return (
       <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 text-nest-muted">
         <Loader2 size={28} className="animate-spin text-nest-leaf" />
-        <p className="text-sm">智能体正在生成活动方案…</p>
+        <p className="text-sm">正在生成活动方案…</p>
       </div>
     )
   }

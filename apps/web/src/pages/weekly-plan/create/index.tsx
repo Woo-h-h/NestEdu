@@ -7,10 +7,8 @@ import WeekBoard from '../components/WeekBoard'
 import ClassSelector from '../components/ClassSelector'
 import { ArrowLeft, Sparkles, RefreshCw, Link2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { getWeeklyPlanAgentId } from '@/api/agent'
 import {
   uploadKnowledgeDocument,
-  getWeeklyPlanCategoryId,
   weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
 import { serializeWeeklyPlanText, weeklyPlanUploadTitle } from '@/lib/weeklyPlanText'
@@ -33,7 +31,6 @@ export default function WeeklyPlanCreateSection() {
   const wp = useWeeklyPlan()
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const isLoggedIn = Boolean(authInfo?.token)
-  const weeklyAgentId = getWeeklyPlanAgentId()
   const [isUploading, setIsUploading] = useState(false)
   const [pendingUploads, setPendingUploads] = useState<PendingUploadItem[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -65,7 +62,7 @@ export default function WeeklyPlanCreateSection() {
     }
     try {
       await wp.generatePlan()
-      toast.success(`周计划已由智能体 ${weeklyAgentId} 生成`)
+      toast.success('周计划已生成')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '生成失败')
     }
@@ -128,7 +125,7 @@ export default function WeeklyPlanCreateSection() {
         plan,
         categoryId: scope.categoryId,
       })
-      toast.success(`已上传到周计划知识库 + 数据库：${item.title}`)
+      toast.success(`已上传到周计划知识库：${item.title}`)
       wp.setIsModified(false)
       setConfirmOpen(false)
       setPendingUploads([])
@@ -186,7 +183,7 @@ export default function WeeklyPlanCreateSection() {
             setPendingUploads([])
           }}
           onConfirm={() => void handleConfirmUpload()}
-          targetHint="确认后将写入平台「周计划管理」分类，并同步记录到本系统数据库。"
+          targetHint="确认后将写入平台「周计划管理」分类，并计入本人入库。"
         />
       </div>
     )
@@ -198,7 +195,7 @@ export default function WeeklyPlanCreateSection() {
     <div className="space-y-4">
       {!isLoggedIn && (
         <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-900">
-          生成与上传需登录平台，以便调用智能体并写入知识库。
+          生成与上传需登录平台。
         </div>
       )}
 
@@ -206,8 +203,7 @@ export default function WeeklyPlanCreateSection() {
         <div>
           <h2 className="font-display text-lg font-semibold text-nest-ink">生成周计划</h2>
           <p className="mt-1 text-sm text-nest-muted">
-            填写主题与班级周次 → 勾选教案 → 智能体 {weeklyAgentId} 生成 → 编辑导出；可选上传到周计划知识库（分类{' '}
-            {getWeeklyPlanCategoryId()}）
+            填写主题与班级周次 → 勾选教案 → 智能生成 → 编辑导出；可选上传到周计划知识库
           </p>
         </div>
 

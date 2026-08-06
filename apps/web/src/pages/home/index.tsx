@@ -296,7 +296,7 @@ export default function HomePage() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>确定删除这条记录吗？</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  此操作无法撤销。删除后，该项将永久从数据库中移除。
+                                  此操作无法撤销。删除后，该项将永久移除。
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

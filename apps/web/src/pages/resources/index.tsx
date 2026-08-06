@@ -11,7 +11,6 @@ import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
 import { Upload, BookOpen, Wand2, RefreshCw, CloudUpload } from 'lucide-react'
 import { isBackendApiEnabled } from '@/api/llm'
-import { getTeachingAgentId } from '@/api/agent'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import type { TeachingPlan } from '@/types/weeklyPlan'
@@ -84,7 +83,7 @@ export default function ResourcesPage() {
       const plans = await res.generateTeachingPlansFromTheme({ durationMinutes })
       setPreviewPlanId(plans[0]?.id ?? null)
       toast.success(
-        `已由智能体 ${getTeachingAgentId()} 生成 ${plans.length} 份活动方案，勾选后可确认上传到知识库`
+        `已生成 ${plans.length} 份活动方案，勾选后可确认上传到知识库`
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '生成活动方案失败')
@@ -109,7 +108,7 @@ export default function ResourcesPage() {
   const handleConfirmUpload = async () => {
     try {
       const uploaded = await res.confirmPendingUpload()
-      toast.success(`已成功上传 ${uploaded.length} 份到平台知识库，并写入数据库`)
+      toast.success(`已成功上传 ${uploaded.length} 份到知识库`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '上传失败')
     }
@@ -155,9 +154,7 @@ export default function ResourcesPage() {
       </div>
       {showBrowserKeyHint && (
         <div className="mb-4 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 text-sm text-sky-800">
-          未配置 API Key，主题生成将使用演示数据。在根目录{' '}
-          <code className="rounded bg-sky-100/80 px-1">.env</code> 设置 VITE_DEEPSEEK_API_KEY
-          即可接入大模型
+          当前为演示模式，生成结果仅供预览。正式使用请先登录平台。
         </div>
       )}
       <div className="mb-5 flex flex-wrap gap-2">
@@ -186,7 +183,7 @@ export default function ResourcesPage() {
               <div>
                 <h2 className="font-display text-lg font-semibold text-nest-ink">单次活动条件</h2>
                 <p className="mt-1 text-sm text-nest-muted">
-                  调用平台智能体（ID {getTeachingAgentId()}）生成；从周计划跳转时会自动带入主题与领域
+                  填写条件后由智能助手生成活动方案；从周计划跳转时会自动带入主题与领域
                 </p>
               </div>
               <ClassSelector value={res.className} onChange={res.setClassName} />
@@ -323,7 +320,7 @@ export default function ResourcesPage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
             <p className="mt-1 text-sm text-nest-muted">
-              上传 docx 到「教案知识库管理」；确认后同时写入平台知识库与本系统数据库。「全部」看平台分类，「我的」看本人入库记录。
+              上传 Word 到「教案知识库管理」；确认后计入本人入库。「全部」看平台分类，「我的」看本人入库记录。
             </p>
           </div>
           {!isLoggedIn && (
@@ -413,7 +410,7 @@ export default function ResourcesPage() {
         uploading={res.isUploading || res.isUploadingGenerated}
         onConfirm={() => void handleConfirmUpload()}
         onCancel={res.cancelPendingUpload}
-        targetHint="确认后将写入平台「教案知识库管理」分类，并同步记录到本系统数据库；「全部」看平台全库，「我的」看本人记录。"
+        targetHint="确认后将写入平台「教案知识库管理」分类，并计入本人入库；「全部」看平台全库，「我的」看本人记录。"
       />
       <PlanDetailDialog
         plan={viewPlan}

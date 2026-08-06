@@ -36,13 +36,13 @@ export default function UploadConfirmDialog({
   uploading = false,
   onConfirm,
   onCancel,
-  targetHint = '请确认下列文件无误后再提交；确认后将同时写入平台知识库与本系统数据库。',
+  targetHint = '请确认下列文件无误后再提交；确认后将写入知识库并计入本人入库。',
   confirmLabel,
 }: Props) {
   const defaultConfirmLabel =
     items.length > 0 && items.every((item) => item.uploadMode === 'file')
       ? `上传到平台知识库（${items.length}）`
-      : `上传到平台知识库 + 数据库（${items.length}）`
+      : `确认上传（${items.length}）`
   return (
     <Dialog
       open={open}

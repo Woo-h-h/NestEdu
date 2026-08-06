@@ -201,7 +201,7 @@ export default function DashboardPage() {
                 ? '需登录平台'
                 : stats.statsLoading
                   ? '统计中…'
-                  : '本人入库 · MySQL'
+                  : '本人入库'
             }
             muted={stats.activityCount === null}
           />
@@ -213,7 +213,7 @@ export default function DashboardPage() {
                 ? '需登录平台'
                 : stats.statsLoading
                   ? '统计中…'
-                  : '本人入库 · MySQL'
+                  : '本人入库'
             }
             muted={stats.weeklyCount === null}
           />
@@ -244,7 +244,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <p className="mt-2 text-[11px] text-nest-muted">
-          三项统计与成果库同步：活动方案 / 周计划（本人入库 · MySQL）· 教师成果库（平台个人文件夹）；画像仅用于个人发展，不进行排名。
+          三项统计与成果库同步：活动方案 / 周计划（本人入库）· 教师成果库（个人文件夹）；画像仅用于个人发展，不进行排名。
         </p>
       </section>
 
