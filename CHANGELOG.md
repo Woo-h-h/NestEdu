@@ -2,6 +2,12 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-07 — Docker 构建改用国内 npm 镜像装 pnpm
+
+- 业务：无。
+- 技术：`docker/Dockerfile` 去掉易超时的 `corepack prepare`；`npm install -g pnpm@11.1.2` + `registry.npmmirror.com`（可用 `NPM_REGISTRY` 覆盖）。
+- 验证：重新跑 Docker 镜像构建
+
 ## 2026-08-07 — 行动计划 BFF +「我的」列表复用 + 清理 scratch
 
 - 业务：教师画像行动建议优先落库（跨设备可同步）；本地旧数据在首次成功读到空 BFF 时自动迁移。

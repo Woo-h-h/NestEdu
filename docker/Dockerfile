@@ -21,7 +21,11 @@ ARG VITE_APP_VERSION=0.1.0
 # 不传则由 Vite 构建时自动生成 UTC 时间戳
 ARG VITE_APP_BUILD_ID=
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
+# corepack 默认打 registry.npmjs.org，国内 CI 易 BodyTimeout；改用 npmmirror 安装固定版 pnpm
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV npm_config_registry=${NPM_REGISTRY}
+RUN npm install -g pnpm@11.1.2 \
+  && pnpm config set registry "${NPM_REGISTRY}"
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json ./apps/web/package.json
 RUN pnpm install --frozen-lockfile
