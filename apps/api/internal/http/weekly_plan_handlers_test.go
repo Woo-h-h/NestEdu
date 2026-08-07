@@ -26,13 +26,19 @@ func newWeeklyPlanTestRouter(t *testing.T) *httptest.Server {
 	return newTestRouterWithDB(t, db)
 }
 
+func withTestSession(req *http.Request) *http.Request {
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("X-Uid-Hash", "test-owner")
+	return req
+}
+
 func TestWeeklyPlanRoutesCreateListDelete(t *testing.T) {
 	server := newWeeklyPlanTestRouter(t)
 	defer server.Close()
 
-	createResp, err := http.Post(
+	createReq, err := http.NewRequest(
+		http.MethodPost,
 		server.URL+"/api/v1/weekly-plans",
-		"application/json",
 		strings.NewReader(`{
 			"id":"plan_test_1",
 			"themeName":"亲亲自然",
@@ -51,6 +57,12 @@ func TestWeeklyPlanRoutesCreateListDelete(t *testing.T) {
 		}`),
 	)
 	if err != nil {
+		t.Fatalf("build create: %v", err)
+	}
+	createReq.Header.Set("Content-Type", "application/json")
+	withTestSession(createReq)
+	createResp, err := http.DefaultClient.Do(createReq)
+	if err != nil {
 		t.Fatalf("create weekly plan: %v", err)
 	}
 	defer createResp.Body.Close()
@@ -58,7 +70,12 @@ func TestWeeklyPlanRoutesCreateListDelete(t *testing.T) {
 		t.Fatalf("expected create status 200, got %d", createResp.StatusCode)
 	}
 
-	listResp, err := http.Get(server.URL + "/api/v1/weekly-plans")
+	listReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/weekly-plans", nil)
+	if err != nil {
+		t.Fatalf("build list: %v", err)
+	}
+	withTestSession(listReq)
+	listResp, err := http.DefaultClient.Do(listReq)
 	if err != nil {
 		t.Fatalf("list weekly plans: %v", err)
 	}
@@ -84,6 +101,7 @@ func TestWeeklyPlanRoutesCreateListDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build delete request: %v", err)
 	}
+	withTestSession(deleteReq)
 	deleteResp, err := http.DefaultClient.Do(deleteReq)
 	if err != nil {
 		t.Fatalf("delete weekly plan: %v", err)

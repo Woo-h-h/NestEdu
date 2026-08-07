@@ -23,9 +23,11 @@ type WeeklyPlanConfig struct {
 }
 
 type LLMConfig struct {
-	APIKey  string
-	BaseURL string
-	Model   string
+	APIKey          string
+	BaseURL         string
+	Model           string
+	WeeklyAgentID   int
+	TeachingAgentID int
 }
 
 type PlatformConfig struct {
@@ -44,14 +46,15 @@ type PlatformConfig struct {
 }
 
 type Config struct {
-	ServerAddr   string
-	DB           DBConfig
-	Sample       SampleConfig
-	WeeklyPlan   WeeklyPlanConfig
-	LLM          LLMConfig
-	Platform     PlatformConfig
-	WebStaticDir string
-	WebBasePath  string
+	ServerAddr         string
+	CORSAllowedOrigins string
+	DB                 DBConfig
+	Sample             SampleConfig
+	WeeklyPlan         WeeklyPlanConfig
+	LLM                LLMConfig
+	Platform           PlatformConfig
+	WebStaticDir       string
+	WebBasePath        string
 }
 
 func Load() (Config, error) {
@@ -64,7 +67,8 @@ func Load() (Config, error) {
 	)
 
 	cfg := Config{
-		ServerAddr: getEnv("SERVER_ADDR", ":8088"),
+		ServerAddr:         getEnv("SERVER_ADDR", ":8088"),
+		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3005,https://nest.zcat.cn"),
 		DB: DBConfig{
 			Driver:      strings.ToLower(getEnv("DB_DRIVER", "postgres")),
 			DSN:         strings.TrimSpace(os.Getenv("DB_DSN")),
@@ -77,9 +81,11 @@ func Load() (Config, error) {
 			TableName: getEnv("WEEKLY_PLAN_TABLE_NAME", "weekly_plans"),
 		},
 		LLM: LLMConfig{
-			APIKey:  strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")),
-			BaseURL: getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-			Model:   getEnv("DEEPSEEK_MODEL", "deepseek-chat"),
+			APIKey:          strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")),
+			BaseURL:         getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+			Model:           getEnv("DEEPSEEK_MODEL", "deepseek-chat"),
+			WeeklyAgentID:   getEnvInt("WEEKLY_PLAN_AGENT_ID", 14332),
+			TeachingAgentID: getEnvInt("TEACHING_AGENT_ID", 14317),
 		},
 		Platform: PlatformConfig{
 			BaseURL:             getEnv("PLATFORM_API_BASE_URL", "https://api.zcat.cn"),

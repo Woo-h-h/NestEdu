@@ -319,3 +319,24 @@ Query 筛选（均可选）：
 ### 18) 删除
 
 - `DELETE /api/v1/teacher-generated-docs/:knowledgeDocId`
+
+## 画像行动计划 Profile Actions API
+
+按登录用户 `X-Uid-Hash` 持久化行动建议勾选/进度；`VITE_USE_BACKEND_API=true` 时优先走 BFF，并将旧 `localStorage`（`nestedu_profile_actions_v1`）在 BFF 为空时一次性迁上去。
+
+### 19) 读取
+
+- `GET /api/v1/profile-actions`
+
+响应 `result`：`{ "states": { "<actionId>": { "checked": false, "status": "planned", "date": "", "progress": 0 } }, "updatedAt": "..." }`  
+无记录时 `states` 为空对象。
+
+### 20) 整包替换
+
+- `PUT /api/v1/profile-actions`  
+Body：`{ "states": { ... } }`
+
+### 21) 单条更新
+
+- `PATCH /api/v1/profile-actions/:id`  
+可选字段：`checked`、`status`（`planned`|`completed`|`dismissed`）、`date`、`progress`

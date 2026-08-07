@@ -1,7 +1,7 @@
 package model
 
 // TeachingPlan 教案 / 活动方案在 API 中的形状（DTO，非 MySQL 表）。
-// 由 KnowledgeService / LLMService 从平台知识库或智能体响应映射而来。
+// 由 KnowledgeService 将平台响应（见 service.PlatformDocument）映射而来。
 type TeachingPlan struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`

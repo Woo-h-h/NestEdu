@@ -18,17 +18,20 @@ var (
 	ErrProfilePhoneInvalid     = errors.New("phone must be an 11-digit mainland mobile number")
 	ErrProfileMarkdownRequired = errors.New("markdown is required")
 	ErrProfileNotFound         = errors.New("profile snapshot not found")
+	ErrProfileForbidden        = errors.New("profile snapshot belongs to another user")
+	ErrOwnerRequired           = errors.New("owner id is required")
 )
 
 var mainlandMobileRE = regexp.MustCompile(`^1\d{10}$`)
 
 type ProfileSnapshotRepository interface {
+	GetByPhoneForOwner(ctx context.Context, phone, ownerID string) (model.ProfileSnapshot, error)
 	GetByPhone(ctx context.Context, phone string) (model.ProfileSnapshot, error)
-	ReplaceByPhone(ctx context.Context, row model.ProfileSnapshot) (model.ProfileSnapshot, error)
-	DeleteByPhone(ctx context.Context, phone string) error
+	ReplaceByPhoneForOwner(ctx context.Context, row model.ProfileSnapshot) (model.ProfileSnapshot, error)
+	DeleteByPhoneForOwner(ctx context.Context, phone, ownerID string) error
 }
 
-// ProfileSnapshotService 教师画像快照编排：按手机号读写，新生成覆盖旧记录。
+// ProfileSnapshotService 教师画像快照编排：按手机号+本人 owner 读写，新生成覆盖旧记录。
 type ProfileSnapshotService struct {
 	repo ProfileSnapshotRepository
 }
@@ -37,12 +40,16 @@ func NewProfileSnapshotService(repo ProfileSnapshotRepository) *ProfileSnapshotS
 	return &ProfileSnapshotService{repo: repo}
 }
 
-func (s *ProfileSnapshotService) GetByPhone(ctx context.Context, phone string) (model.ProfileSnapshotPayload, error) {
+func (s *ProfileSnapshotService) GetByPhone(ctx context.Context, ownerID, phone string) (model.ProfileSnapshotPayload, error) {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return model.ProfileSnapshotPayload{}, ErrOwnerRequired
+	}
 	normalized, err := normalizePhone(phone)
 	if err != nil {
 		return model.ProfileSnapshotPayload{}, err
 	}
-	row, err := s.repo.GetByPhone(ctx, normalized)
+	row, err := s.repo.GetByPhoneForOwner(ctx, normalized, owner)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return model.ProfileSnapshotPayload{}, ErrProfileNotFound
@@ -53,6 +60,10 @@ func (s *ProfileSnapshotService) GetByPhone(ctx context.Context, phone string) (
 }
 
 func (s *ProfileSnapshotService) Save(ctx context.Context, ownerID string, payload model.ProfileSnapshotPayload) (model.ProfileSnapshotPayload, error) {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return model.ProfileSnapshotPayload{}, ErrOwnerRequired
+	}
 	normalized, err := normalizePhone(payload.Phone)
 	if err != nil {
 		return model.ProfileSnapshotPayload{}, err
@@ -60,6 +71,16 @@ func (s *ProfileSnapshotService) Save(ctx context.Context, ownerID string, paylo
 	markdown := strings.TrimSpace(payload.Markdown)
 	if markdown == "" {
 		return model.ProfileSnapshotPayload{}, ErrProfileMarkdownRequired
+	}
+
+	// 若该手机号已有他人画像，拒绝覆盖
+	if existing, getErr := s.repo.GetByPhone(ctx, normalized); getErr == nil {
+		existingOwner := strings.TrimSpace(existing.OwnerID)
+		if existingOwner != "" && existingOwner != "anonymous" && existingOwner != owner {
+			return model.ProfileSnapshotPayload{}, ErrProfileForbidden
+		}
+	} else if !errors.Is(getErr, gorm.ErrRecordNotFound) {
+		return model.ProfileSnapshotPayload{}, getErr
 	}
 
 	now := time.Now().UTC()
@@ -89,7 +110,7 @@ func (s *ProfileSnapshotService) Save(ctx context.Context, ownerID string, paylo
 	row := model.ProfileSnapshot{
 		ID:               id,
 		Phone:            normalized,
-		OwnerID:          strings.TrimSpace(ownerID),
+		OwnerID:          owner,
 		DisplayName:      strings.TrimSpace(payload.DisplayName),
 		AgentID:          payload.AgentID,
 		Markdown:         markdown,
@@ -98,23 +119,24 @@ func (s *ProfileSnapshotService) Save(ctx context.Context, ownerID string, paylo
 		FolderIDsJSON:    string(folderJSON),
 		GeneratedAt:      generatedAt,
 	}
-	if row.OwnerID == "" {
-		row.OwnerID = "anonymous"
-	}
 
-	saved, err := s.repo.ReplaceByPhone(ctx, row)
+	saved, err := s.repo.ReplaceByPhoneForOwner(ctx, row)
 	if err != nil {
 		return model.ProfileSnapshotPayload{}, err
 	}
 	return toProfilePayload(saved)
 }
 
-func (s *ProfileSnapshotService) DeleteByPhone(ctx context.Context, phone string) error {
+func (s *ProfileSnapshotService) DeleteByPhone(ctx context.Context, ownerID, phone string) error {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return ErrOwnerRequired
+	}
 	normalized, err := normalizePhone(phone)
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteByPhone(ctx, normalized); err != nil {
+	if err := s.repo.DeleteByPhoneForOwner(ctx, normalized, owner); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrProfileNotFound
 		}

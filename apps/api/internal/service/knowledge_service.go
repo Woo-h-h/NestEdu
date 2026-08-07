@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -162,55 +161,47 @@ func (s *KnowledgeService) UploadDocument(
 		}
 	}
 
-	var envelope struct {
-		Success      bool            `json:"success"`
-		Result       json.RawMessage `json:"result"`
-		ErrorMessage string          `json:"errorMessage"`
-	}
+	var envelope PlatformAPIEnvelope
 	if err := s.platform.PostJSON(ctx, uploadPath, body, headers, &envelope); err != nil {
 		return model.TeachingPlan{}, err
 	}
-	if !envelope.Success {
-		msg := strings.TrimSpace(envelope.ErrorMessage)
-		if msg == "" {
-			msg = "platform document upload failed"
-		}
-		return model.TeachingPlan{}, fmt.Errorf("%s", msg)
+	if err := envelope.FailError("platform document upload failed"); err != nil {
+		return model.TeachingPlan{}, err
 	}
 
-	plans, err := mapPlatformPlans(envelope.Result, knowledgeID)
-	if err == nil && len(plans) > 0 {
-		plan := plans[0]
-		if plan.Title == "" {
-			plan.Title = title
+	plans, err := mapPlatformPlansStrict(envelope.Result, knowledgeID, PlatformMapUpload)
+	if err != nil {
+		// 兼容：平台只返回 id（字符串 / 数字 / 薄对象）
+		docID := pickDocumentID(envelope.Result)
+		if docID == "" {
+			return model.TeachingPlan{}, fmt.Errorf("platform upload missing document id: %w", err)
 		}
-		if plan.Content == "" {
-			plan.Content = content
-		}
-		if plan.Objectives == "" {
-			plan.Objectives = truncate(content, 100)
-		}
-		plan.Source = "platform"
-		plan.KnowledgeID = knowledgeID
-		if archiveTwoStep {
-			if err := s.assignDocumentCategoryAfterArchiveUpload(ctx, headers, plan.ID, categoryID, categoryKey); err != nil {
-				return model.TeachingPlan{}, err
-			}
-		}
-		return plan, nil
+		plans = []model.TeachingPlan{{
+			ID:          docID,
+			Source:      "platform",
+			KnowledgeID: knowledgeID,
+		}}
 	}
-
-	// 宽松回退：平台只返回 id
-	docID := pickDocumentID(envelope.Result)
-	plan := model.TeachingPlan{
-		ID:          docID,
-		Title:       title,
-		Domain:      "综合",
-		GradeLevel:  "通用",
-		Objectives:  truncate(content, 100),
-		Content:     content,
-		Source:      "platform",
-		KnowledgeID: knowledgeID,
+	plan := plans[0]
+	if plan.Title == "" {
+		plan.Title = title
+	}
+	if plan.Content == "" {
+		plan.Content = content
+	}
+	if plan.Objectives == "" {
+		plan.Objectives = truncate(content, 100)
+	}
+	if plan.Domain == "" {
+		plan.Domain = "综合"
+	}
+	if plan.GradeLevel == "" {
+		plan.GradeLevel = "通用"
+	}
+	plan.Source = "platform"
+	plan.KnowledgeID = knowledgeID
+	if strings.TrimSpace(plan.ID) == "" {
+		return model.TeachingPlan{}, fmt.Errorf("platform upload missing document id")
 	}
 	if archiveTwoStep {
 		if err := s.assignDocumentCategoryAfterArchiveUpload(ctx, headers, plan.ID, categoryID, categoryKey); err != nil {
@@ -242,39 +233,12 @@ func (s *KnowledgeService) assignDocumentCategoryAfterArchiveUpload(
 	if key := strings.TrimSpace(categoryKey); key != "" {
 		body["category_key"] = key
 	}
-	var envelope struct {
-		Success      bool   `json:"success"`
-		ErrorMessage string `json:"errorMessage"`
-	}
+	var envelope PlatformAPIEnvelope
 	editPath := "/api/knowledge/document/edit"
 	if err := s.platform.PostJSON(ctx, editPath, body, headers, &envelope); err != nil {
 		return err
 	}
-	if !envelope.Success {
-		msg := strings.TrimSpace(envelope.ErrorMessage)
-		if msg == "" {
-			msg = "assign archive folder failed"
-		}
-		return fmt.Errorf("%s", msg)
-	}
-	return nil
-}
-
-func pickDocumentID(raw json.RawMessage) string {
-	if len(raw) == 0 || string(raw) == "null" {
-		return ""
-	}
-	var asMap map[string]any
-	if err := json.Unmarshal(raw, &asMap); err == nil {
-		if id := pickString(asMap, "document_id", "id", "doc_id"); id != "" {
-			return id
-		}
-	}
-	var asString string
-	if err := json.Unmarshal(raw, &asString); err == nil {
-		return strings.TrimSpace(asString)
-	}
-	return ""
+	return envelope.FailError("assign archive folder failed")
 }
 
 func (s *KnowledgeService) listDocuments(
@@ -287,12 +251,7 @@ func (s *KnowledgeService) listDocuments(
 	page int,
 	limit int,
 ) ([]model.TeachingPlan, int, error) {
-	var envelope struct {
-		Success      bool            `json:"success"`
-		Result       json.RawMessage `json:"result"`
-		Total        int             `json:"total"`
-		ErrorMessage string          `json:"errorMessage"`
-	}
+	var envelope PlatformAPIEnvelope
 
 	body := map[string]any{
 		"knowledge_id": parseIDValue(knowledgeID),
@@ -318,12 +277,8 @@ func (s *KnowledgeService) listDocuments(
 	if err := s.platform.PostJSON(ctx, listPath, body, headers, &envelope); err != nil {
 		return nil, 0, err
 	}
-	if !envelope.Success {
-		msg := strings.TrimSpace(envelope.ErrorMessage)
-		if msg == "" {
-			msg = "platform document list failed"
-		}
-		return nil, 0, fmt.Errorf("%s", msg)
+	if err := envelope.FailError("platform document list failed"); err != nil {
+		return nil, 0, err
 	}
 
 	items, err := mapPlatformPlans(envelope.Result, knowledgeID)
@@ -334,11 +289,7 @@ func (s *KnowledgeService) listDocuments(
 }
 
 func (s *KnowledgeService) getDocument(ctx context.Context, headers ForwardHeaders, id string) (model.TeachingPlan, error) {
-	var envelope struct {
-		Success      bool            `json:"success"`
-		Result       json.RawMessage `json:"result"`
-		ErrorMessage string          `json:"errorMessage"`
-	}
+	var envelope PlatformAPIEnvelope
 
 	detailPath := strings.TrimSpace(s.cfg.DetailPath)
 	if detailPath == "" {
@@ -349,17 +300,13 @@ func (s *KnowledgeService) getDocument(ctx context.Context, headers ForwardHeade
 	if err := s.platform.GetJSON(ctx, detailPath, query, headers, &envelope); err != nil {
 		return model.TeachingPlan{}, err
 	}
-	if !envelope.Success {
-		msg := strings.TrimSpace(envelope.ErrorMessage)
-		if msg == "" {
-			msg = "platform document detail failed"
-		}
-		return model.TeachingPlan{}, fmt.Errorf("%s", msg)
+	if err := envelope.FailError("platform document detail failed"); err != nil {
+		return model.TeachingPlan{}, err
 	}
 
-	plans, err := mapPlatformPlans(envelope.Result, "")
-	if err != nil || len(plans) == 0 {
-		return model.TeachingPlan{}, fmt.Errorf("empty platform document detail")
+	plans, err := mapPlatformPlansStrict(envelope.Result, "", PlatformMapDetail)
+	if err != nil {
+		return model.TeachingPlan{}, err
 	}
 	return plans[0], nil
 }
@@ -379,143 +326,12 @@ func (s *KnowledgeService) DeleteDocument(
 		deletePath = "/api/knowledge/document/delete"
 	}
 
-	var envelope struct {
-		Success      bool   `json:"success"`
-		ErrorMessage string `json:"errorMessage"`
-	}
+	var envelope PlatformAPIEnvelope
 	body := map[string]any{"id": parseIDValue(id)}
 	if err := s.platform.DeleteJSON(ctx, deletePath, body, headers, &envelope); err != nil {
 		return err
 	}
-	if envelope.Success == false {
-		msg := strings.TrimSpace(envelope.ErrorMessage)
-		if msg == "" {
-			msg = "platform document delete failed"
-		}
-		return fmt.Errorf("%s", msg)
-	}
-	return nil
-}
-
-func mapPlatformPlans(raw json.RawMessage, knowledgeID string) ([]model.TeachingPlan, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return []model.TeachingPlan{}, nil
-	}
-
-	var direct []map[string]any
-	if err := json.Unmarshal(raw, &direct); err == nil {
-		return mapPlanMaps(direct, knowledgeID), nil
-	}
-
-	var wrapped struct {
-		List      []map[string]any `json:"list"`
-		Items     []map[string]any `json:"items"`
-		Data      []map[string]any `json:"data"`
-		Documents []map[string]any `json:"documents"`
-	}
-	if err := json.Unmarshal(raw, &wrapped); err != nil {
-		return nil, err
-	}
-	switch {
-	case len(wrapped.List) > 0:
-		return mapPlanMaps(wrapped.List, knowledgeID), nil
-	case len(wrapped.Items) > 0:
-		return mapPlanMaps(wrapped.Items, knowledgeID), nil
-	case len(wrapped.Data) > 0:
-		return mapPlanMaps(wrapped.Data, knowledgeID), nil
-	case len(wrapped.Documents) > 0:
-		return mapPlanMaps(wrapped.Documents, knowledgeID), nil
-	default:
-		var single map[string]any
-		if err := json.Unmarshal(raw, &single); err == nil && len(single) > 0 {
-			return mapPlanMaps([]map[string]any{single}, knowledgeID), nil
-		}
-	}
-	return []model.TeachingPlan{}, nil
-}
-
-func flattenDocumentFields(item map[string]any) map[string]any {
-	merged := map[string]any{}
-	for k, v := range item {
-		merged[k] = v
-	}
-	for _, wrap := range []string{"document", "doc", "file", "data", "info", "record", "result", "detail"} {
-		inner, ok := item[wrap]
-		if !ok || inner == nil {
-			continue
-		}
-		if nested, ok := inner.(map[string]any); ok {
-			for k, v := range nested {
-				merged[k] = v
-			}
-		}
-	}
-	return merged
-}
-
-func mapPlanMaps(items []map[string]any, knowledgeID string) []model.TeachingPlan {
-	plans := make([]model.TeachingPlan, 0, len(items))
-	for _, raw := range items {
-		item := flattenDocumentFields(raw)
-		plan := model.TeachingPlan{
-			ID:          pickString(item, "document_id", "id", "doc_id", "item_id"),
-			Title:       pickString(item, "title", "name", "file_name", "display_name", "plan_name"),
-			Domain:      pickString(item, "domain", "subject", "knowledge_tag"),
-			GradeLevel:  pickString(item, "gradeLevel", "grade_level", "grade", "class_name"),
-			Objectives:  pickString(item, "objectives", "desc", "description", "summary", "intro"),
-			Content: pickString(item,
-				"content", "text", "markdown", "md_content", "mdContent",
-				"file_content", "fileContent", "raw_text", "rawText",
-				"parsed_content", "parsedContent", "full_text", "fullText",
-				"body", "detail", "description", "desc",
-			),
-			Source:      "platform",
-			KnowledgeID: pickString(item, "knowledge_id", "knowledgeId"),
-		}
-		if plan.KnowledgeID == "" {
-			plan.KnowledgeID = knowledgeID
-		}
-		if plan.Title == "" {
-			continue
-		}
-		if plan.ID == "" {
-			plan.ID = plan.Title
-		}
-		if plan.Content == "" {
-			plan.Content = plan.Objectives
-		}
-		if plan.Objectives == "" {
-			plan.Objectives = truncate(plan.Content, 100)
-		}
-		if plan.Domain == "" {
-			plan.Domain = "综合"
-		}
-		if plan.GradeLevel == "" {
-			plan.GradeLevel = "通用"
-		}
-		plans = append(plans, plan)
-	}
-	return plans
-}
-
-func pickString(item map[string]any, keys ...string) string {
-	for _, key := range keys {
-		value, ok := item[key]
-		if !ok || value == nil {
-			continue
-		}
-		switch typed := value.(type) {
-		case string:
-			if strings.TrimSpace(typed) != "" {
-				return strings.TrimSpace(typed)
-			}
-		case float64:
-			return strconv.FormatInt(int64(typed), 10)
-		case json.Number:
-			return typed.String()
-		}
-	}
-	return ""
+	return envelope.FailError("platform document delete failed")
 }
 
 func parseIDValue(id string) any {

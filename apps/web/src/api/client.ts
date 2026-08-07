@@ -9,10 +9,11 @@ export const settings = {
   api: apiBaseURL.replace(/\/$/, ""),
 };
 
-export interface ApiClient extends Omit<AxiosInstance, "get" | "post" | "put" | "delete"> {
+export interface ApiClient extends Omit<AxiosInstance, "get" | "post" | "put" | "patch" | "delete"> {
   get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
   post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>;
   put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>;
+  patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T>;
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
 }
 

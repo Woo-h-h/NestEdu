@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, FileUp, Trash2 } from 'lucide-react'
 import { createGrowthId, getGrowthRecord, saveGrowthRecord } from '@/api/growth'
+import { getApiErrorMessage } from '@/lib/apiError'
 import {
   GROWTH_CATEGORIES,
   GROWTH_LEVELS,
@@ -137,7 +138,7 @@ export default function ArchiveUploadPage() {
       await saveGrowthRecord(form)
       navigate('/archive')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败')
+      setError(getApiErrorMessage(err, '保存失败'))
     } finally {
       setSubmitting(false)
     }

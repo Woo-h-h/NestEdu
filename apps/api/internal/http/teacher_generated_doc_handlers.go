@@ -28,7 +28,7 @@ func (h *teacherGeneratedDocHandler) registerRoutes(api *gin.RouterGroup) {
 }
 
 func (h *teacherGeneratedDocHandler) stats(c *gin.Context) {
-	stats, err := h.service.Stats(c.Request.Context(), strings.TrimSpace(c.Query("phone")))
+	stats, err := h.service.Stats(c.Request.Context(), resolveOwnerID(c), strings.TrimSpace(c.Query("phone")))
 	if err != nil {
 		h.writeErr(c, err)
 		return
@@ -37,10 +37,15 @@ func (h *teacherGeneratedDocHandler) stats(c *gin.Context) {
 }
 
 func (h *teacherGeneratedDocHandler) list(c *gin.Context) {
+	limit := parseIntDefault(c.Query("limit"), 100)
+	page := parseIntDefault(c.Query("page"), 1)
 	rows, err := h.service.List(
 		c.Request.Context(),
+		resolveOwnerID(c),
 		strings.TrimSpace(c.Query("phone")),
 		strings.TrimSpace(c.Query("docType")),
+		page,
+		limit,
 	)
 	if err != nil {
 		h.writeErr(c, err)
@@ -64,7 +69,11 @@ func (h *teacherGeneratedDocHandler) save(c *gin.Context) {
 }
 
 func (h *teacherGeneratedDocHandler) deleteByKnowledgeDocID(c *gin.Context) {
-	if err := h.service.DeleteByKnowledgeDocID(c.Request.Context(), c.Param("knowledgeDocId")); err != nil {
+	if err := h.service.DeleteByKnowledgeDocID(
+		c.Request.Context(),
+		resolveOwnerID(c),
+		c.Param("knowledgeDocId"),
+	); err != nil {
 		h.writeErr(c, err)
 		return
 	}
@@ -75,13 +84,16 @@ func (h *teacherGeneratedDocHandler) writeErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrGeneratedDocNotFound):
 		jsonErr(c, http.StatusNotFound, err)
+	case errors.Is(err, service.ErrGeneratedDocForbidden):
+		jsonErr(c, http.StatusForbidden, err)
 	case errors.Is(err, service.ErrGeneratedDocPhoneRequired),
 		errors.Is(err, service.ErrGeneratedDocPhoneInvalid),
 		errors.Is(err, service.ErrGeneratedDocTypeInvalid),
 		errors.Is(err, service.ErrGeneratedDocTitleRequired),
 		errors.Is(err, service.ErrGeneratedDocIDRequired),
 		errors.Is(err, service.ErrGeneratedDocStorageInvalid),
-		errors.Is(err, service.ErrGeneratedDocContentRequired):
+		errors.Is(err, service.ErrGeneratedDocContentRequired),
+		errors.Is(err, service.ErrOwnerRequired):
 		jsonErr(c, http.StatusBadRequest, err)
 	default:
 		jsonErr(c, http.StatusInternalServerError, err)

@@ -2,7 +2,6 @@ package http
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,24 +39,4 @@ func jsonErr(c *gin.Context, code int, err error, other ...gin.H) {
 	resp["errorCode"] = code
 	resp["errorMessage"] = err.Error()
 	c.JSON(code, resp)
-}
-
-// cors 允许带凭证的跨域，并放行平台鉴权相关请求头（Authorization、X-Uid*、X-Bid 等）。
-func cors() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		if origin != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-			c.Writer.Header().Set("Vary", "Origin")
-		}
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, Authorization, X-CSRF-Token, X-Request-ID, X-Bid, X-Mvp, X-Uid-Hash, X-Uid, X-Host")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
-
-		if c.Request.Method == http.MethodOptions {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-		c.Next()
-	}
 }

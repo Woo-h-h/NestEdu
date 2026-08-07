@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 import { useWeeklyPlanKnowledge } from '@/hooks/useWeeklyPlanKnowledge'
+import { getApiErrorMessage } from '@/lib/apiError'
 import FileUploadCard from '@/pages/weekly-plan/components/FileUploadCard'
 import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
@@ -34,7 +35,7 @@ export default function WeeklyPlanManageSection() {
     try {
       await loginWithAi101()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '登录失败')
+      toast.error(getApiErrorMessage(err, '登录失败'))
     }
   }
 
@@ -42,7 +43,7 @@ export default function WeeklyPlanManageSection() {
     try {
       await kb.prepareFileUpload()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '解析文件失败')
+      toast.error(getApiErrorMessage(err, '解析文件失败'))
     }
   }
 
@@ -51,7 +52,7 @@ export default function WeeklyPlanManageSection() {
       const uploaded = await kb.confirmPendingUpload()
       toast.success(`已成功上传 ${uploaded.length} 份到周计划知识库`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '上传失败')
+      toast.error(getApiErrorMessage(err, '上传失败'))
     }
   }
 
@@ -60,7 +61,7 @@ export default function WeeklyPlanManageSection() {
       const plans = await kb.loadPlatformPlans()
       toast.success(plans.length > 0 ? `已加载 ${plans.length} 份周计划` : '知识库暂无周计划')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '刷新失败')
+      toast.error(getApiErrorMessage(err, '刷新失败'))
     }
   }
 
@@ -78,7 +79,7 @@ export default function WeeklyPlanManageSection() {
         toast.success('已删除')
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '删除失败')
+      toast.error(getApiErrorMessage(err, '删除失败'))
     }
   }
 
@@ -90,7 +91,7 @@ export default function WeeklyPlanManageSection() {
       await exportToPdf(weekly)
       toast.success(`已导出 ${weekly.className}第${weekly.weekNumber}周计划.pdf`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '导出失败')
+      toast.error(getApiErrorMessage(err, '导出失败'))
     } finally {
       setExporting(false)
     }
@@ -182,7 +183,7 @@ export default function WeeklyPlanManageSection() {
                     : '暂无周计划'
               )
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : '搜寻失败')
+              toast.error(getApiErrorMessage(err, '搜寻失败'))
             }
           }}
         />

@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTeachingResources } from '@/hooks/useTeachingResources'
+import { getApiErrorMessage } from '@/lib/apiError'
 import FileUploadCard from '@/pages/weekly-plan/components/FileUploadCard'
 import ClassSelector from '@/pages/weekly-plan/components/ClassSelector'
 import { FOCUS_DOMAINS, type FocusDomain } from '@/pages/resources/DomainSelector'
@@ -60,7 +61,7 @@ export default function ResourcesPage() {
     try {
       await loginWithAi101()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '登录失败')
+      toast.error(getApiErrorMessage(err, '登录失败'))
     }
   }
   const handleGenerate = async () => {
@@ -82,7 +83,7 @@ export default function ResourcesPage() {
         `已生成 ${plans.length} 份活动方案，勾选后可确认上传到知识库`
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '生成活动方案失败')
+      toast.error(getApiErrorMessage(err, '生成活动方案失败'))
     }
   }
   const handlePrepareGeneratedUpload = () => {
@@ -90,7 +91,7 @@ export default function ResourcesPage() {
       try {
         await res.prepareGeneratedUpload(res.uploadSelection)
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : '无法准备上传')
+        toast.error(getApiErrorMessage(err, '无法准备上传'))
       }
     })()
   }
@@ -98,7 +99,7 @@ export default function ResourcesPage() {
     try {
       await res.prepareFileUpload()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '解析文件失败')
+      toast.error(getApiErrorMessage(err, '解析文件失败'))
     }
   }
   const handleConfirmUpload = async () => {
@@ -106,7 +107,7 @@ export default function ResourcesPage() {
       const uploaded = await res.confirmPendingUpload()
       toast.success(`已成功上传 ${uploaded.length} 份到知识库`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '上传失败')
+      toast.error(getApiErrorMessage(err, '上传失败'))
     }
   }
   const handleRefreshPlatform = async () => {
@@ -114,7 +115,7 @@ export default function ResourcesPage() {
       const plans = await res.loadPlatformPlans()
       toast.success(plans.length > 0 ? `已加载 ${plans.length} 份文档` : '知识库暂无文档')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '刷新失败')
+      toast.error(getApiErrorMessage(err, '刷新失败'))
     }
   }
   const handleDelete = async (plan: Parameters<typeof res.deletePlan>[0]) => {
@@ -131,7 +132,7 @@ export default function ResourcesPage() {
         toast.success('已删除')
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '删除失败')
+      toast.error(getApiErrorMessage(err, '删除失败'))
     }
   }
   const handleView = (plan: TeachingPlan) => {
@@ -145,7 +146,7 @@ export default function ResourcesPage() {
       await exportTeachingPlanToDoc(detail)
       toast.success(`已导出 ${detail.title.replace(/\.md$/i, '') || '活动方案'}.docx`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '导出失败')
+      toast.error(getApiErrorMessage(err, '导出失败'))
     } finally {
       setExporting(false)
     }
@@ -408,7 +409,7 @@ export default function ResourcesPage() {
                       : '知识库暂无文档'
                 )
               } catch (err) {
-                toast.error(err instanceof Error ? err.message : '搜寻失败')
+                toast.error(getApiErrorMessage(err, '搜寻失败'))
               }
             }}
           />

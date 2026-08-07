@@ -12,21 +12,22 @@ import (
 )
 
 var (
-	ErrGeneratedDocPhoneRequired  = errors.New("phone is required")
-	ErrGeneratedDocPhoneInvalid   = errors.New("phone must be an 11-digit mainland mobile number")
-	ErrGeneratedDocTypeInvalid    = errors.New("docType must be activity or weekly")
-	ErrGeneratedDocTitleRequired  = errors.New("title is required")
-	ErrGeneratedDocIDRequired     = errors.New("knowledgeDocId is required")
-	ErrGeneratedDocNotFound       = errors.New("teacher generated doc not found")
-	ErrGeneratedDocStorageInvalid = errors.New("storage must be mysql or platform")
+	ErrGeneratedDocPhoneRequired   = errors.New("phone is required")
+	ErrGeneratedDocPhoneInvalid    = errors.New("phone must be an 11-digit mainland mobile number")
+	ErrGeneratedDocTypeInvalid     = errors.New("docType must be activity or weekly")
+	ErrGeneratedDocTitleRequired   = errors.New("title is required")
+	ErrGeneratedDocIDRequired      = errors.New("knowledgeDocId is required")
+	ErrGeneratedDocNotFound        = errors.New("teacher generated doc not found")
+	ErrGeneratedDocStorageInvalid  = errors.New("storage must be mysql or platform")
 	ErrGeneratedDocContentRequired = errors.New("content is required when storage is mysql")
+	ErrGeneratedDocForbidden       = errors.New("teacher generated doc belongs to another user")
 )
 
 type TeacherGeneratedDocRepository interface {
 	Upsert(ctx context.Context, row model.TeacherGeneratedDoc) (model.TeacherGeneratedDoc, error)
-	ListByPhone(ctx context.Context, phone, docType string) ([]model.TeacherGeneratedDoc, error)
-	CountByPhone(ctx context.Context, phone string) (activity, weekly int64, err error)
-	DeleteByKnowledgeDocID(ctx context.Context, knowledgeDocID string) error
+	ListByPhoneAndOwner(ctx context.Context, phone, ownerID, docType string, limit, offset int) ([]model.TeacherGeneratedDoc, error)
+	CountByPhoneAndOwner(ctx context.Context, phone, ownerID string) (activity, weekly int64, err error)
+	DeleteByKnowledgeDocIDAndOwner(ctx context.Context, knowledgeDocID, ownerID string) error
 }
 
 // TeacherGeneratedDocService 本人入库计数映射编排（activity/weekly，storage=mysql|platform）。
@@ -39,6 +40,10 @@ func NewTeacherGeneratedDocService(repo TeacherGeneratedDocRepository) *TeacherG
 }
 
 func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, payload model.TeacherGeneratedDocPayload) (model.TeacherGeneratedDocPayload, error) {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return model.TeacherGeneratedDocPayload{}, ErrOwnerRequired
+	}
 	phone, err := normalizePhone(payload.Phone)
 	if err != nil {
 		return model.TeacherGeneratedDocPayload{}, err
@@ -82,10 +87,6 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 			}
 		}
 	}
-	owner := strings.TrimSpace(ownerID)
-	if owner == "" {
-		owner = "anonymous"
-	}
 
 	saved, err := s.repo.Upsert(ctx, model.TeacherGeneratedDoc{
 		ID:             id,
@@ -102,10 +103,18 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 	if err != nil {
 		return model.TeacherGeneratedDocPayload{}, err
 	}
-	return toGeneratedDocPayload(saved), nil
+	return toGeneratedDocPayload(saved, true), nil
 }
 
-func (s *TeacherGeneratedDocService) List(ctx context.Context, phone, docType string) ([]model.TeacherGeneratedDocPayload, error) {
+func (s *TeacherGeneratedDocService) List(
+	ctx context.Context,
+	ownerID, phone, docType string,
+	page, limit int,
+) ([]model.TeacherGeneratedDocPayload, error) {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return nil, ErrOwnerRequired
+	}
 	normalized, err := normalizePhone(phone)
 	if err != nil {
 		return nil, err
@@ -113,23 +122,39 @@ func (s *TeacherGeneratedDocService) List(ctx context.Context, phone, docType st
 	if dt := strings.TrimSpace(docType); dt != "" && dt != "activity" && dt != "weekly" {
 		return nil, ErrGeneratedDocTypeInvalid
 	}
-	rows, err := s.repo.ListByPhone(ctx, normalized, docType)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 100
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := (page - 1) * limit
+	rows, err := s.repo.ListByPhoneAndOwner(ctx, normalized, owner, docType, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]model.TeacherGeneratedDocPayload, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toGeneratedDocPayload(row))
+		// platform 映射不回传全文；mysql 私有文档需带回正文供「我的」展示
+		includeContent := strings.EqualFold(strings.TrimSpace(row.Storage), "mysql")
+		out = append(out, toGeneratedDocPayload(row, includeContent))
 	}
 	return out, nil
 }
 
-func (s *TeacherGeneratedDocService) Stats(ctx context.Context, phone string) (model.TeacherGeneratedDocStats, error) {
+func (s *TeacherGeneratedDocService) Stats(ctx context.Context, ownerID, phone string) (model.TeacherGeneratedDocStats, error) {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return model.TeacherGeneratedDocStats{}, ErrOwnerRequired
+	}
 	normalized, err := normalizePhone(phone)
 	if err != nil {
 		return model.TeacherGeneratedDocStats{}, err
 	}
-	activity, weekly, err := s.repo.CountByPhone(ctx, normalized)
+	activity, weekly, err := s.repo.CountByPhoneAndOwner(ctx, normalized, owner)
 	if err != nil {
 		return model.TeacherGeneratedDocStats{}, err
 	}
@@ -141,12 +166,16 @@ func (s *TeacherGeneratedDocService) Stats(ctx context.Context, phone string) (m
 	}, nil
 }
 
-func (s *TeacherGeneratedDocService) DeleteByKnowledgeDocID(ctx context.Context, knowledgeDocID string) error {
+func (s *TeacherGeneratedDocService) DeleteByKnowledgeDocID(ctx context.Context, ownerID, knowledgeDocID string) error {
+	owner := strings.TrimSpace(ownerID)
+	if owner == "" {
+		return ErrOwnerRequired
+	}
 	id := strings.TrimSpace(knowledgeDocID)
 	if id == "" {
 		return ErrGeneratedDocIDRequired
 	}
-	if err := s.repo.DeleteByKnowledgeDocID(ctx, id); err != nil {
+	if err := s.repo.DeleteByKnowledgeDocIDAndOwner(ctx, id, owner); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrGeneratedDocNotFound
 		}
@@ -155,10 +184,14 @@ func (s *TeacherGeneratedDocService) DeleteByKnowledgeDocID(ctx context.Context,
 	return nil
 }
 
-func toGeneratedDocPayload(row model.TeacherGeneratedDoc) model.TeacherGeneratedDocPayload {
+func toGeneratedDocPayload(row model.TeacherGeneratedDoc, includeContent bool) model.TeacherGeneratedDocPayload {
 	storage := strings.TrimSpace(row.Storage)
 	if storage == "" {
 		storage = "platform"
+	}
+	content := ""
+	if includeContent {
+		content = row.Content
 	}
 	return model.TeacherGeneratedDocPayload{
 		ID:             row.ID,
@@ -169,7 +202,7 @@ func toGeneratedDocPayload(row model.TeacherGeneratedDoc) model.TeacherGenerated
 		KnowledgeID:    row.KnowledgeID,
 		CategoryID:     row.CategoryID,
 		Storage:        storage,
-		Content:        row.Content,
+		Content:        content,
 		CreatedAt:      row.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:      row.UpdatedAt.UTC().Format(time.RFC3339),
 	}

@@ -415,7 +415,7 @@ func (s *LLMService) chatCompletion(ctx context.Context, messages []chatMessage,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.cfg.APIKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: 120 * time.Second}).Do(req)
 	if err != nil {
 		return "", err
 	}

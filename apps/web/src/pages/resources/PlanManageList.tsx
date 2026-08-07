@@ -13,13 +13,14 @@ import {
 import { authBridge } from '@/lib/authBridge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import {
-  listTeacherGeneratedDocs,
   promoteMysqlPlanToPlatform,
-  teacherDocToPlan,
 } from '@/api/teacherGeneratedDocs'
-import { fetchKnowledgePlanById } from '@/api/knowledge'
 import { relocateMissingMineDocs } from '@/api/relocateTeacherDocs'
 import { getApiErrorMessage } from '@/lib/apiError'
+import {
+  emptyMineTeacherPlans,
+  loadMineTeacherPlans,
+} from '@/lib/loadMineTeacherPlans'
 import { toast } from 'sonner'
 
 export type PlanListTaxonomy = 'activity' | 'weekly' | 'none'
@@ -184,9 +185,10 @@ export default function PlanManageList({
       try {
         if (!authBridge.getAuthInfo()?.token) {
           if (!cancelled) {
-            setMinePhone('')
-            setMineDocIds(new Set())
-            setMineTitles(new Set())
+            const empty = emptyMineTeacherPlans()
+            setMinePhone(empty.phone)
+            setMineDocIds(empty.docIds)
+            setMineTitles(empty.titles)
             setMineMappedCount(null)
             setMineLegacyLocalCount(0)
             setMineInCategoryCount(0)
@@ -198,119 +200,24 @@ export default function PlanManageList({
           }
           return
         }
-        const phone = (await getCurrentTeacherPhone()).trim()
-        if (!phone) {
-          if (!cancelled) {
-            setMineError('未获取到手机号，无法映射本人入库记录')
-            setMinePhone('')
-            setMineDocIds(new Set())
-            setMineTitles(new Set())
-            setMineMappedCount(null)
-            setMineLegacyLocalCount(0)
-            setMineInCategoryCount(0)
-            setMineMisroutedCount(0)
-            setMineExtraPlans([])
-          }
-          return
-        }
-        const rows = await listTeacherGeneratedDocs(phone, mineDocType)
+        const result = await loadMineTeacherPlans({
+          docType: mineDocType,
+          presentPlans: plans,
+          buildExtraPlans: ownership === '我的',
+          enrichMode: 'full',
+        })
         if (cancelled) return
-        const docIds = new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean))
-        const titles = new Set(rows.map((r) => r.title.trim()).filter(Boolean))
-        const presentIds = new Set(plans.map((p) => (p.id || '').trim()).filter(Boolean))
-        const presentTitles = new Set(plans.map((p) => (p.title || '').trim()).filter(Boolean))
-
-        let legacyLocalCount = 0
-        let inCategoryCount = 0
-        let misroutedCount = 0
-        for (const row of rows) {
-          if ((row.storage || 'platform') === 'mysql') {
-            legacyLocalCount += 1
-            continue
-          }
-          const id = (row.knowledgeDocId || '').trim()
-          const titleText = (row.title || '').trim()
-          const inList =
-            (id && presentIds.has(id)) || (titleText && presentTitles.has(titleText))
-          if (inList) inCategoryCount += 1
-          else misroutedCount += 1
-        }
-
-        setMinePhone(phone)
-        setMineDocIds(docIds)
-        setMineTitles(titles)
-        setMineMappedCount(rows.length)
-        setMineLegacyLocalCount(legacyLocalCount)
-        setMineInCategoryCount(inCategoryCount)
-        setMineMisroutedCount(misroutedCount)
-
-        if (ownership !== '我的') {
-          setMineExtraPlans([])
-          return
-        }
-
-        const built: TeachingPlan[] = []
-        for (const row of rows) {
-          const id = (row.knowledgeDocId || '').trim()
-          const titleText = (row.title || '').trim()
-          const dbContent = (row.content || '').trim()
-
-          if ((row.storage || 'platform') === 'mysql' || dbContent.length >= 20) {
-            built.push({
-              ...teacherDocToPlan(row),
-              source: (row.storage || 'platform') === 'mysql' ? 'mysql' : 'platform',
-              content: dbContent || row.content || '',
-              objectives: (dbContent || row.title).slice(0, 120),
-            })
-            continue
-          }
-
-          const fromPlatform =
-            plans.find((p) => (p.id || '').trim() === id) ||
-            plans.find((p) => (p.title || '').trim() === titleText)
-          if (fromPlatform) {
-            built.push({
-              ...fromPlatform,
-              content: fromPlatform.content || dbContent,
-              objectives:
-                fromPlatform.objectives ||
-                (fromPlatform.content || dbContent || titleText).slice(0, 120),
-            })
-            continue
-          }
-
-          const fetched = id ? await fetchKnowledgePlanById(id) : null
-          if (fetched && (fetched.content || fetched.objectives || '').trim().length >= 20) {
-            built.push(fetched)
-            continue
-          }
-
-          built.push({
-            id: id || `missing_${titleText}`,
-            title: titleText || id,
-            domain: '综合',
-            gradeLevel: '通用',
-            objectives:
-              '（已有入库记录，但正文暂不可读。请重新生成入库，或到平台「教案知识库管理」确认文件）',
-            content: '',
-            source: 'platform',
-          })
-        }
-
-        if (!cancelled) {
-          const byId = new Set<string>()
-          const merged: TeachingPlan[] = []
-          for (const p of built) {
-            const key = (p.id || p.title || '').trim()
-            if (!key || byId.has(key)) continue
-            byId.add(key)
-            merged.push(p)
-          }
-          setMineExtraPlans(merged)
-        }
+        setMinePhone(result.phone)
+        setMineDocIds(result.docIds)
+        setMineTitles(result.titles)
+        setMineMappedCount(result.mappedCount)
+        setMineLegacyLocalCount(result.legacyLocalCount)
+        setMineInCategoryCount(result.inCategoryCount)
+        setMineMisroutedCount(result.misroutedCount)
+        setMineExtraPlans(ownership === '我的' ? result.extraPlans : [])
       } catch (err) {
         if (!cancelled) {
-          setMineError(err instanceof Error ? err.message : '加载「我的」记录失败')
+          setMineError(getApiErrorMessage(err, '加载「我的」记录失败'))
         }
       } finally {
         if (!cancelled) setMineLoading(false)

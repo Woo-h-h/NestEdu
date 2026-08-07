@@ -40,7 +40,6 @@ func TestTeacherGeneratedDocStatsByPhone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save weekly: %v", err)
 	}
-	// other teacher should not affect stats
 	_, err = svc.Save(context.Background(), "other", model.TeacherGeneratedDocPayload{
 		Phone:          "13900139000",
 		DocType:        "activity",
@@ -51,7 +50,7 @@ func TestTeacherGeneratedDocStatsByPhone(t *testing.T) {
 		t.Fatalf("save other: %v", err)
 	}
 
-	stats, err := svc.Stats(context.Background(), phone)
+	stats, err := svc.Stats(context.Background(), "owner", phone)
 	if err != nil {
 		t.Fatalf("stats: %v", err)
 	}
@@ -95,7 +94,7 @@ func TestTeacherGeneratedDocMysqlOnlyStorage(t *testing.T) {
 		t.Fatal("expected content required error")
 	}
 
-	list, err := svc.List(context.Background(), phone, "activity")
+	list, err := svc.List(context.Background(), "owner", phone, "activity", 1, 50)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -107,11 +106,36 @@ func TestTeacherGeneratedDocMysqlOnlyStorage(t *testing.T) {
 				t.Fatalf("expected storage=mysql, got %q", row.Storage)
 			}
 			if row.Content != "仅本人可见正文" {
-				t.Fatalf("content mismatch: %q", row.Content)
+				t.Fatalf("mysql list should include content, got %q", row.Content)
 			}
 		}
 	}
 	if !found {
 		t.Fatal("mysql-only row not listed")
+	}
+}
+
+func TestTeacherGeneratedDocScopedByOwner(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.TeacherGeneratedDoc{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := NewTeacherGeneratedDocService(store.NewTeacherGeneratedDocStore(db))
+	phone := "13800138000"
+	_, err = svc.Save(context.Background(), "owner_a", model.TeacherGeneratedDocPayload{
+		Phone: phone, DocType: "activity", KnowledgeDocID: "doc_x", Title: "A",
+	})
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	stats, err := svc.Stats(context.Background(), "owner_b", phone)
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if stats.Total != 0 {
+		t.Fatalf("other owner should see 0, got %+v", stats)
 	}
 }

@@ -1,4 +1,10 @@
 import type { DefaultActionSeed } from '@/lib/profile-metrics'
+import {
+  fetchProfileActionStates,
+  patchProfileActionState,
+  replaceProfileActionStates,
+} from '@/api/profileActions'
+import { isBackendApiEnabled } from '@/api/llm'
 
 export type ActionStatus = 'planned' | 'completed' | 'dismissed'
 
@@ -18,7 +24,7 @@ export interface ProfileActionItem extends DefaultActionSeed {
 
 const STORAGE_KEY = 'nestedu_profile_actions_v1'
 
-function readStore(): Record<string, ProfileActionState> {
+function readLocalStore(): Record<string, ProfileActionState> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return {}
@@ -29,16 +35,18 @@ function readStore(): Record<string, ProfileActionState> {
   }
 }
 
-function writeStore(store: Record<string, ProfileActionState>) {
+function writeLocalStore(store: Record<string, ProfileActionState>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
 }
 
 export function loadActionStates(): Record<string, ProfileActionState> {
-  return readStore()
+  return readLocalStore()
 }
 
-export function mergeActionSeeds(seeds: DefaultActionSeed[]): ProfileActionItem[] {
-  const store = readStore()
+export function mergeActionSeeds(
+  seeds: DefaultActionSeed[],
+  store: Record<string, ProfileActionState> = readLocalStore()
+): ProfileActionItem[] {
   return seeds.map((seed) => {
     const saved = store[seed.id]
     return {
@@ -51,17 +59,60 @@ export function mergeActionSeeds(seeds: DefaultActionSeed[]): ProfileActionItem[
   })
 }
 
-export function saveActionState(id: string, patch: Partial<ProfileActionState>): ProfileActionState {
-  const store = readStore()
-  const prev = store[id] || { checked: false, status: 'planned' as ActionStatus, date: '', progress: 0 }
+/** 优先读 BFF；失败或未开后端时用 localStorage。首次 BFF 空且本地有数据时自动迁上去。 */
+export async function loadActionStatesAsync(): Promise<Record<string, ProfileActionState>> {
+  const local = readLocalStore()
+  if (!isBackendApiEnabled()) return local
+
+  const remote = await fetchProfileActionStates()
+  if (Object.keys(remote).length > 0) {
+    writeLocalStore(remote)
+    return remote
+  }
+  if (Object.keys(local).length > 0) {
+    try {
+      const saved = await replaceProfileActionStates(local)
+      writeLocalStore(saved)
+      return saved
+    } catch {
+      return local
+    }
+  }
+  return {}
+}
+
+export async function saveActionState(
+  id: string,
+  patch: Partial<ProfileActionState>
+): Promise<ProfileActionState> {
+  const store = readLocalStore()
+  const prev = store[id] || {
+    checked: false,
+    status: 'planned' as ActionStatus,
+    date: '',
+    progress: 0,
+  }
   const next = { ...prev, ...patch }
   store[id] = next
-  writeStore(store)
+  writeLocalStore(store)
+
+  if (isBackendApiEnabled()) {
+    try {
+      const remote = await patchProfileActionState(id, next)
+      if (remote) {
+        store[id] = remote
+        writeLocalStore(store)
+        return remote
+      }
+    } catch {
+      // 本地已写入，后端失败不阻断 UI
+    }
+  }
   return next
 }
 
 export function clearActionState(id: string) {
-  const store = readStore()
+  const store = readLocalStore()
   delete store[id]
-  writeStore(store)
+  writeLocalStore(store)
 }

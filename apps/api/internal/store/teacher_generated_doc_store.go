@@ -38,10 +38,23 @@ func (s *TeacherGeneratedDocStore) Upsert(ctx context.Context, row model.Teacher
 	return saved, nil
 }
 
-func (s *TeacherGeneratedDocStore) ListByPhone(ctx context.Context, phone, docType string) ([]model.TeacherGeneratedDoc, error) {
-	q := s.db.WithContext(ctx).Where("phone = ?", strings.TrimSpace(phone))
+func (s *TeacherGeneratedDocStore) ListByPhoneAndOwner(
+	ctx context.Context,
+	phone, ownerID, docType string,
+	limit, offset int,
+) ([]model.TeacherGeneratedDoc, error) {
+	q := s.db.WithContext(ctx).Where(
+		"phone = ? AND (owner_id = ? OR owner_id = ? OR owner_id = ?)",
+		strings.TrimSpace(phone), strings.TrimSpace(ownerID), "anonymous", "",
+	)
 	if dt := strings.TrimSpace(docType); dt != "" {
 		q = q.Where("doc_type = ?", dt)
+	}
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	if offset > 0 {
+		q = q.Offset(offset)
 	}
 	var rows []model.TeacherGeneratedDoc
 	if err := q.Order("created_at DESC").Find(&rows).Error; err != nil {
@@ -50,24 +63,27 @@ func (s *TeacherGeneratedDocStore) ListByPhone(ctx context.Context, phone, docTy
 	return rows, nil
 }
 
-func (s *TeacherGeneratedDocStore) CountByPhone(ctx context.Context, phone string) (activity, weekly int64, err error) {
+func (s *TeacherGeneratedDocStore) CountByPhoneAndOwner(ctx context.Context, phone, ownerID string) (activity, weekly int64, err error) {
 	phone = strings.TrimSpace(phone)
+	owner := strings.TrimSpace(ownerID)
+	ownerClause := "(owner_id = ? OR owner_id = ? OR owner_id = ?)"
 	if err = s.db.WithContext(ctx).Model(&model.TeacherGeneratedDoc{}).
-		Where("phone = ? AND doc_type = ?", phone, "activity").
+		Where("phone = ? AND doc_type = ? AND "+ownerClause, phone, "activity", owner, "anonymous", "").
 		Count(&activity).Error; err != nil {
 		return
 	}
 	if err = s.db.WithContext(ctx).Model(&model.TeacherGeneratedDoc{}).
-		Where("phone = ? AND doc_type = ?", phone, "weekly").
+		Where("phone = ? AND doc_type = ? AND "+ownerClause, phone, "weekly", owner, "anonymous", "").
 		Count(&weekly).Error; err != nil {
 		return
 	}
 	return
 }
 
-func (s *TeacherGeneratedDocStore) DeleteByKnowledgeDocID(ctx context.Context, knowledgeDocID string) error {
+func (s *TeacherGeneratedDocStore) DeleteByKnowledgeDocIDAndOwner(ctx context.Context, knowledgeDocID, ownerID string) error {
 	res := s.db.WithContext(ctx).
-		Where("knowledge_doc_id = ?", strings.TrimSpace(knowledgeDocID)).
+		Where("knowledge_doc_id = ? AND (owner_id = ? OR owner_id = ? OR owner_id = ?)",
+			strings.TrimSpace(knowledgeDocID), strings.TrimSpace(ownerID), "anonymous", "").
 		Delete(&model.TeacherGeneratedDoc{})
 	if res.Error != nil {
 		return res.Error

@@ -59,6 +59,11 @@ export function useTeachingResources() {
   const [focusDomains, setFocusDomains] = useState<FocusDomain[]>(
     () => (initialDraft?.focusDomains as FocusDomain[]) ?? []
   )
+  const [planCount, setPlanCount] = useState(() => {
+    const n = initialDraft?.planCount
+    if (typeof n === 'number' && n >= 1 && n <= 5) return Math.floor(n)
+    return 1
+  })
   const [notes, setNotes] = useState(() => initialDraft?.notes ?? '')
   const [isGeneratingPlans, setIsGeneratingPlans] = useState(false)
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
@@ -121,6 +126,7 @@ export function useTeachingResources() {
       themeName,
       className,
       focusDomains,
+      planCount,
       notes,
       generatedPlans,
       uploadSelection,
@@ -131,6 +137,7 @@ export function useTeachingResources() {
     themeName,
     className,
     focusDomains,
+    planCount,
     notes,
     generatedPlans,
     uploadSelection,
@@ -161,7 +168,7 @@ export function useTeachingResources() {
           themeName: themeName.trim(),
           className: className || undefined,
           focusDomains,
-          count: focusDomains.length,
+          count: planCount,
           notes: combinedNotes || undefined,
         })
         setGeneratedPlans(generated)
@@ -172,7 +179,7 @@ export function useTeachingResources() {
         setIsGeneratingPlans(false)
       }
     },
-    [themeName, className, focusDomains, notes]
+    [themeName, className, focusDomains, planCount, notes]
   )
 
   const prepareGeneratedUpload = useCallback(async (plans: TeachingPlan[]) => {
@@ -356,6 +363,8 @@ export function useTeachingResources() {
     setClassName,
     focusDomains,
     setFocusDomains,
+    planCount,
+    setPlanCount,
     notes,
     setNotes,
     isGeneratingPlans,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useWeeklyPlan } from '@/hooks/useWeeklyPlan'
+import { getApiErrorMessage } from '@/lib/apiError'
 import PlanSelector from '../components/PlanSelector'
 import PlanEditor from '../components/PlanEditor'
 import ClassSelector from '../components/ClassSelector'
@@ -62,7 +63,7 @@ export default function WeeklyPlanCreateSection() {
       await wp.generatePlan()
       toast.success('周计划已生成')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '生成失败')
+      toast.error(getApiErrorMessage(err, '生成失败'))
     }
   }
 
@@ -71,7 +72,7 @@ export default function WeeklyPlanCreateSection() {
       const plans = await wp.loadPlatformPlans()
       toast.success(plans.length > 0 ? `已刷新 ${plans.length} 份教案` : '暂无教案')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '刷新失败')
+      toast.error(getApiErrorMessage(err, '刷新失败'))
     }
   }
 
@@ -100,7 +101,7 @@ export default function WeeklyPlanCreateSection() {
       ])
       setConfirmOpen(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '准备上传失败')
+      toast.error(getApiErrorMessage(err, '准备上传失败'))
     }
   }
 
@@ -128,7 +129,7 @@ export default function WeeklyPlanCreateSection() {
       setConfirmOpen(false)
       setPendingUploads([])
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '上传失败')
+      toast.error(getApiErrorMessage(err, '上传失败'))
     } finally {
       setIsUploading(false)
     }
@@ -270,7 +271,7 @@ export default function WeeklyPlanCreateSection() {
                     : '暂无教案'
               )
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : '搜寻失败')
+              toast.error(getApiErrorMessage(err, '搜寻失败'))
             }
           }}
           searchPlaceholder="搜寻活动方案（可用姓名、手机号、方案名）"

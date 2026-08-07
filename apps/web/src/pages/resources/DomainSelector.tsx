@@ -31,7 +31,7 @@ export default function DomainSelector({ value, onChange }: Props) {
         <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-500">可多选</span>
         {value.length > 0 && (
           <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
-            已选 {value.length} 个 · 将生成 {value.length} 份教案
+            已选 {value.length} 个
           </span>
         )}
       </div>

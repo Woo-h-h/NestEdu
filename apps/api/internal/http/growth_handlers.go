@@ -31,11 +31,14 @@ func (h *growthHandler) registerRoutes(api *gin.RouterGroup) {
 }
 
 func (h *growthHandler) listRecords(c *gin.Context) {
+	owner := resolveOwnerID(c)
 	filter := store.GrowthListFilter{
 		Category: strings.TrimSpace(c.Query("category")),
 		Level:    strings.TrimSpace(c.Query("level")),
 		Status:   strings.TrimSpace(c.Query("status")),
 		Keyword:  strings.TrimSpace(c.Query("keyword")),
+		Page:     parseIntDefault(c.Query("page"), 1),
+		Limit:    parseIntDefault(c.Query("limit"), 200),
 	}
 	if yearRaw := strings.TrimSpace(c.Query("year")); yearRaw != "" {
 		year, err := strconv.Atoi(yearRaw)
@@ -46,7 +49,7 @@ func (h *growthHandler) listRecords(c *gin.Context) {
 		filter.Year = &year
 	}
 
-	records, err := h.service.ListRecords(c.Request.Context(), resolveOwnerID(c), filter)
+	records, err := h.service.ListRecords(c.Request.Context(), owner, filter)
 	if err != nil {
 		jsonErr(c, http.StatusInternalServerError, err)
 		return

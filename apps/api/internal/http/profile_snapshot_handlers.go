@@ -28,17 +28,9 @@ func (h *profileSnapshotHandler) registerRoutes(api *gin.RouterGroup) {
 
 func (h *profileSnapshotHandler) getByPhone(c *gin.Context) {
 	phone := strings.TrimSpace(c.Query("phone"))
-	payload, err := h.service.GetByPhone(c.Request.Context(), phone)
+	payload, err := h.service.GetByPhone(c.Request.Context(), resolveOwnerID(c), phone)
 	if err != nil {
-		if errors.Is(err, service.ErrProfileNotFound) {
-			jsonErr(c, http.StatusNotFound, err)
-			return
-		}
-		if errors.Is(err, service.ErrProfilePhoneRequired) || errors.Is(err, service.ErrProfilePhoneInvalid) {
-			jsonErr(c, http.StatusBadRequest, err)
-			return
-		}
-		jsonErr(c, http.StatusInternalServerError, err)
+		h.writeErr(c, err)
 		return
 	}
 	jsonResult(c, http.StatusOK, payload)
@@ -52,13 +44,7 @@ func (h *profileSnapshotHandler) save(c *gin.Context) {
 	}
 	saved, err := h.service.Save(c.Request.Context(), resolveOwnerID(c), payload)
 	if err != nil {
-		if errors.Is(err, service.ErrProfilePhoneRequired) ||
-			errors.Is(err, service.ErrProfilePhoneInvalid) ||
-			errors.Is(err, service.ErrProfileMarkdownRequired) {
-			jsonErr(c, http.StatusBadRequest, err)
-			return
-		}
-		jsonErr(c, http.StatusInternalServerError, err)
+		h.writeErr(c, err)
 		return
 	}
 	jsonResult(c, http.StatusOK, saved)
@@ -66,17 +52,25 @@ func (h *profileSnapshotHandler) save(c *gin.Context) {
 
 func (h *profileSnapshotHandler) deleteByPhone(c *gin.Context) {
 	phone := strings.TrimSpace(c.Query("phone"))
-	if err := h.service.DeleteByPhone(c.Request.Context(), phone); err != nil {
-		if errors.Is(err, service.ErrProfileNotFound) {
-			jsonErr(c, http.StatusNotFound, err)
-			return
-		}
-		if errors.Is(err, service.ErrProfilePhoneRequired) || errors.Is(err, service.ErrProfilePhoneInvalid) {
-			jsonErr(c, http.StatusBadRequest, err)
-			return
-		}
-		jsonErr(c, http.StatusInternalServerError, err)
+	if err := h.service.DeleteByPhone(c.Request.Context(), resolveOwnerID(c), phone); err != nil {
+		h.writeErr(c, err)
 		return
 	}
 	jsonResult(c, http.StatusOK, gin.H{"deleted": true})
+}
+
+func (h *profileSnapshotHandler) writeErr(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrProfileNotFound):
+		jsonErr(c, http.StatusNotFound, err)
+	case errors.Is(err, service.ErrProfileForbidden):
+		jsonErr(c, http.StatusForbidden, err)
+	case errors.Is(err, service.ErrProfilePhoneRequired),
+		errors.Is(err, service.ErrProfilePhoneInvalid),
+		errors.Is(err, service.ErrProfileMarkdownRequired),
+		errors.Is(err, service.ErrOwnerRequired):
+		jsonErr(c, http.StatusBadRequest, err)
+	default:
+		jsonErr(c, http.StatusInternalServerError, err)
+	}
 }

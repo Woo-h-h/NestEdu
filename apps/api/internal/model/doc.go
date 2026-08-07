@@ -5,5 +5,6 @@
 //     （如 GrowthRecord、WeeklyPlan、ProfileSnapshot、TeacherGeneratedDoc）
 //   - 接口 / 领域 DTO：无 gorm 标签，不建表（如 TeachingPlan，由知识库平台响应映射而来）
 //
-// 平台知识库的物理表不在本仓库；此处只建模对外暴露的结构。
+// 平台知识库的物理表不在本仓库；平台原始响应结构在 service/platform_knowledge.go
+// （PlatformAPIEnvelope / PlatformDocument），再映射为本包 TeachingPlan。
 package model

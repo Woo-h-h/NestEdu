@@ -132,8 +132,5 @@ func forwardPlatformHeaders(c *gin.Context) service.ForwardHeaders {
 			headers[key] = value
 		}
 	}
-	if _, ok := headers["Authorization"]; !ok {
-		return headers
-	}
 	return headers
 }

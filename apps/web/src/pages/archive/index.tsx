@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { RefreshCw, CloudUpload } from 'lucide-react'
 import { useArchiveKnowledge } from '@/hooks/useArchiveKnowledge'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import { runArchiveDebug, type ArchiveDebugPayload } from '@/lib/archiveDebug'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
@@ -85,7 +86,7 @@ export default function ArchivePage() {
     try {
       await loginWithAi101()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '登录失败')
+      toast.error(getApiErrorMessage(err, '登录失败'))
     }
   }
 
@@ -96,7 +97,7 @@ export default function ArchivePage() {
         plans.length > 0 ? `已加载 ${plans.length} 份教师成果` : '教师成果库暂无文档'
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '刷新失败')
+      toast.error(getApiErrorMessage(err, '刷新失败'))
     }
   }
 
@@ -111,7 +112,7 @@ export default function ArchivePage() {
           : '诊断完成：未匹配到个人文件夹（见下方详情）'
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '诊断失败')
+      toast.error(getApiErrorMessage(err, '诊断失败'))
     } finally {
       setDebugLoading(false)
     }
@@ -121,7 +122,7 @@ export default function ArchivePage() {
     try {
       await kb.prepareFileUpload()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '准备上传失败')
+      toast.error(getApiErrorMessage(err, '准备上传失败'))
     }
   }
 
@@ -130,7 +131,7 @@ export default function ArchivePage() {
       const uploaded = await kb.confirmPendingUpload('platform')
       toast.success(`已成功上传 ${uploaded.length} 份到教师成果库`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '上传失败')
+      toast.error(getApiErrorMessage(err, '上传失败'))
     }
   }
 
@@ -140,7 +141,7 @@ export default function ArchivePage() {
       await kb.deletePlan(plan)
       toast.success('已删除')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '删除失败')
+      toast.error(getApiErrorMessage(err, '删除失败'))
     }
   }
 

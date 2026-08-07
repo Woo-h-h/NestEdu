@@ -230,12 +230,13 @@ export function buildTeachingPlanUserMessage(params: {
       : params.focusDomain
         ? [params.focusDomain]
         : []
-  const count =
-    domains.length > 0
-      ? domains.length
-      : params.count && params.count > 0
-        ? params.count
+  const rawCount =
+    params.count && params.count > 0
+      ? Math.floor(params.count)
+      : domains.length > 0
+        ? domains.length
         : 5
+  const count = Math.min(Math.max(rawCount, 1), 5)
 
   const parts = [`请围绕主题「${params.themeName}」生成 ${count} 份幼儿园教案。`]
   if (params.className) {
@@ -243,12 +244,20 @@ export function buildTeachingPlanUserMessage(params: {
   }
   if (domains.length === 1) {
     parts.push(
-      `重点领域：${domains[0]}。请生成 1 份以「${domains[0]}」领域为核心的教案（可适当融合其他领域，但核心目标与活动设计须突出该领域）。`
+      count === 1
+        ? `重点领域：${domains[0]}。请生成 1 份以「${domains[0]}」领域为核心的教案（可适当融合其他领域，但核心目标与活动设计须突出该领域）。`
+        : `重点领域：${domains[0]}。请生成 ${count} 份教案，均以「${domains[0]}」为核心，但活动形式、切入角度或材料须有明显差异，避免雷同。`
     )
   } else if (domains.length > 1) {
-    parts.push(
-      `重点领域（多选）：${domains.join('、')}。请严格生成 ${domains.length} 份教案，且第 i 份教案必须以第 i 个领域为核心（顺序：${domains.map((d, i) => `${i + 1}.${d}`).join('；')}）。每份教案的 domain 字段须包含对应重点领域。`
-    )
+    if (count === domains.length) {
+      parts.push(
+        `重点领域（多选）：${domains.join('、')}。请严格生成 ${count} 份教案，且第 i 份教案必须以第 i 个领域为核心（顺序：${domains.map((d, i) => `${i + 1}.${d}`).join('；')}）。每份教案的 domain 字段须包含对应重点领域。`
+      )
+    } else {
+      parts.push(
+        `重点领域（多选）：${domains.join('、')}。请生成 ${count} 份教案：在上述领域中轮流或组合突出重点，避免内容雷同；每份教案的 domain 字段须写明其核心领域（须来自已选领域）。`
+      )
+    }
   } else {
     parts.push('教案之间应覆盖不同领域或不同活动类型，避免重复。')
   }
@@ -258,6 +267,7 @@ export function buildTeachingPlanUserMessage(params: {
   parts.push('请输出完整 JSON。')
   return parts.join('\n')
 }
+
 
 /** 可复制到 AI101 周计划智能体（14332）平台侧系统提示词 */
 export const WEEKLY_PLAN_AGENT_PLATFORM_PROMPT = buildGenerateSystemPrompt()

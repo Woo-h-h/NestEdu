@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "total": 2,
+  "result": {
+    "list": [
+      {
+        "document_id": 501,
+        "title": "春天来了",
+        "desc": "观察春天植物",
+        "content": "教案正文内容",
+        "knowledge_id": 10298
+      },
+      {
+        "id": "502",
+        "name": "亲亲自然周计划",
+        "summary": "第3周",
+        "text": "周一到周五安排",
+        "knowledgeId": "10298"
+      }
+    ]
+  }
+}

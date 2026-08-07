@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Loader2, Plus, ShieldCheck, Sparkles } from 'lucide-react'
 import { authBridge } from '@/lib/authBridge'
+import { getApiErrorMessage } from '@/lib/apiError'
 import { getAuthIdentityKey } from '@/lib/authIdentity'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import ProfileHeroCard, { resolveProfileDisplayName } from '@/components/profile/ProfileHeroCard'
@@ -114,7 +115,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         if (cancelled) return
-        const msg = err instanceof Error ? err.message : '加载已保存画像失败'
+        const msg = getApiErrorMessage(err, '加载已保存画像失败')
         setSnapshotError(msg)
         console.warn('[profile] load snapshot failed', err)
       } finally {
@@ -169,7 +170,7 @@ export default function ProfilePage() {
         toast.warning(`画像已生成，但保存失败：${saveMsg}`)
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '生成失败'
+      const msg = getApiErrorMessage(err, '生成失败')
       setAgentError(msg)
       toast.error(msg)
     } finally {

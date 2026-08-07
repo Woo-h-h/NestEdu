@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "result": [
+    {
+      "title": "只有标题没有ID",
+      "content": "应被列表跳过"
+    },
+    {
+      "document_id": 777,
+      "title": "有效文档",
+      "content": "正文"
+    }
+  ]
+}

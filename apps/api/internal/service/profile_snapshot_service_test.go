@@ -54,12 +54,16 @@ func TestProfileSnapshotReplaceByPhone(t *testing.T) {
 		t.Fatalf("expected replaced markdown, got %q", second.Markdown)
 	}
 
-	got, err := svc.GetByPhone(context.Background(), phone)
+	got, err := svc.GetByPhone(context.Background(), "owner_a", phone)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if got.Markdown != second.Markdown {
 		t.Fatalf("get mismatch: %+v", got)
+	}
+
+	if _, err := svc.GetByPhone(context.Background(), "owner_b", phone); err == nil {
+		t.Fatal("expected other owner not found")
 	}
 
 	var count int64

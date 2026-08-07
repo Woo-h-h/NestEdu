@@ -15,6 +15,8 @@ type GrowthListFilter struct {
 	Level    string
 	Status   string
 	Keyword  string
+	Page     int
+	Limit    int
 }
 
 // GrowthStore 用 GORM 访问 growth_records 表。
@@ -45,8 +47,21 @@ func (s *GrowthStore) ListByOwner(ctx context.Context, ownerID string, filter Gr
 		query = query.Where("name LIKE ? OR intro LIKE ? OR org LIKE ?", like, like, like)
 	}
 
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 200
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
 	var records []model.GrowthRecord
-	err := query.Order("date DESC, created_at DESC").Find(&records).Error
+	err := query.Order("date DESC, created_at DESC").Limit(limit).Offset(offset).Find(&records).Error
 	if err != nil {
 		return nil, err
 	}

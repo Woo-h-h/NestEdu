@@ -2,6 +2,30 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-07 — 行动计划 BFF +「我的」列表复用 + 清理 scratch
+
+- 业务：教师画像行动建议优先落库（跨设备可同步）；本地旧数据在首次成功读到空 BFF 时自动迁移。
+- 技术：新增 `profile_action_bundles` 与 `/api/v1/profile-actions`；抽取 `loadMineTeacherPlans`；根目录一次性分析脚本迁至 `scripts/archive/scratch/`。
+- 验证：`cd apps/api && go test ./internal/http/ ./internal/service/`；`pnpm --filter ./apps/web build`
+
+## 2026-08-07 — BFF 鉴权收紧与错误提示统一
+
+- 业务：自有 `/api/v1` 业务接口（除 sample）须登录且携带 `X-Uid-Hash`；画像/入库计数按本人 owner 隔离，禁止跨手机号读写。
+- 技术：CORS 白名单（`CORS_ALLOWED_ORIGINS`）；反代与 DeepSeek 超时；Agent ID 改走环境变量；成果库/入库列表分页；平台映射列表省略正文；前端页统一 `getApiErrorMessage`。
+- 验证：`cd apps/api && go test ./internal/http/ ./internal/service/ ./internal/config/`
+
+## 2026-08-07 — 活动方案支持自选生成份数
+
+- 业务：活动方案生成页新增「生成份数」选择（1–5），不再强制等于已选领域个数。
+- 技术：`planCount` 写入会话草稿；`buildTeachingPlanUserMessage` / `generateTeachingPlans` 以 `count` 为准，领域仅作重点约束。
+- 验证：`pnpm --filter ./apps/web build`
+
+## 2026-08-07 — 知识库平台响应改为类型化映射
+
+- 业务：无产品行为变更；列表缺文档 id 的项不再用标题冒充 id，避免误删/误查。
+- 技术：新增 `service/platform_knowledge.go`（`PlatformAPIEnvelope` / `PlatformDocument`）；list/detail/upload 统一信封解析与字段白名单；补金样 JSON 单测。
+- 验证：`cd apps/api && go test ./internal/service/ -count=1`
+
 ## 2026-08-06 — 后端四层补充包与类型注释
 
 - 业务：无行为变更。

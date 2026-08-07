@@ -12,6 +12,8 @@ export interface ActivityPlanDraft {
   themeName: string
   className: string
   focusDomains: string[]
+  /** 生成份数 1–5；旧草稿可能缺省 */
+  planCount?: number
   notes: string
   generatedPlans: TeachingPlan[]
   uploadSelection: TeachingPlan[]
@@ -56,6 +58,11 @@ export function loadActivityPlanDraft(): ActivityPlanDraft | null {
   if (!Array.isArray(parsed.generatedPlans)) parsed.generatedPlans = []
   if (!Array.isArray(parsed.uploadSelection)) parsed.uploadSelection = []
   if (!Array.isArray(parsed.focusDomains)) parsed.focusDomains = []
+  if (typeof parsed.planCount !== 'number' || parsed.planCount < 1 || parsed.planCount > 5) {
+    parsed.planCount = 1
+  } else {
+    parsed.planCount = Math.floor(parsed.planCount)
+  }
   return parsed
 }
 

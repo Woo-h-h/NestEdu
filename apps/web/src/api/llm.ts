@@ -248,13 +248,20 @@ async function agentGenerateTeachingPlans(params: {
   count?: number
   notes?: string
 }): Promise<TeachingPlan[]> {
-  const count =
-    params.focusDomains && params.focusDomains.length > 0
-      ? params.focusDomains.length
-      : params.count ?? 5
+  const focusDomains = (params.focusDomains || [])
+    .map((d) => d.trim())
+    .filter(Boolean)
+  const rawCount =
+    params.count && params.count > 0
+      ? Math.floor(params.count)
+      : focusDomains.length > 0
+        ? focusDomains.length
+        : 5
+  const count = Math.min(Math.max(rawCount, 1), 5)
   const systemPrompt = buildTeachingPlanSystemPrompt()
   const userMessage = buildTeachingPlanUserMessage({
     ...params,
+    focusDomains,
     count,
   })
   const basePrompt = `${systemPrompt}\n\n${userMessage}\n\n请只输出 JSON，不要其它说明。`
@@ -295,7 +302,13 @@ export async function generateTeachingPlans(params: {
   const focusDomains = (params.focusDomains || [])
     .map((d) => d.trim())
     .filter(Boolean)
-  const count = focusDomains.length > 0 ? focusDomains.length : params.count ?? 5
+  const rawCount =
+    params.count && params.count > 0
+      ? Math.floor(params.count)
+      : focusDomains.length > 0
+        ? focusDomains.length
+        : 5
+  const count = Math.min(Math.max(rawCount, 1), 5)
 
   // 教案固定走智能体 14317，失败直接抛错，禁止降级到后端/浏览器 Mock
   try {

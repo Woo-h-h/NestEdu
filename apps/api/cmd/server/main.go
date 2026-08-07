@@ -35,15 +35,16 @@ func main() {
 	}
 
 	r := apihttp.NewRouter(apihttp.RouterConfig{
-		DB:           db,
-		WebStaticDir: cfg.WebStaticDir,
-		WebBasePath:  cfg.WebBasePath,
+		DB:                 db,
+		WebStaticDir:       cfg.WebStaticDir,
+		WebBasePath:        cfg.WebBasePath,
+		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 		LLM: service.LLMConfig{
 			APIKey:          cfg.LLM.APIKey,
 			BaseURL:         cfg.LLM.BaseURL,
 			Model:           cfg.LLM.Model,
-			WeeklyAgentID:   14332,
-			TeachingAgentID: 14317,
+			WeeklyAgentID:   cfg.LLM.WeeklyAgentID,
+			TeachingAgentID: cfg.LLM.TeachingAgentID,
 		},
 		Platform: service.PlatformClientConfig{
 			BaseURL: cfg.Platform.BaseURL,

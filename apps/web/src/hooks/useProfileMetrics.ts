@@ -12,7 +12,9 @@ import {
 import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
 import { getAuthIdentityKey } from '@/lib/authIdentity'
+import { getApiErrorMessage } from '@/lib/apiError'
 import {
+  loadActionStatesAsync,
   mergeActionSeeds,
   saveActionState,
   type ActionStatus,
@@ -152,7 +154,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
           if (!nextPhone) {
             console.warn('[Profile] 加载个人成果库失败:', err)
           } else {
-            setError(err instanceof Error ? err.message : '加载个人成果库失败')
+            setError(getApiErrorMessage(err, '加载个人成果库失败'))
           }
         }
       } else {
@@ -173,7 +175,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
         archivePlans: archiveCount,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      setError(getApiErrorMessage(err, '加载失败'))
     } finally {
       setLoading(false)
     }
@@ -204,16 +206,24 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
   // actionSeeds 每次 build 都是新数组；按 id 签名避免无意义 setState
   const actionSeedsKey = summary.actionSeeds.map((item) => item.id).join('|')
   useEffect(() => {
-    setActions(mergeActionSeeds(summary.actionSeeds))
+    let cancelled = false
+    void (async () => {
+      const store = await loadActionStatesAsync()
+      if (cancelled) return
+      setActions(mergeActionSeeds(summary.actionSeeds, store))
+    })()
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖 actionSeedsKey
   }, [actionSeedsKey])
 
   const updateAction = useCallback(
     (id: string, patch: Partial<{ checked: boolean; status: ActionStatus; date: string; progress: number }>) => {
-      saveActionState(id, patch)
       setActions((prev) =>
         prev.map((item) => (item.id === id ? { ...item, ...patch } : item))
       )
+      void saveActionState(id, patch)
     },
     []
   )
