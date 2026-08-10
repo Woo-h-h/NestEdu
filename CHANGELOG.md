@@ -20,6 +20,12 @@
 - 技术：CORS 白名单（`CORS_ALLOWED_ORIGINS`）；反代与 DeepSeek 超时；Agent ID 改走环境变量；成果库/入库列表分页；平台映射列表省略正文；前端页统一 `getApiErrorMessage`。
 - 验证：`cd apps/api && go test ./internal/http/ ./internal/service/ ./internal/config/`
 
+## 2026-08-10 — 周计划勾选体验与成果库说明
+
+- 业务：周计划候选池增加「已选教案」陈列（可取消/清空）、教案列表定高滚动、生成按钮 sticky；预览页增加「继续生成新周计划」，「返回重新勾选」会清空勾选；成果库标明上传不做 OCR，无正文卡片显示未解析提示。
+- 技术：`PlanSelector` / `useWeeklyPlan`（`resetAll`、`startFreshWeek`）/ `teachingContext` 允许空主题保留班级周次；`PlanManageList` 增加 `emptyObjectivesHint`。
+- 验证：`pnpm --filter ./apps/web build`
+
 ## 2026-08-07 — 活动方案支持自选生成份数
 
 - 业务：活动方案生成页新增「生成份数」选择（1–5），不再强制等于已选领域个数。

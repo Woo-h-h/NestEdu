@@ -18,6 +18,7 @@ import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 const DURATION_OPTIONS = [15, 20, 30, 45, 60] as const
+const PLAN_COUNT_OPTIONS = [1, 2, 3, 4, 5] as const
 const domainOptions: { label: string; value: FocusDomain; desc: string }[] = [
   { label: '艺术', value: '艺术', desc: '音乐 / 美术' },
   { label: '语言', value: '语言', desc: '阅读 / 表达' },
@@ -204,7 +205,7 @@ export default function ResourcesPage() {
                   </span>
                   {res.focusDomains.length > 0 && (
                     <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
-                      已选 {res.focusDomains.length} · 将生成 {res.focusDomains.length} 份
+                      已选 {res.focusDomains.length} 个
                     </span>
                   )}
                 </div>
@@ -228,6 +229,36 @@ export default function ResourcesPage() {
                     )
                   })}
                 </div>
+              </div>
+              <div>
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-sm font-medium text-nest-ink">
+                  <span>生成份数</span>
+                  <span className="rounded-full bg-nest-mist px-2 py-0.5 text-xs text-nest-leaf">
+                    将生成 {res.planCount} 份
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {PLAN_COUNT_OPTIONS.map((n) => {
+                    const selected = res.planCount === n
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => res.setPlanCount(n)}
+                        className={`min-w-11 rounded-full border px-3 py-1.5 text-sm transition-all ${
+                          selected
+                            ? 'border-nest-leaf bg-nest-mist font-medium text-nest-pine shadow-sm shadow-nest-leaf/10'
+                            : 'border-nest-leaf/15 bg-white text-nest-muted hover:border-nest-leaf/30 hover:bg-nest-mist/50'
+                        }`}
+                      >
+                        {n} 份
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1.5 text-xs text-nest-muted">
+                  份数可与领域分开选择；多领域时可生成 1 份综合方案，也可生成多份差异化方案
+                </p>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm text-nest-muted">
@@ -279,7 +310,7 @@ export default function ResourcesPage() {
                 {res.isGeneratingPlans
                   ? '正在生成活动方案...'
                   : res.focusDomains.length > 0
-                    ? `生成活动方案（${res.focusDomains.length} 份）`
+                    ? `生成活动方案（${res.planCount} 份）`
                     : '生成活动方案'}
               </button>
               {res.generatedPlans.length > 0 && (

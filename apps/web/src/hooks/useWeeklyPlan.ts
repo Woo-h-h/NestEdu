@@ -73,7 +73,8 @@ export function useWeeklyPlan() {
       const selected = next.selected ?? selectedPlans
       const candidates = next.candidates ?? candidatePlans
 
-      if (!theme || !cls || !week || week <= 0) return
+      // 班级+周次即可落盘（主题可空，便于「继续生成」保留班级周次）
+      if (!cls || !week || week <= 0) return
 
       const ctx: TeachingContext = {
         themeName: theme,
@@ -133,18 +134,20 @@ export function useWeeklyPlan() {
     const ctx = loadTeachingContext()
     setContext(ctx)
     if (ctx) {
-      setThemeName(ctx.themeName)
+      setThemeName(ctx.themeName || '')
       setClassName(ctx.className)
       setWeekNumber(ctx.weekNumber)
       setNotes(ctx.notes || '')
       setCandidatePlans((prev) => mergePlans(ctx.candidatePlans || [], prev))
-      if (ctx.selectedPlanIds?.length) {
+      if (ctx.selectedPlanIds && ctx.selectedPlanIds.length > 0) {
         setSelectedPlans((prev) => {
           const fromCtx = (ctx.candidatePlans || []).filter((p) =>
             ctx.selectedPlanIds!.includes(p.id)
           )
           return mergePlans(fromCtx, prev.filter((p) => ctx.selectedPlanIds!.includes(p.id)))
         })
+      } else if (ctx.selectedPlanIds && ctx.selectedPlanIds.length === 0) {
+        setSelectedPlans([])
       }
     }
     return ctx
@@ -263,12 +266,26 @@ export function useWeeklyPlan() {
   )
 
   const resetAll = useCallback(() => {
+    // 返回重新勾选：退出预览并清空勾选，保留主题/班级/周次
     setCurrentPlan(null)
     setIsModified(false)
     setChatHistory([])
     clearWeeklyPlanDraft()
-    refreshContext()
-  }, [refreshContext])
+    setSelectedPlans([])
+    persistMeta({ selected: [] })
+  }, [persistMeta])
+
+  const startFreshWeek = useCallback(() => {
+    // 继续生成新周计划：清空预览与勾选；保留班级/周次，清空主题
+    setCurrentPlan(null)
+    setIsModified(false)
+    setChatHistory([])
+    clearWeeklyPlanDraft()
+    setSelectedPlans([])
+    setThemeName('')
+    setNotes('')
+    persistMeta({ themeName: '', notes: '', selected: [] })
+  }, [persistMeta])
 
   return {
     themeName,
@@ -299,5 +316,6 @@ export function useWeeklyPlan() {
     generatePlan,
     sendAiInstruction,
     resetAll,
+    startFreshWeek,
   }
 }

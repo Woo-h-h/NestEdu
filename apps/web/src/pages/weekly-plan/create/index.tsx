@@ -5,7 +5,7 @@ import { getApiErrorMessage } from '@/lib/apiError'
 import PlanSelector from '../components/PlanSelector'
 import PlanEditor from '../components/PlanEditor'
 import ClassSelector from '../components/ClassSelector'
-import { ArrowLeft, Sparkles, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Sparkles, RefreshCw, Plus } from 'lucide-react'
 import {
   uploadKnowledgeDocument,
   weeklyPlanKnowledgeScope,
@@ -138,13 +138,25 @@ export default function WeeklyPlanCreateSection() {
   if (wp.currentPlan) {
     return (
       <div>
-        <button
-          type="button"
-          onClick={() => wp.resetAll()}
-          className="mb-4 flex items-center gap-1 text-sm text-nest-muted transition-colors hover:text-nest-leaf"
-        >
-          <ArrowLeft size={15} /> 返回重新勾选
-        </button>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => wp.resetAll()}
+            className="flex items-center gap-1 text-sm text-nest-muted transition-colors hover:text-nest-leaf"
+          >
+            <ArrowLeft size={15} /> 返回重新勾选
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              wp.startFreshWeek()
+              toast.success('已开始新周计划，请填写主题并勾选教案')
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-nest-leaf/25 bg-nest-mist px-3 py-1.5 text-sm font-medium text-nest-pine transition-colors hover:border-nest-leaf hover:bg-white"
+          >
+            <Plus size={15} /> 继续生成新周计划
+          </button>
+        </div>
 
         <PlanEditor
           plan={wp.currentPlan}
@@ -277,16 +289,21 @@ export default function WeeklyPlanCreateSection() {
           searchPlaceholder="搜寻活动方案（可用姓名、手机号、方案名）"
         />
 
-        <div className="border-t border-nest-leaf/10 pt-5 text-center">
+        <div className="sticky bottom-3 z-10 border-t border-nest-leaf/10 bg-white/95 pt-4 text-center backdrop-blur-sm">
           <button
             type="button"
             onClick={handleGenerate}
             disabled={!canGenerate || wp.isGenerating}
-            className="btn-primary mx-auto !px-8 !py-3 text-base"
+            className="btn-primary mx-auto !px-8 !py-3 text-base shadow-md shadow-nest-leaf/20"
           >
             <Sparkles size={20} />
             {wp.isGenerating ? 'AI 正在生成周计划...' : '生成周计划'}
           </button>
+          {!canGenerate && (
+            <p className="mt-2 text-xs text-nest-muted">
+              请先填写班级、主题、周次并至少勾选 1 份教案
+            </p>
+          )}
         </div>
       </div>
 

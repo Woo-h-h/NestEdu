@@ -20,13 +20,12 @@ export function loadTeachingContext(): TeachingContext | null {
     const raw = sessionStorage.getItem(TEACHING_CONTEXT_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as TeachingContext
-    if (
-      !parsed?.themeName?.trim() ||
-      !parsed?.className ||
-      !parsed?.weekNumber ||
-      parsed.weekNumber <= 0
-    ) {
+    // 允许主题暂时为空（继续生成新周计划后仅保留班级/周次）
+    if (!parsed?.className || !parsed?.weekNumber || parsed.weekNumber <= 0) {
       return null
+    }
+    if (typeof parsed.themeName !== 'string') {
+      parsed.themeName = ''
     }
     if (!Array.isArray(parsed.candidatePlans)) {
       parsed.candidatePlans = []

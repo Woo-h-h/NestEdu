@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 import { getApiErrorMessage } from '@/lib/apiError'
-import { Check, Eye, Loader2, Search, Trash2 } from 'lucide-react'
+import { Check, Eye, Loader2, Search, Trash2, X } from 'lucide-react'
 import { filterPlansByKeyword } from '@/lib/knowledgeDocTitle'
 import {
   ACTIVITY_DOMAINS,
@@ -77,6 +77,12 @@ function ChipRow<T extends string>({
       </div>
     </div>
   )
+}
+
+function shortTitle(title: string, max = 18): string {
+  const t = title.replace(/\.md$/i, '').trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max)}…`
 }
 
 export default function PlanSelector({
@@ -162,11 +168,13 @@ export default function PlanSelector({
   const basePlans = useMemo(() => {
     if (!showTaxonomy) return plans
     if (ownership === '我的') {
-      return mineExtraPlans.length > 0 ? mineExtraPlans : plans.filter((p) => {
-        const id = (p.id || '').trim()
-        const title = (p.title || '').trim()
-        return (id && mineDocIds.has(id)) || (title && mineTitles.has(title))
-      })
+      return mineExtraPlans.length > 0
+        ? mineExtraPlans
+        : plans.filter((p) => {
+            const id = (p.id || '').trim()
+            const title = (p.title || '').trim()
+            return (id && mineDocIds.has(id)) || (title && mineTitles.has(title))
+          })
     }
     return plans
   }, [showTaxonomy, ownership, plans, mineExtraPlans, mineDocIds, mineTitles])
@@ -190,6 +198,15 @@ export default function PlanSelector({
         ? selected.filter((p) => p.id !== plan.id)
         : [...selected, plan]
     )
+  }
+
+  const removeSelected = (plan: TeachingPlan) => {
+    onChange(selected.filter((p) => p.id !== plan.id))
+  }
+
+  const clearSelected = () => {
+    if (selected.length === 0) return
+    onChange([])
   }
 
   const submitSearch = () => {
@@ -279,6 +296,46 @@ export default function PlanSelector({
         </div>
       )}
 
+      <div className="mb-4 rounded-xl border border-nest-leaf/15 bg-white p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-medium text-nest-ink">
+            已选教案
+            <span className="ml-1.5 text-xs font-normal text-nest-muted">
+              {selected.length > 0 ? `${selected.length} 个` : '暂无'}
+            </span>
+          </div>
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={clearSelected}
+              className="text-xs text-nest-muted transition-colors hover:text-red-500"
+            >
+              清空已选
+            </button>
+          )}
+        </div>
+        {selected.length === 0 ? (
+          <p className="text-xs text-nest-muted">
+            在下方列表勾选教案后，将显示在这里，也可在此取消
+          </p>
+        ) : (
+          <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+            {selected.map((plan) => (
+              <button
+                key={plan.id}
+                type="button"
+                title={`取消勾选：${plan.title}`}
+                onClick={() => removeSelected(plan)}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-nest-leaf/25 bg-nest-mist px-2.5 py-1 text-xs text-nest-pine transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+              >
+                <span className="truncate">{shortTitle(plan.title)}</span>
+                <X size={12} className="shrink-0 opacity-70" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {loading && (
         <div className="mb-3 flex items-center gap-2 text-sm text-nest-muted">
           <Loader2 size={14} className="animate-spin text-nest-leaf" /> 正在加载教案...
@@ -297,77 +354,79 @@ export default function PlanSelector({
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((plan) => {
-          const isSel = selected.some((p) => p.id === plan.id)
-          const canDelete = Boolean(onDelete) && plan.source !== 'preset'
-          return (
-            <div
-              key={plan.id}
-              onClick={() => toggle(plan)}
-              className={`relative cursor-pointer rounded-xl border-2 p-4 transition-all ${
-                isSel
-                  ? 'border-nest-leaf bg-nest-mist/60 shadow-sm shadow-nest-leaf/10'
-                  : 'border-nest-leaf/10 bg-white hover:border-nest-leaf/25 hover:shadow-sm'
-              }`}
-            >
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <h4 className="text-sm font-semibold text-nest-ink">{plan.title}</h4>
-                <div className="flex shrink-0 items-center gap-1">
-                  {onView && (
-                    <button
-                      type="button"
-                      title="查看完整内容"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onView(plan)
-                      }}
-                      className="p-1 text-nest-muted hover:text-nest-leaf"
-                    >
-                      <Eye size={14} />
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      type="button"
-                      title="删除"
-                      disabled={deleting}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void onDelete?.(plan)
-                      }}
-                      className="p-1 text-nest-muted hover:text-red-500 disabled:opacity-50"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                  {isSel && <Check size={18} className="text-nest-leaf" />}
+      <div className="max-h-[min(60vh,520px)] overflow-y-auto rounded-xl border border-nest-leaf/10 bg-nest-sand/20 p-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((plan) => {
+            const isSel = selected.some((p) => p.id === plan.id)
+            const canDelete = Boolean(onDelete) && plan.source !== 'preset'
+            return (
+              <div
+                key={plan.id}
+                onClick={() => toggle(plan)}
+                className={`relative cursor-pointer rounded-xl border-2 p-4 transition-all ${
+                  isSel
+                    ? 'border-nest-leaf bg-nest-mist/60 shadow-sm shadow-nest-leaf/10'
+                    : 'border-nest-leaf/10 bg-white hover:border-nest-leaf/25 hover:shadow-sm'
+                }`}
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-nest-ink">{plan.title}</h4>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {onView && (
+                      <button
+                        type="button"
+                        title="查看完整内容"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onView(plan)
+                        }}
+                        className="p-1 text-nest-muted hover:text-nest-leaf"
+                      >
+                        <Eye size={14} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        title="删除"
+                        disabled={deleting}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void onDelete?.(plan)
+                        }}
+                        className="p-1 text-nest-muted hover:text-red-500 disabled:opacity-50"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                    {isSel && <Check size={18} className="text-nest-leaf" />}
+                  </div>
                 </div>
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {plan.source && (
+                    <span className="rounded bg-nest-sand/80 px-1.5 py-0.5 text-xs text-nest-pine">
+                      {sourceTag[plan.source] || plan.source}
+                    </span>
+                  )}
+                  {plan.gradeLevel && plan.gradeLevel !== '通用' && (
+                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
+                      {plan.gradeLevel}
+                    </span>
+                  )}
+                  {plan.domain.split('、').map((d) => (
+                    <span
+                      key={d}
+                      className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
+                    >
+                      {d.trim()}
+                    </span>
+                  ))}
+                </div>
+                <p className="line-clamp-2 text-xs text-nest-muted/80">{plan.objectives}</p>
               </div>
-              <div className="mb-2 flex flex-wrap gap-1">
-                {plan.source && (
-                  <span className="rounded bg-nest-sand/80 px-1.5 py-0.5 text-xs text-nest-pine">
-                    {sourceTag[plan.source] || plan.source}
-                  </span>
-                )}
-                {plan.gradeLevel && plan.gradeLevel !== '通用' && (
-                  <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
-                    {plan.gradeLevel}
-                  </span>
-                )}
-                {plan.domain.split('、').map((d) => (
-                  <span
-                    key={d}
-                    className="rounded bg-nest-mist px-1.5 py-0.5 text-xs text-nest-muted"
-                  >
-                    {d.trim()}
-                  </span>
-                ))}
-              </div>
-              <p className="line-clamp-2 text-xs text-nest-muted/80">{plan.objectives}</p>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )

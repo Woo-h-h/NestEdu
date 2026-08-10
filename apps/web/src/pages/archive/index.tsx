@@ -327,7 +327,7 @@ export default function ArchivePage() {
                   ? `上传到「${kb.uploadTarget.name}」文件夹`
                   : '上传文件到个人成果文件夹'
               }
-              hint="将文件拖到此处；仅写入与您手机号同名的文件夹，确认后才会入库"
+              hint="将文件拖到此处；仅写入与您手机号同名的文件夹。上传为原文件入库，不做内容识别/OCR，确认后才会入库"
               accept={ARCHIVE_UPLOAD_ACCEPT}
               allowedExtensions={[...ARCHIVE_UPLOAD_EXTENSIONS]}
               formatLabel={ARCHIVE_UPLOAD_FORMAT_LABEL}
@@ -375,6 +375,7 @@ export default function ArchivePage() {
           plans={kb.platformPlans}
           loading={kb.isLoadingPlatform}
           showPlanTags={false}
+          emptyObjectivesHint="未解析正文（仅存原文件）"
           sourceHint={kb.listHint}
           emptyHint={
             kb.configured

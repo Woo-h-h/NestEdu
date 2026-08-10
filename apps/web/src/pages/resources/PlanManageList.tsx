@@ -55,6 +55,8 @@ interface Props {
    */
   taxonomy?: PlanListTaxonomy
   showPlanTags?: boolean
+  /** 无正文摘要时的提示（如成果库原文件未解析） */
+  emptyObjectivesHint?: string
 }
 
 const sourceTag: Record<string, string> = {
@@ -146,6 +148,7 @@ export default function PlanManageList({
   showSearch = true,
   taxonomy = 'none',
   showPlanTags = true,
+  emptyObjectivesHint,
 }: Props) {
   const [classLevel, setClassLevel] = useState<ClassLevel | '全部'>('全部')
   const [domain, setDomain] = useState<ActivityDomain | '全部'>('全部')
@@ -633,7 +636,9 @@ export default function PlanManageList({
                     ))}
               </div>
               <p className="line-clamp-2 text-xs text-nest-muted/80">
-                {(plan.objectives || '').replace(/\uFFFD+/g, '').trim()}
+                {(plan.objectives || '').replace(/\uFFFD+/g, '').trim() ||
+                  emptyObjectivesHint ||
+                  ''}
               </p>
               {canPromote && (
                 <p className="mt-2 text-[11px] text-amber-800">
@@ -641,7 +646,13 @@ export default function PlanManageList({
                 </p>
               )}
               {onView && !selectable && !canPromote && (
-                <p className="mt-2 text-[11px] text-nest-leaf">点击查看完整内容</p>
+                <p className="mt-2 text-[11px] text-nest-leaf">
+                  {(plan.objectives || '').replace(/\uFFFD+/g, '').trim()
+                    ? '点击查看完整内容'
+                    : emptyObjectivesHint
+                      ? '点击查看原文件'
+                      : '点击查看完整内容'}
+                </p>
               )}
             </div>
           )
