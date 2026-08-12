@@ -5,7 +5,7 @@ import {
   aiModifyPlan,
   isApiConfigured,
 } from '@/api/weeklyPlan'
-import { activityPlanKnowledgeScope, fetchKnowledgePlans } from '@/api/knowledge'
+import { fetchKnowledgePlans } from '@/api/knowledge'
 import {
   loadTeachingContext,
   saveTeachingContext,
@@ -160,7 +160,7 @@ export function useWeeklyPlan() {
       const { plans, source, error } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
         limit: 50,
-        ...activityPlanKnowledgeScope(),
+        resolveKind: 'activity',
       })
       setCandidatePlans((prev) => {
         const keepAi = prev.filter((p) => p.source === 'ai')
@@ -170,7 +170,7 @@ export function useWeeklyPlan() {
         source === 'platform'
           ? keyword?.trim()
             ? `教案知识库 · 检索「${keyword.trim()}」`
-            : '教案知识库 · 20806'
+            : '教案知识库 · 已同步平台分类'
           : source === 'preset'
             ? error
               ? `本地预设（平台失败：${error}）`

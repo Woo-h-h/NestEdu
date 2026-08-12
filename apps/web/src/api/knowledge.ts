@@ -29,6 +29,8 @@ export interface FetchKnowledgePlansOptions {
   limit?: number
   /** 平台失败时是否回退本地预设教案；周计划分类应传 false */
   fallbackPreset?: boolean
+  /** 按平台分类树解析真实 category_id/key（与入库 resolveLiveBusinessCategory 对齐） */
+  resolveKind?: 'activity' | 'weekly'
 }
 
 /**
@@ -960,17 +962,24 @@ function pickEnvelopeTotal(envelope: ApiEnvelope, planCount: number): number {
 export async function fetchKnowledgePlans(
   options: FetchKnowledgePlansOptions = {}
 ): Promise<{ plans: TeachingPlan[]; source: KnowledgeSource; error?: string; total?: number }> {
-  const knowledgeId = (options.knowledgeId || getDefaultKnowledgeId()).trim()
+  let knowledgeId = (options.knowledgeId || getDefaultKnowledgeId()).trim()
   // 显式传入 categoryId/categoryKey（含空字符串）时不回退教案默认分类，避免串库
   const hasExplicitCategory =
     options.categoryId !== undefined || options.categoryKey !== undefined
-  const categoryId = (
+  let categoryId = (
     hasExplicitCategory ? options.categoryId || '' : getDefaultCategoryId()
   ).trim()
-  const categoryKey = (
+  let categoryKey = (
     hasExplicitCategory ? options.categoryKey || '' : getDefaultCategoryKey()
   ).trim()
   const fallbackPreset = options.fallbackPreset !== false
+
+  if (options.resolveKind) {
+    const live = await resolveLiveBusinessCategory(options.resolveKind)
+    knowledgeId = live.knowledgeId
+    categoryId = live.categoryId
+    categoryKey = live.categoryKey
+  }
 
   try {
     let envelope: ApiEnvelope
@@ -1061,14 +1070,14 @@ export async function fetchKnowledgePlanById(id: string): Promise<TeachingPlan |
     console.warn('[Knowledge] 教案详情获取失败:', err)
   }
 
-  const { plans } = await fetchKnowledgePlans()
+  const { plans } = await fetchKnowledgePlans({ resolveKind: 'activity' })
   return plans.find((plan) => plan.id === id) || null
 }
 
 export async function searchKnowledge(
   themeName: string
 ): Promise<{ plans: TeachingPlan[]; summary: string; source: KnowledgeSource }> {
-  const { plans, source } = await fetchKnowledgePlans({ keyword: themeName })
+  const { plans, source } = await fetchKnowledgePlans({ keyword: themeName, resolveKind: 'activity' })
   if (plans.length === 0) return { plans: [], summary: '', source: 'empty' }
   const summary = plans
     .map((plan) => `【${plan.id}】${plan.title}${plan.content ? `\n${plan.content}` : ''}`)

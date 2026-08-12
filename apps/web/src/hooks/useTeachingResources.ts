@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ClassType, TeachingPlan } from '@/types/weeklyPlan'
 import { generateTeachingPlans } from '@/api/llm'
 import {
-  activityPlanKnowledgeScope,
   resolveLiveBusinessCategory,
   fetchKnowledgePlans,
   uploadKnowledgeDocument,
@@ -79,12 +78,9 @@ export function useTeachingResources() {
   const loadPlatformPlans = useCallback(async (keyword?: string) => {
     setIsLoadingPlatform(true)
     try {
-      const scope = activityPlanKnowledgeScope()
       const { plans: next, source, error, total } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
-        knowledgeId: scope.knowledgeId,
-        categoryId: scope.categoryId,
-        categoryKey: scope.categoryKey,
+        resolveKind: 'activity',
         limit: 50,
       })
       setPlatformPlans(next)

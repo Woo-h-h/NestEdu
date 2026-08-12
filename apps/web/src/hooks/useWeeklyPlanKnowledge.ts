@@ -41,9 +41,7 @@ export function useWeeklyPlanKnowledge() {
     try {
       const { plans: next, source, error, total } = await fetchKnowledgePlans({
         keyword: keyword?.trim() || undefined,
-        knowledgeId: scope.knowledgeId,
-        categoryId: scope.categoryId,
-        categoryKey: scope.categoryKey,
+        resolveKind: 'weekly',
         limit: 50,
         fallbackPreset: false,
       })
@@ -60,7 +58,7 @@ export function useWeeklyPlanKnowledge() {
     } finally {
       setIsLoadingPlatform(false)
     }
-  }, [scope.knowledgeId, scope.categoryId, scope.categoryKey])
+  }, [])
 
   const prepareFileUpload = useCallback(async () => {
     const auth = authBridge.getAuthInfo()

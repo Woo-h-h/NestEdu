@@ -2,6 +2,12 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-12 — 修复知识库列表与入库分类不一致
+
+- 业务：迁移知识库 10368 后，教案可生成入库但「知识库管理」列表为空。
+- 技术：列表查询增加 `resolveKind`，与入库共用 `resolveLiveBusinessCategory` 动态解析分类 id/key，不再仅依赖 `.env` 旧 category_id。
+- 验证：`pnpm --filter ./apps/web build`；重启 dev 后在活动方案「知识库管理」刷新列表。
+
 ## 2026-08-12 — 默认知识库迁移至 10368
 
 - 业务：平台教案/周计划/成果库统一对接新知识库 [`10368`](https://www.zcat.cn/teach/knowledge/detail/10368)。
