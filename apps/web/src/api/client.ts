@@ -43,6 +43,23 @@ function resolveUidHashForHeaders(authInfo: ReturnType<typeof authBridge.getAuth
   return getCachedUidHash();
 }
 
+/** 平台 API（知识库 / 智能体对话）请求头，供 fetch 流式调用复用 */
+export function buildPlatformAuthHeaders(): Record<string, string> {
+  const authInfo = authBridge.getAuthInfo();
+  const authHeaders = buildAuthHeaders(authInfo, {
+    clientName: import.meta.env.VITE_AI101_CLIENT_NAME || "mvp-template",
+    platform: "h5",
+    version: "1.0.0",
+  }) as Record<string, string>;
+
+  const uidHash = resolveUidHashForHeaders(authInfo);
+  if (uidHash) {
+    authHeaders["X-Uid-Hash"] = uidHash;
+    authHeaders["X-Uid"] = uidHash;
+  }
+  return authHeaders;
+}
+
 const createApiInstance = (): ApiClient => {
   const instance = axios.create({
     baseURL: settings.api,
@@ -51,19 +68,7 @@ const createApiInstance = (): ApiClient => {
   });
 
   instance.interceptors.request.use((config) => {
-    const authInfo = authBridge.getAuthInfo();
-    const authHeaders = buildAuthHeaders(authInfo, {
-      clientName: import.meta.env.VITE_AI101_CLIENT_NAME || "mvp-template",
-      platform: "h5",
-      version: "1.0.0",
-    });
-
-    // 平台知识库分类/文档需要 X-Uid-Hash；authInfo 常无此字段，需回退 /user/self 缓存
-    const uidHash = resolveUidHashForHeaders(authInfo);
-    if (uidHash) {
-      authHeaders["X-Uid-Hash"] = uidHash;
-      authHeaders["X-Uid"] = uidHash;
-    }
+    const authHeaders = buildPlatformAuthHeaders();
 
     config.headers = AxiosHeaders.concat(authHeaders, config.headers);
 

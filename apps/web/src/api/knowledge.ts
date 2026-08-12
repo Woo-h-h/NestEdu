@@ -1300,18 +1300,27 @@ interface PlatformUploadedFile {
   url: string
   name: string
   text: string
+  /** file/upload 原始 result，供智能体 chat 附件 */
+  rawResult?: unknown
 }
 
 /**
  * 平台通用文件上传（与 SPA `YN()` / 网盘上传同源）。
  * 知识库原文件接口参数不稳定时，先落地文件再写入 document/text。
  */
-async function uploadPlatformBinaryFile(file: File): Promise<PlatformUploadedFile> {
-  const attempts: Array<Record<string, string>> = [
+async function uploadPlatformBinaryFile(
+  file: File,
+  options?: { agentId?: number }
+): Promise<PlatformUploadedFile> {
+  const attempts: Array<Record<string, string>> = []
+  if (options?.agentId) {
+    attempts.push({ convert: 'md', agent_id: String(options.agentId) })
+  }
+  attempts.push(
     { convert: 'md', tag: 'knowledge' },
     { convert: 'md', tag: 'net_disk', type_id: '5', request_by: 'net_disk' },
-    { tag: 'knowledge' },
-  ]
+    { tag: 'knowledge' }
+  )
 
   let lastError = '文件上传失败'
   for (const extra of attempts) {
@@ -1327,7 +1336,7 @@ async function uploadPlatformBinaryFile(file: File): Promise<PlatformUploadedFil
       assertSuccess(envelope, '文件上传失败')
       const parsed = parseUploadedFileResult(envelope.result, file.name)
       if (parsed.url || parsed.text || parsed.id) {
-        return parsed
+        return { ...parsed, rawResult: envelope.result }
       }
       lastError = '文件上传成功但未返回可用地址'
     } catch (err) {
@@ -1419,6 +1428,7 @@ async function buildArchiveParsedDocumentContent(
       mimeType: file.type || undefined,
       extractedText: extractedText || undefined,
       platformOcrText: uploaded.text || undefined,
+      platformFileData: uploaded.rawResult,
     })
     return {
       content: parsed.documentContent,
@@ -1490,7 +1500,9 @@ export async function uploadKnowledgeFile(params: {
     fileSize: file.size,
   })
 
-  const uploadedFile = await uploadPlatformBinaryFile(file)
+  const uploadedFile = await uploadPlatformBinaryFile(file, {
+    agentId: (await import('@/api/archiveParseAgent')).getArchiveParseAgentId(),
+  })
 
   // 成果库：先智能解析，再写入 document/text（跳过不可靠的 document/file）
   if (params.forceKind === 'archive') {

@@ -1,4 +1,8 @@
-import { generateAgentText } from '@/api/agent'
+import {
+  generateAgentChatWithFiles,
+  generateAgentSendMessage,
+  generateAgentText,
+} from '@/api/agent'
 import { extractJson } from '@/lib/weeklyPlanValidators'
 import {
   ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT,
@@ -129,9 +133,89 @@ function buildSuccessDocument(params: {
   return lines.join('\n')
 }
 
+function mapParseJson(
+  parsed: ArchiveParseJson,
+  params: {
+    title: string
+    fileName: string
+    fileUrl?: string
+    fileSize: number
+    isImage: boolean
+  }
+): ArchiveParseResult {
+  const title = (parsed.title || params.title || params.fileName).trim()
+  const summary = (parsed.summary || '').trim()
+  const body = (parsed.body || '').trim()
+  const materialType = (parsed.materialType || '').trim() || '其他'
+  const keyPoints = asStringList(parsed.keyPoints)
+  const needsHumanReview = Boolean(parsed.needsHumanReview) || (!summary && !body)
+
+  if (!summary && !body) {
+    throw new Error('智能体未返回有效成果摘要或正文')
+  }
+
+  const status: ArchiveParseStatus = needsHumanReview ? 'partial' : 'ok'
+  return {
+    title,
+    summary: summary || truncate(body, 120),
+    body: body || summary,
+    materialType,
+    keyPoints,
+    status,
+    documentContent: buildSuccessDocument({
+      title,
+      summary: summary || truncate(body, 120),
+      body: body || summary,
+      materialType,
+      keyPoints,
+      fileName: params.fileName,
+      fileUrl: params.fileUrl,
+      fileSize: params.fileSize,
+      isImage: params.isImage,
+      needsHumanReview,
+    }),
+  }
+}
+
+async function invokeArchiveParseAgent(params: {
+  userMessage: string
+  platformFileData?: unknown
+  agentId: number
+  retryHint?: string
+}): Promise<string> {
+  const suffix = params.retryHint
+    ? `${params.retryHint}\n\n请只输出 JSON，不要其它说明。`
+    : '请只输出 JSON，不要其它说明。'
+  const text = `${params.userMessage}\n\n${suffix}`
+
+  // 与平台聊天页一致：附件走 chat/completions（多模态识图）
+  if (params.platformFileData) {
+    try {
+      return await generateAgentChatWithFiles({
+        agentId: params.agentId,
+        text,
+        files: [{ data: params.platformFileData }],
+        timeoutMs: 90000,
+      })
+    } catch (chatErr) {
+      console.warn('[ArchiveParse] chat/completions failed, try send_message', chatErr)
+      return await generateAgentSendMessage({
+        agentId: params.agentId,
+        text,
+        files: [{ data: params.platformFileData }],
+        timeoutMs: 90000,
+      })
+    }
+  }
+
+  // 仅有可提取正文时走 text/generate（平台侧应已配置系统提示词；本地再拼一份兜底）
+  const basePrompt = `${ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT}\n\n${text}`
+  return generateAgentText(basePrompt, { agentId: params.agentId, timeoutMs: 90000 })
+}
+
 /**
  * 调用成果解析智能体（14509）：超时与最多 1 次格式重试。
- * 解析失败不假装成功：返回 failed + 原文件信息文档，由调用方提示人工核对。
+ * 图片/扫描件须传 platformFileData（file/upload 原始 result），与平台聊天附件一致。
  */
 export async function parseArchiveAchievement(params: {
   title: string
@@ -141,6 +225,8 @@ export async function parseArchiveAchievement(params: {
   mimeType?: string
   extractedText?: string
   platformOcrText?: string
+  /** /api/file/upload 返回的 result，供智能体识图 */
+  platformFileData?: unknown
 }): Promise<ArchiveParseResult> {
   const isImage =
     Boolean(params.mimeType?.startsWith('image/')) ||
@@ -155,47 +241,24 @@ export async function parseArchiveAchievement(params: {
     platformOcrText: params.platformOcrText,
   })
 
-  const basePrompt = `${ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT}\n\n${userMessage}\n\n请只输出 JSON，不要其它说明。`
   const agentId = getArchiveParseAgentId()
+  const baseParams = {
+    title: params.title,
+    fileName: params.fileName,
+    fileUrl: params.fileUrl,
+    fileSize: params.fileSize,
+    isImage,
+  }
 
-  const tryOnce = async (extra?: string) => {
-    const raw = await generateAgentText(extra ? `${basePrompt}\n\n${extra}` : basePrompt, {
+  const tryOnce = async (retryHint?: string) => {
+    const raw = await invokeArchiveParseAgent({
+      userMessage,
+      platformFileData: params.platformFileData,
       agentId,
-      timeoutMs: 90000,
+      retryHint,
     })
     const parsed = JSON.parse(extractJson(raw)) as ArchiveParseJson
-    const title = (parsed.title || params.title || params.fileName).trim()
-    const summary = (parsed.summary || '').trim()
-    const body = (parsed.body || '').trim()
-    const materialType = (parsed.materialType || '').trim() || '其他'
-    const keyPoints = asStringList(parsed.keyPoints)
-    const needsHumanReview = Boolean(parsed.needsHumanReview) || (!summary && !body)
-
-    if (!summary && !body) {
-      throw new Error('智能体未返回有效成果摘要或正文')
-    }
-
-    const status: ArchiveParseStatus = needsHumanReview ? 'partial' : 'ok'
-    return {
-      title,
-      summary: summary || truncate(body, 120),
-      body: body || summary,
-      materialType,
-      keyPoints,
-      status,
-      documentContent: buildSuccessDocument({
-        title,
-        summary: summary || truncate(body, 120),
-        body: body || summary,
-        materialType,
-        keyPoints,
-        fileName: params.fileName,
-        fileUrl: params.fileUrl,
-        fileSize: params.fileSize,
-        isImage,
-        needsHumanReview,
-      }),
-    } satisfies ArchiveParseResult
+    return mapParseJson(parsed, baseParams)
   }
 
   try {
