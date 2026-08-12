@@ -149,6 +149,8 @@
 - 列表：`POST /api/knowledge/document/list`（body: `knowledge_id`, `category_id?`, `category_key?`, `current`, `pageSize`）
 - 详情：`GET /api/knowledge/document/detail?document_id=`
 - 上传：`POST /api/knowledge/document/text`（body: `knowledge_id`, `category_id?`, `title`/`name`, `text`/`content`）
+- 分类列表：`GET/POST /api/knowledge/category/list?knowledge_id=`
+- 分类创建/编辑：`POST /api/knowledge/category/edit`（body: `knowledge_id`, `parent_id`, `name`/`display_name`）；NestEdu 在教师首次进入成果库且无同名手机号文件夹时自动调用
 - 原文件上传（成果库）：先 `POST /api/file/upload`（multipart `file`），再尝试 `POST /api/knowledge/document/file`（JSON `file_id`/`file_url`）或回退 `document/text` 写入可检索正文
 
 默认知识库：[`teach/knowledge/detail/10368`](https://www.zcat.cn/teach/knowledge/detail/10368?category_id=20806&category_key=custom_1784259353619)（`VITE_DEFAULT_KNOWLEDGE_ID=10368`，分类 `20806`）。鉴权头由 auth-bridge 注入。失败时前端回退本地预设教案。

@@ -12,6 +12,7 @@
 - 归属键：平台 `/api/user/self` 解析出的手机号（`getCurrentTeacherPhone`）
 - 可见范围：教师成果库下名称与手机号完全一致的文件夹及其子孙
 - 上传目标：仅上述手机号同名文件夹
+- 首次使用：若无同名文件夹，前端调用 `POST /api/knowledge/category/edit` 在教师成果库下自动创建（`ensureArchiveOwnerFolder`）
 - 画像：`/profile` 优先将该文件夹文档映射为成长记录，再合并本地录入与系统统计
 
 ## 配置

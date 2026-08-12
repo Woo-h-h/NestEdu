@@ -17,6 +17,7 @@ import {
   extractArchiveFileText,
   isArchiveTextExtractable,
 } from '@/lib/extractArchiveFileText'
+import { sanitizeDocTitleSegment } from '@/lib/knowledgeDocTitle'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 
@@ -236,52 +237,9 @@ export async function resolveLiveArchiveOwnerFolder(
   categoryKey: string
   categoryName: string
 }> {
-  const { getCurrentTeacherPhone } = await import('@/api/platformUser')
-  const phone = (phoneInput || (await getCurrentTeacherPhone())).trim()
-  if (!phone) {
-    throw new Error('未能获取手机号，无法上传到个人成果文件夹')
-  }
-
-  const scope = archiveKnowledgeScope()
-  if (!scope.categoryId) {
-    throw new Error('未配置教师成果库分类')
-  }
-
-  const { categories } = await fetchKnowledgeCategories(scope.knowledgeId)
-  const archiveParentId = resolveArchiveParentId(categories, scope.categoryId)
-  const folders = resolveTeacherArchiveFolders(categories, archiveParentId, phone)
-  const folder =
-    folders.find(
-      (item) => item.id !== archiveParentId && ownerFolderNameMatches(item.name, phone)
-    ) || folders[0]
-
-  if (!folder) {
-    const childNames = listArchiveChildFolderNames(categories, archiveParentId)
-    const hint =
-      childNames.length > 0
-        ? `教师成果库下现有文件夹：${childNames.join('、')}`
-        : '请先在教师成果库下创建与手机号同名的文件夹'
-    throw new Error(`未找到与手机号「${phone}」对应的文件夹。${hint}`)
-  }
-
-  let categoryKey = (folder.key || '').trim()
-  if (!categoryKey) {
-    categoryKey = await resolveCategoryKeyFromFolderDocuments(scope.knowledgeId, folder.id)
-  }
-  if (!categoryKey) {
-    throw new Error(
-      `文件夹「${folder.name}」缺少 category_key，无法准确入库。请在平台打开该文件夹复制地址栏中的 category_key，或先在该文件夹上传一份文档后重试。`
-    )
-  }
-
-  const resolved = {
-    knowledgeId: scope.knowledgeId,
-    categoryId: folder.id,
-    categoryKey,
-    categoryName: folder.name,
-  }
-  console.info('[Knowledge] resolveLiveArchiveOwnerFolder', resolved)
-  return resolved
+  const { categoryName, categoryId, categoryKey, knowledgeId } =
+    await ensureArchiveOwnerFolder(phoneInput)
+  return { knowledgeId, categoryId, categoryKey, categoryName }
 }
 
 /**
@@ -352,6 +310,216 @@ export interface KnowledgeCategory {
 }
 
 const PLATFORM_CATEGORY_LIST_PATH = '/api/knowledge/category/list'
+const PLATFORM_CATEGORY_EDIT_PATH = '/api/knowledge/category/edit'
+
+/** 并发去重：同一知识库 + 手机号只发起一次 ensure/create */
+const ensureArchiveOwnerFolderInflight = new Map<
+  string,
+  Promise<{
+    knowledgeId: string
+    categoryId: string
+    categoryKey: string
+    categoryName: string
+  }>
+>()
+
+function isTeacherPhoneForArchiveFolder(phone: string): boolean {
+  return /^1\d{10}$/.test(phone.trim())
+}
+
+function isDuplicateArchiveFolderError(message: string): boolean {
+  return /已存在|已被占用|重复|duplicate|same name/i.test(message)
+}
+
+function parseCreatedCategoryFromResult(raw: unknown): {
+  id: string
+  key: string
+  name: string
+} | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const nested =
+    (obj.category && typeof obj.category === 'object' ? obj.category : null) ||
+    (obj.result && typeof obj.result === 'object' ? obj.result : null) ||
+    obj
+  const record = nested as Record<string, unknown>
+  const id = pickString(record, ['id', 'category_id', 'categoryId'])
+  const name = pickString(record, [
+    'name',
+    'display_name',
+    'displayName',
+    'category_name',
+    'categoryName',
+  ])
+  const key = pickString(record, ['key', 'category_key', 'categoryKey', 'custom_key'])
+  if (!id || !name) return null
+  return { id, key, name }
+}
+
+async function createArchiveOwnerFolder(params: {
+  knowledgeId: string
+  archiveParentId: string
+  archiveParentKey?: string
+  phone: string
+}): Promise<{ categoryId: string; categoryKey: string; categoryName: string }> {
+  const phone = params.phone.trim()
+  const body: Record<string, unknown> = {
+    knowledge_id: parseIdValue(params.knowledgeId),
+    parent_id: parseIdValue(params.archiveParentId),
+    name: phone,
+    display_name: phone,
+  }
+  const parentKey = (params.archiveParentKey || '').trim()
+  if (parentKey) {
+    body.parent_category_key = parentKey
+  }
+
+  console.info('[Knowledge] create archive owner folder', {
+    knowledgeId: params.knowledgeId,
+    parentId: params.archiveParentId,
+    phone,
+  })
+
+  const envelope = await request.post<ApiEnvelope>(PLATFORM_CATEGORY_EDIT_PATH, body)
+  assertSuccess(envelope, '创建个人成果文件夹失败')
+
+  const parsed = parseCreatedCategoryFromResult(envelope.result)
+  if (parsed) {
+    return {
+      categoryId: parsed.id,
+      categoryKey: parsed.key,
+      categoryName: parsed.name,
+    }
+  }
+
+  return { categoryId: '', categoryKey: '', categoryName: phone }
+}
+
+function resolveArchiveOwnerFolderFromCategories(
+  categories: KnowledgeCategory[],
+  archiveParentId: string,
+  phone: string
+): KnowledgeCategory | undefined {
+  const folders = resolveTeacherArchiveFolders(categories, archiveParentId, phone)
+  return (
+    folders.find(
+      (item) => item.id !== archiveParentId && ownerFolderNameMatches(item.name, phone)
+    ) || folders[0]
+  )
+}
+
+async function finalizeArchiveOwnerFolder(
+  scope: ReturnType<typeof archiveKnowledgeScope>,
+  folder: KnowledgeCategory,
+  phone: string
+): Promise<{
+  knowledgeId: string
+  categoryId: string
+  categoryKey: string
+  categoryName: string
+}> {
+  let categoryKey = (folder.key || '').trim()
+  if (!categoryKey) {
+    categoryKey = await resolveCategoryKeyFromFolderDocuments(scope.knowledgeId, folder.id)
+  }
+  if (!categoryKey) {
+    throw new Error(
+      `文件夹「${folder.name}」缺少 category_key，无法准确入库。请在平台打开该文件夹复制地址栏中的 category_key，或先在该文件夹上传一份文档后重试。`
+    )
+  }
+
+  const resolved = {
+    knowledgeId: scope.knowledgeId,
+    categoryId: folder.id,
+    categoryKey,
+    categoryName: folder.name || phone,
+  }
+  console.info('[Knowledge] resolveLiveArchiveOwnerFolder', resolved)
+  return resolved
+}
+
+/**
+ * 确保「教师成果库」下存在与手机号同名的个人文件夹；缺失时自动创建（需平台权限）。
+ */
+export async function ensureArchiveOwnerFolder(
+  phoneInput?: string,
+  options: { autoCreate?: boolean } = {}
+): Promise<{
+  knowledgeId: string
+  categoryId: string
+  categoryKey: string
+  categoryName: string
+  created?: boolean
+}> {
+  const { getCurrentTeacherPhone } = await import('@/api/platformUser')
+  const phone = (phoneInput || (await getCurrentTeacherPhone())).trim()
+  if (!phone) {
+    throw new Error('未能获取手机号，无法上传到个人成果文件夹')
+  }
+
+  const scope = archiveKnowledgeScope()
+  if (!scope.categoryId) {
+    throw new Error('未配置教师成果库分类')
+  }
+
+  const inflightKey = `${scope.knowledgeId}:${phone}`
+  const inflight = ensureArchiveOwnerFolderInflight.get(inflightKey)
+  if (inflight) {
+    const resolved = await inflight
+    return resolved
+  }
+
+  const task = (async () => {
+    let created = false
+    let { categories } = await fetchKnowledgeCategories(scope.knowledgeId)
+    const archiveParentId = resolveArchiveParentId(categories, scope.categoryId)
+    let folder = resolveArchiveOwnerFolderFromCategories(categories, archiveParentId, phone)
+
+    const autoCreate = options.autoCreate !== false
+    if (!folder && autoCreate && isTeacherPhoneForArchiveFolder(phone)) {
+      try {
+        await createArchiveOwnerFolder({
+          knowledgeId: scope.knowledgeId,
+          archiveParentId,
+          archiveParentKey: scope.categoryKey,
+          phone,
+        })
+        created = true
+        ;({ categories } = await fetchKnowledgeCategories(scope.knowledgeId))
+        folder = resolveArchiveOwnerFolderFromCategories(categories, archiveParentId, phone)
+      } catch (err) {
+        const msg = extractErrorMessage(err)
+        if (isDuplicateArchiveFolderError(msg)) {
+          ;({ categories } = await fetchKnowledgeCategories(scope.knowledgeId))
+          folder = resolveArchiveOwnerFolderFromCategories(categories, archiveParentId, phone)
+        } else {
+          throw err
+        }
+      }
+    }
+
+    if (!folder) {
+      const childNames = listArchiveChildFolderNames(categories, archiveParentId)
+      const hint =
+        childNames.length > 0
+          ? `教师成果库下现有文件夹：${childNames.join('、')}`
+          : autoCreate
+            ? '自动创建个人文件夹失败，请联系管理员在教师成果库下手动创建同名文件夹'
+            : '请先在教师成果库下创建与手机号同名的文件夹'
+      throw new Error(`未找到与手机号「${phone}」对应的文件夹。${hint}`)
+    }
+
+    const resolved = await finalizeArchiveOwnerFolder(scope, folder, phone)
+    return { ...resolved, created }
+  })()
+
+  ensureArchiveOwnerFolderInflight.set(inflightKey, task)
+  try {
+    return await task
+  } finally {
+    ensureArchiveOwnerFolderInflight.delete(inflightKey)
+  }
+}
 
 export async function fetchKnowledgeCategories(
   knowledgeId?: string
@@ -696,6 +864,29 @@ export async function fetchArchivePlansForOwnerFolder(
       archiveChildNames: childNames,
       matched: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
     })
+  }
+  if (folders.length === 0 && isTeacherPhoneForArchiveFolder(key)) {
+    try {
+      await ensureArchiveOwnerFolder(key)
+      const refreshed = await fetchKnowledgeCategories(scope.knowledgeId)
+      const retryFolders = resolveTeacherArchiveFolders(
+        refreshed.categories,
+        archiveParentId,
+        key
+      )
+      if (retryFolders.length > 0) {
+        return fetchArchivePlansForOwnerFolder(key, options)
+      }
+    } catch (err) {
+      const msg = extractErrorMessage(err)
+      return {
+        plans: [],
+        source: 'empty',
+        folders: [],
+        folderName: key,
+        error: msg,
+      }
+    }
   }
   if (folders.length === 0) {
     const hint =
@@ -1408,7 +1599,13 @@ async function buildArchiveParsedDocumentContent(
   file: File,
   uploaded: PlatformUploadedFile,
   title: string
-): Promise<{ content: string; summary: string; parseStatus: 'ok' | 'partial' | 'failed' }> {
+): Promise<{
+  content: string
+  summary: string
+  parseStatus: 'ok' | 'partial' | 'failed'
+  /** 入库标题：解析成功时用智能体 title，失败时保留原文件名 */
+  title: string
+}> {
   let extractedText = ''
   try {
     if (isArchiveTextExtractable(file.name)) {
@@ -1430,10 +1627,14 @@ async function buildArchiveParsedDocumentContent(
       platformOcrText: uploaded.text || undefined,
       platformFileData: uploaded.rawResult,
     })
+    const parsedTitle = sanitizeDocTitleSegment(parsed.title, 100)
+    const storageTitle =
+      parsed.status === 'failed' ? title : parsedTitle || title
     return {
       content: parsed.documentContent,
       summary: parsed.summary,
       parseStatus: parsed.status,
+      title: storageTitle,
     }
   } catch (err) {
     // 登录类错误向上抛；其它解析失败回退元数据文档，禁止假装已解析成功
@@ -1443,6 +1644,7 @@ async function buildArchiveParsedDocumentContent(
       content: buildArchiveFileDocumentContent(file, uploaded, title),
       summary: `解析未完成：${err instanceof Error ? err.message.slice(0, 80) : '请人工核对原文件'}`,
       parseStatus: 'failed',
+      title,
     }
   }
 }
@@ -1508,7 +1710,7 @@ export async function uploadKnowledgeFile(params: {
   if (params.forceKind === 'archive') {
     const parsedDoc = await buildArchiveParsedDocumentContent(file, uploadedFile, title)
     const plan = await uploadKnowledgeDocument({
-      title,
+      title: parsedDoc.title,
       content: parsedDoc.content,
       knowledgeId,
       categoryId,
@@ -1519,8 +1721,9 @@ export async function uploadKnowledgeFile(params: {
     if (parsedDoc.summary) {
       plan.objectives = parsedDoc.summary
     }
+    plan.title = parsedDoc.title
     if (parsedDoc.parseStatus === 'failed') {
-      console.warn('[Knowledge] archive uploaded with failed parse, needs human review', title)
+      console.warn('[Knowledge] archive uploaded with failed parse, needs human review', parsedDoc.title)
     }
     return plan
   }

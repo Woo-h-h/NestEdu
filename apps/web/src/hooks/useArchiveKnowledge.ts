@@ -3,6 +3,7 @@ import type { TeachingPlan } from '@/types/weeklyPlan'
 import {
   archiveKnowledgeScope,
   deleteKnowledgeDocument,
+  ensureArchiveOwnerFolder,
   fetchArchivePlansForOwnerFolder,
   isArchiveKnowledgeConfigured,
   resolveLiveArchiveOwnerFolder,
@@ -118,9 +119,7 @@ export function useArchiveKnowledge() {
     }
     if (!currentPhone) throw new Error('未能获取手机号，无法上传到个人成果文件夹')
     if (!uploadTarget) {
-      throw new Error(
-        `未找到与手机号「${currentPhone}」对应的文件夹，请先在教师成果库下创建同名文件夹`
-      )
+      await ensureArchiveOwnerFolder(currentPhone)
     }
     if (uploadFiles.length === 0) throw new Error('请先选择要上传的文件')
 
