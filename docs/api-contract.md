@@ -137,7 +137,7 @@
 - 非流式：`POST /v1/text/generate`，body `{ "agent_id": <id>, "text": "..." }`
 - 教案智能体：[teach/agent/config/14317](https://www.zcat.cn/teach/agent/config/14317)（`VITE_TEACHING_AGENT_ID`，默认 `14317`）
 - 周计划智能体：[teach/agent/config/14332](https://www.zcat.cn/teach/agent/config/14332)（`VITE_WEEKLY_PLAN_AGENT_ID`，默认 `14332`）
-- 周计划生成会注入：已勾选教案全文 + 知识库 10298 检索摘要
+- 周计划生成会注入：已勾选教案全文 + 知识库 10368 检索摘要
 - 本地开发：Vite 代理 `/v1` → `VITE_PLATFORM_API_BASE_URL`
 
 未登录时提示先登录；智能体失败时可降级后端 BFF / DeepSeek / Mock（若已配置）。
@@ -151,7 +151,7 @@
 - 上传：`POST /api/knowledge/document/text`（body: `knowledge_id`, `category_id?`, `title`/`name`, `text`/`content`）
 - 原文件上传（成果库）：先 `POST /api/file/upload`（multipart `file`），再尝试 `POST /api/knowledge/document/file`（JSON `file_id`/`file_url`）或回退 `document/text` 写入可检索正文
 
-默认知识库：[`teach/knowledge/detail/10298`](https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20806&category_key=custom_1784259353619)（`VITE_DEFAULT_KNOWLEDGE_ID=10298`，分类 `20806`）。鉴权头由 auth-bridge 注入。失败时前端回退本地预设教案。
+默认知识库：[`teach/knowledge/detail/10368`](https://www.zcat.cn/teach/knowledge/detail/10368?category_id=20806&category_key=custom_1784259353619)（`VITE_DEFAULT_KNOWLEDGE_ID=10368`，分类 `20806`）。鉴权头由 auth-bridge 注入。失败时前端回退本地预设教案。
 
 本地开发代理：`VITE_PLATFORM_API_BASE_URL`（默认 `https://api.zcat.cn`）。
 
@@ -161,7 +161,7 @@
 
 | 变量 | 说明 |
 |------|------|
-| `VITE_DEFAULT_KNOWLEDGE_ID` | 默认知识库 ID（默认 `10298`） |
+| `VITE_DEFAULT_KNOWLEDGE_ID` | 默认知识库 ID（默认 `10368`） |
 | `VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID` | 默认分类 ID（默认 `20806`） |
 | `VITE_DEFAULT_KNOWLEDGE_CATEGORY_KEY` | 默认分类 key |
 | `VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID` | 周计划分类 ID（默认 `20807`） |

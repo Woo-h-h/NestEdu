@@ -95,7 +95,7 @@ func Load() (Config, error) {
 			KnowledgeDetailPath: getEnv("KNOWLEDGE_DETAIL_PATH", "/api/knowledge/document/detail"),
 			KnowledgeUploadPath: getEnv("KNOWLEDGE_UPLOAD_PATH", "/api/knowledge/document/text"),
 			KnowledgeDeletePath: getEnv("KNOWLEDGE_DELETE_PATH", "/api/knowledge/document/delete"),
-			DefaultKnowledgeID:  getEnv("DEFAULT_KNOWLEDGE_ID", "10298"),
+			DefaultKnowledgeID:  getEnv("DEFAULT_KNOWLEDGE_ID", "10368"),
 			ActivityCategoryID:  getEnv("DEFAULT_KNOWLEDGE_CATEGORY_ID", "20806"),
 			ActivityCategoryKey: getEnv("DEFAULT_KNOWLEDGE_CATEGORY_KEY", "custom_1784259353619"),
 			WeeklyCategoryID:    getEnv("WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID", "20807"),

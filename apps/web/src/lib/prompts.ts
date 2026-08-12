@@ -271,3 +271,72 @@ export function buildTeachingPlanUserMessage(params: {
 
 /** 可复制到 AI101 周计划智能体（14332）平台侧系统提示词 */
 export const WEEKLY_PLAN_AGENT_PLATFORM_PROMPT = buildGenerateSystemPrompt()
+
+/**
+ * 成果解析智能体系统提示词（平台 agent 14509）。
+ * 复制到：https://www.zcat.cn/teach/agent/chat/14509 或 config 页「系统提示词」。
+ */
+export const ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT = `你是「华科附幼 / NestEdu」教师成果解析智能体，服务幼儿园教师专业成长材料整理。
+
+【任务】
+根据用户提供的成果材料（文件名、文件地址、可提取正文、平台 OCR 文本等），解析出可供成果库展示与教师画像引用的结构化内容。
+你要做的是「看懂材料在说什么」，而不是复述文件格式或空泛介绍截图软件。
+
+【材料类型（materialType，选一）】
+- 专业研究成果（论文、课题、案例、课例）
+- 获奖与荣誉（证书、奖状、表彰）
+- 学习与研修（培训、听课、读书、会议）
+- 教学过程资料（教案截图、观察记录、家园沟通截图）
+- 其他
+
+【硬性规则】
+1. 禁止只输出「这是一张企业微信截图 / 图片文件 / 用于存档」这类空话。
+2. 若材料为图片且给出了文件地址：须结合图片可读信息（文字 OCR 语义、证书要素、对话要点、界面关键字段）进行归纳；看不清的部分明确写「无法辨认」，并设 needsHumanReview=true。
+3. 若仅有文件名与链接、无可读正文：summary/body 须说明「缺少可解析正文，需打开原文件人工核对」，needsHumanReview=true，不得编造获奖名次、课题名称、论文结论等事实。
+4. 不得虚构不存在的奖项、单位、日期、结论；不确定就标注待核对。
+5. 文风：简洁、客观、幼教语境；禁用排名/绩效打分表述。
+6. 只输出一个 JSON 对象，不要 Markdown 代码围栏以外的说明文字。
+
+【输出 JSON 字段】
+{
+  "title": "简洁成果标题（可读，不要哈希串）",
+  "summary": "80～200 字成果摘要，写清材料主题与关键信息",
+  "body": "结构化正文（可用换行与小标题），包含：材料说明、识别到的要点、对保教工作的意义（若可判断）",
+  "materialType": "上述类型之一",
+  "keyPoints": ["要点1", "要点2"],
+  "needsHumanReview": false
+}`
+
+export function buildArchiveParseUserMessage(params: {
+  fileName: string
+  fileUrl?: string
+  fileSize: number
+  mimeType?: string
+  extractedText?: string
+  platformOcrText?: string
+}): string {
+  const parts = [
+    '请解析下列教师成果材料，并按系统要求只输出 JSON。',
+    `文件名：${params.fileName}`,
+    `大小：${params.fileSize} 字节`,
+  ]
+  if (params.mimeType) parts.push(`MIME：${params.mimeType}`)
+  if (params.fileUrl?.trim()) {
+    parts.push(`文件地址：${params.fileUrl.trim()}`)
+    parts.push(
+      '若为图片，请阅读该地址对应图片中的文字与版式信息后再归纳；禁止只根据扩展名下结论。'
+    )
+  }
+  const ocr = (params.platformOcrText || '').trim()
+  if (ocr) {
+    parts.push('--- 平台返回的解析/OCR 文本 ---', ocr.slice(0, 12000))
+  }
+  const extracted = (params.extractedText || '').trim()
+  if (extracted) {
+    parts.push('--- 客户端提取的文本 ---', extracted.slice(0, 12000))
+  }
+  if (!ocr && !extracted && !params.fileUrl?.trim()) {
+    parts.push('（未提供正文与文件地址，请返回需人工核对的结果，勿编造。）')
+  }
+  return parts.join('\n')
+}

@@ -5,6 +5,7 @@ import { useArchiveKnowledge } from '@/hooks/useArchiveKnowledge'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import { runArchiveDebug, type ArchiveDebugPayload } from '@/lib/archiveDebug'
+import { getArchiveCategoryId, getArchiveCategoryKey, getDefaultKnowledgeId } from '@/api/knowledge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
 import PlanManageList from '@/pages/resources/PlanManageList'
@@ -129,7 +130,12 @@ export default function ArchivePage() {
   const handleConfirmUpload = async () => {
     try {
       const uploaded = await kb.confirmPendingUpload('platform')
-      toast.success(`已成功上传 ${uploaded.length} 份到教师成果库`)
+      const needsReview = uploaded.some((p) => (p.objectives || '').includes('解析未完成'))
+      toast.success(
+        needsReview
+          ? `已上传 ${uploaded.length} 份；部分解析需人工核对，请打开详情查看`
+          : `已成功上传并解析 ${uploaded.length} 份到教师成果库`
+      )
     } catch (err) {
       toast.error(getApiErrorMessage(err, '上传失败'))
     }
@@ -216,7 +222,7 @@ export default function ArchivePage() {
             对接{' '}
             <a
               className="text-nest-pine underline-offset-2 hover:underline"
-              href="https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20895&category_key=custom_1785116184487"
+              href={`https://www.zcat.cn/teach/knowledge/detail/${getDefaultKnowledgeId()}?category_id=${getArchiveCategoryId()}&category_key=${getArchiveCategoryKey()}`}
               target="_blank"
               rel="noreferrer"
             >
@@ -327,7 +333,7 @@ export default function ArchivePage() {
                   ? `上传到「${kb.uploadTarget.name}」文件夹`
                   : '上传文件到个人成果文件夹'
               }
-              hint="将文件拖到此处；仅写入与您手机号同名的文件夹。上传为原文件入库，不做内容识别/OCR，确认后才会入库"
+              hint="将文件拖到此处；仅写入与您手机号同名的文件夹。上传后会先经成果解析智能体归纳正文，再入库；解析失败会保留原文件并提示人工核对"
               accept={ARCHIVE_UPLOAD_ACCEPT}
               allowedExtensions={[...ARCHIVE_UPLOAD_EXTENSIONS]}
               formatLabel={ARCHIVE_UPLOAD_FORMAT_LABEL}
@@ -375,7 +381,7 @@ export default function ArchivePage() {
           plans={kb.platformPlans}
           loading={kb.isLoadingPlatform}
           showPlanTags={false}
-          emptyObjectivesHint="未解析正文（仅存原文件）"
+          emptyObjectivesHint="等待打开查看解析正文；若仍无摘要说明解析未完成"
           sourceHint={kb.listHint}
           emptyHint={
             kb.configured
@@ -401,8 +407,8 @@ export default function ArchivePage() {
         onConfirm={() => void handleConfirmUpload()}
         targetHint={
           kb.uploadTarget
-            ? `将原文件上传到教师成果库个人文件夹「${kb.uploadTarget.name}」（分类 ${kb.uploadTarget.id}）。`
-            : '将原文件上传到教师成果库个人文件夹。'
+            ? `将先上传原文件并调用成果解析智能体，再写入个人文件夹「${kb.uploadTarget.name}」。解析失败时仍保留原文件，并标注需人工核对。`
+            : '将先上传原文件并调用成果解析智能体，再写入教师成果库个人文件夹。'
         }
         confirmLabel={
           kb.pendingUploads.length > 0

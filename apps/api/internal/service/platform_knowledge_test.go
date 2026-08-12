@@ -30,7 +30,7 @@ func TestGoldenListWrapped(t *testing.T) {
 		t.Fatalf("expected total 2, got %d", envelope.Total)
 	}
 
-	plans, err := mapPlatformPlans(envelope.Result, "10298")
+	plans, err := mapPlatformPlans(envelope.Result, "10368")
 	if err != nil {
 		t.Fatalf("map list: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestGoldenDetailNested(t *testing.T) {
 		t.Fatalf("unmarshal envelope: %v", err)
 	}
 
-	plans, err := mapPlatformPlansStrict(envelope.Result, "10298", PlatformMapDetail)
+	plans, err := mapPlatformPlansStrict(envelope.Result, "10368", PlatformMapDetail)
 	if err != nil {
 		t.Fatalf("map detail: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestGoldenUploadThin(t *testing.T) {
 		t.Fatalf("unmarshal envelope: %v", err)
 	}
 
-	plans, err := mapPlatformPlansStrict(envelope.Result, "10298", PlatformMapUpload)
+	plans, err := mapPlatformPlansStrict(envelope.Result, "10368", PlatformMapUpload)
 	if err != nil {
 		t.Fatalf("map upload: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestGoldenListSkipsMissingID(t *testing.T) {
 		t.Fatalf("unmarshal envelope: %v", err)
 	}
 
-	plans, err := mapPlatformPlans(envelope.Result, "10298")
+	plans, err := mapPlatformPlans(envelope.Result, "10368")
 	if err != nil {
 		t.Fatalf("map list: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestGoldenListSkipsMissingID(t *testing.T) {
 
 func TestDetailRejectsMissingID(t *testing.T) {
 	raw := json.RawMessage(`{"title":"无ID详情","content":"x"}`)
-	_, err := mapPlatformPlansStrict(raw, "10298", PlatformMapDetail)
+	_, err := mapPlatformPlansStrict(raw, "10368", PlatformMapDetail)
 	if err == nil {
 		t.Fatal("expected error for detail without id")
 	}

@@ -25,7 +25,7 @@
 
 ### 3. 智能体调用与文档处理
 
-对接平台 **`POST /v1/text/generate`**，活动方案 / 周计划 / 教师画像分 Agent 调用（`14317` / `14332` / `14372`）；前端拼装提示词、解析结构化输出，画像侧注入本人活动/周计划摘要。知识库 **`10298`** 三分类隔离（教案 `20806` / 周计划 `20807` / 教师成果库 `20895`）；成果库按**登录手机号**匹配个人文件夹。文档侧支持 mammoth 解析 Word、**先 `/api/file/upload` 再登记知识库**的多格式成果上传，以及 docx/PDF 自主导出。
+对接平台 **`POST /v1/text/generate`**，活动方案 / 周计划 / 教师画像分 Agent 调用（`14317` / `14332` / `14372`）；前端拼装提示词、解析结构化输出，画像侧注入本人活动/周计划摘要。知识库 **`10368`** 三分类隔离（教案 `20806` / 周计划 `20807` / 教师成果库 `20895`）；成果库按**登录手机号**匹配个人文件夹。文档侧支持 mammoth 解析 Word、**先 `/api/file/upload` 再登记知识库**的多格式成果上传，以及 docx/PDF 自主导出。
 
 ### 4. 工程化交付
 
@@ -146,7 +146,7 @@ flowchart TB
 
 ## 知识库与智能体
 
-同一知识库 **`10298`**，分类隔离：
+同一知识库 **`10368`**，分类隔离：
 
 | 用途 | 分类 ID | 说明 |
 |------|---------|------|
@@ -236,7 +236,7 @@ pnpm dev                # http://localhost:3005
 ```bash
 VITE_USE_BACKEND_API=true          # 需要 MySQL 计数 / 画像快照时为 true
 VITE_AI101_DIRECT_AUTH=true
-VITE_DEFAULT_KNOWLEDGE_ID=10298
+VITE_DEFAULT_KNOWLEDGE_ID=10368
 VITE_DEFAULT_KNOWLEDGE_CATEGORY_ID=20806
 VITE_WEEKLY_PLAN_KNOWLEDGE_CATEGORY_ID=20807
 VITE_ARCHIVE_KNOWLEDGE_CATEGORY_ID=20895

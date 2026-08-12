@@ -10,7 +10,7 @@ import ActivityPlanPreview from '@/pages/resources/ActivityPlanPreview'
 import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
-import { fetchKnowledgePlanById } from '@/api/knowledge'
+import { fetchKnowledgePlanById, getArchiveCategoryId, getArchiveCategoryKey, getDefaultKnowledgeId } from '@/api/knowledge'
 import { exportTeachingPlanToDoc } from '@/lib/export-doc'
 import { Upload, BookOpen, Wand2, RefreshCw, CloudUpload } from 'lucide-react'
 import { isBackendApiEnabled } from '@/api/llm'
@@ -420,7 +420,7 @@ export default function ResourcesPage() {
             emptyHint={
               isLoggedIn
                 ? '知识库暂无文档，可上传文件或到「活动方案生成」入库'
-                : '请先登录平台以加载知识库 10298'
+                : `请先登录平台以加载知识库 ${getDefaultKnowledgeId()}`
             }
             onView={handleView}
             onDelete={handleDelete}

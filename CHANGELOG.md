@@ -2,6 +2,18 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-12 — 默认知识库迁移至 10368
+
+- 业务：平台教案/周计划/成果库统一对接新知识库 [`10368`](https://www.zcat.cn/teach/knowledge/detail/10368)。
+- 技术：`.env` / `.env.example`、`DEFAULT_KNOWLEDGE_ID`、`VITE_DEFAULT_KNOWLEDGE_ID`、Docker 构建默认值、文档与前端 fallback 同步为 `10368`；分类 ID（20806/20807/20895）保持不变。
+- 验证：重启 dev 后抽测活动方案列表、周计划、成果库上传。
+
+## 2026-08-12 — 成果库上传接入解析智能体 14509
+
+- 业务：成果文件上传后先经智能体解析再入库；详情展示成果摘要/正文，图片可预览；解析失败明确提示人工核对，不假装成功。
+- 技术：`ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT` + `parseArchiveAchievement`；`uploadKnowledgeFile(archive)` 流程改为 file/upload → agent → document/text；`VITE_ARCHIVE_PARSE_AGENT_ID=14509`。
+- 验证：`pnpm --filter ./apps/web build`；平台 agent 14509 需粘贴同套系统提示词。
+
 ## 2026-08-12 — 教案/周计划仅允许删除「我的」
 
 - 业务：知识库管理中，教师只能删除本人入库的教案或周计划；「全部」列表里他人文档不再显示删除按钮。

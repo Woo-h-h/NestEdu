@@ -51,15 +51,15 @@ const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024
 
 const MAX_UPLOAD_TEXT_CHARS = 2 * 1024 * 1024
 
-/** 对应 https://www.zcat.cn/teach/knowledge/detail/10298 */
-const PRODUCT_DEFAULT_KNOWLEDGE_ID = '10298'
+/** 对应 https://www.zcat.cn/teach/knowledge/detail/10368 */
+const PRODUCT_DEFAULT_KNOWLEDGE_ID = '10368'
 /** 教案分类（课程资源库） */
 const PRODUCT_DEFAULT_CATEGORY_ID = '20806'
 const PRODUCT_DEFAULT_CATEGORY_KEY = 'custom_1784259353619'
-/** 周计划分类 https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20807&category_key=custom_1784275664825 */
+/** 周计划分类 https://www.zcat.cn/teach/knowledge/detail/10368?category_id=20807&category_key=custom_1784275664825 */
 const PRODUCT_WEEKLY_CATEGORY_ID = '20807'
 const PRODUCT_WEEKLY_CATEGORY_KEY = 'custom_1784275664825'
-/** 教师成果库 https://www.zcat.cn/teach/knowledge/detail/10298?category_id=20895&category_key=custom_1785116184487 */
+/** 教师成果库 https://www.zcat.cn/teach/knowledge/detail/10368?category_id=20895&category_key=custom_1785116184487 */
 const PRODUCT_ARCHIVE_CATEGORY_ID = '20895'
 const PRODUCT_ARCHIVE_CATEGORY_KEY = 'custom_1785116184487'
 
@@ -1384,6 +1384,51 @@ function buildArchiveFileDocumentContent(
 }
 
 /**
+ * 成果库：二进制上平台 → 智能体解析 → 写入知识库文本文档（含摘要与原文件链接）。
+ */
+async function buildArchiveParsedDocumentContent(
+  file: File,
+  uploaded: PlatformUploadedFile,
+  title: string
+): Promise<{ content: string; summary: string; parseStatus: 'ok' | 'partial' | 'failed' }> {
+  let extractedText = ''
+  try {
+    if (isArchiveTextExtractable(file.name)) {
+      extractedText = await extractArchiveFileText(file)
+    }
+  } catch (err) {
+    console.warn('[Knowledge] local text extract failed', err)
+  }
+
+  try {
+    const { parseArchiveAchievement } = await import('@/api/archiveParseAgent')
+    const parsed = await parseArchiveAchievement({
+      title,
+      fileName: file.name,
+      fileUrl: uploaded.url || undefined,
+      fileSize: file.size,
+      mimeType: file.type || undefined,
+      extractedText: extractedText || undefined,
+      platformOcrText: uploaded.text || undefined,
+    })
+    return {
+      content: parsed.documentContent,
+      summary: parsed.summary,
+      parseStatus: parsed.status,
+    }
+  } catch (err) {
+    // 登录类错误向上抛；其它解析失败回退元数据文档，禁止假装已解析成功
+    if (err instanceof Error && err.message.includes('请先登录')) throw err
+    console.warn('[Knowledge] archive parse agent unavailable, fallback metadata', err)
+    return {
+      content: buildArchiveFileDocumentContent(file, uploaded, title),
+      summary: `解析未完成：${err instanceof Error ? err.message.slice(0, 80) : '请人工核对原文件'}`,
+      parseStatus: 'failed',
+    }
+  }
+}
+
+/**
  * 成果库多格式上传：先 `/api/file/upload`，再写入知识库文本文档。
  * 直接打 `/api/knowledge/document/file` 易返回「参数错误」（字段契约与 SPA 不一致）。
  */
@@ -1437,21 +1482,29 @@ export async function uploadKnowledgeFile(params: {
   })
 
   const uploadedFile = await uploadPlatformBinaryFile(file)
-  const content = buildArchiveFileDocumentContent(file, uploadedFile, title)
 
-  // 成果库：跳过 document/file（易忽略 category_key / category_name 并落到根目录），统一走 text + 入库校验
+  // 成果库：先智能解析，再写入 document/text（跳过不可靠的 document/file）
   if (params.forceKind === 'archive') {
-    return uploadKnowledgeDocument({
+    const parsedDoc = await buildArchiveParsedDocumentContent(file, uploadedFile, title)
+    const plan = await uploadKnowledgeDocument({
       title,
-      content,
+      content: parsedDoc.content,
       knowledgeId,
       categoryId,
       categoryKey,
       forceKind: 'archive',
     })
+    // 列表摘要优先用解析 summary，避免卡片只显示文件元数据
+    if (parsedDoc.summary) {
+      plan.objectives = parsedDoc.summary
+    }
+    if (parsedDoc.parseStatus === 'failed') {
+      console.warn('[Knowledge] archive uploaded with failed parse, needs human review', title)
+    }
+    return plan
   }
 
-  // 优先：用 file_id / url 调 document/file（若平台支持）
+  const content = buildArchiveFileDocumentContent(file, uploadedFile, title)
   const fileRegisterAttempts: Array<Record<string, unknown>> = []
   if (uploadedFile.id || uploadedFile.url) {
     const base: Record<string, unknown> = {

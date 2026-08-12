@@ -25,7 +25,7 @@ func newKnowledgeTestRouter(t *testing.T, platformHandler http.HandlerFunc) *htt
 	knowledgeService := service.NewKnowledgeService(platformClient, service.KnowledgeConfig{
 		ListPath:   "/api/knowledge/document/list",
 		DetailPath: "/api/knowledge/document/detail",
-		DefaultID:  "10298",
+		DefaultID:  "10368",
 	})
 
 	r := ginNewTestEngine()
@@ -65,14 +65,14 @@ func TestKnowledgeListPlansFromPlatform(t *testing.T) {
 					"desc":          "认识自然",
 					"content":       "教案正文",
 					"category_name": "科学",
-					"knowledge_id":  10298,
+					"knowledge_id":  10368,
 				},
 			},
 		})
 	})
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/knowledge/plans?knowledgeId=10298")
+	resp, err := http.Get(server.URL + "/api/v1/knowledge/plans?knowledgeId=10368")
 	if err != nil {
 		t.Fatalf("get knowledge plans: %v", err)
 	}

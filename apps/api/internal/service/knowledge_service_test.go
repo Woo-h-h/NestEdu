@@ -13,24 +13,24 @@ func TestMapPlatformPlansDocumentList(t *testing.T) {
 			"desc": "观察春天植物",
 			"content": "教案正文内容",
 			"category_name": "科学",
-			"knowledge_id": 10298
+			"knowledge_id": 10368
 		}
 	]`)
 
-	plans, err := mapPlatformPlans(raw, "10298")
+	plans, err := mapPlatformPlans(raw, "10368")
 	if err != nil {
 		t.Fatalf("map platform plans: %v", err)
 	}
 	if len(plans) != 1 {
 		t.Fatalf("expected 1 plan, got %d", len(plans))
 	}
-	if plans[0].ID != "501" || plans[0].Title != "春天来了" || plans[0].KnowledgeID != "10298" {
+	if plans[0].ID != "501" || plans[0].Title != "春天来了" || plans[0].KnowledgeID != "10368" {
 		t.Fatalf("unexpected mapped plan: %+v", plans[0])
 	}
 }
 
 func TestMapPlatformPlansEmptyResult(t *testing.T) {
-	plans, err := mapPlatformPlans(json.RawMessage("[]"), "10298")
+	plans, err := mapPlatformPlans(json.RawMessage("[]"), "10368")
 	if err != nil {
 		t.Fatalf("map empty plans: %v", err)
 	}
