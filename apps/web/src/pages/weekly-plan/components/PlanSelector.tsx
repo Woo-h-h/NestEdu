@@ -14,6 +14,7 @@ import {
 import { authBridge } from '@/lib/authBridge'
 import {
   emptyMineTeacherPlans,
+  isOwnedTeacherPlan,
   loadMineTeacherPlans,
 } from '@/lib/loadMineTeacherPlans'
 
@@ -358,7 +359,10 @@ export default function PlanSelector({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((plan) => {
             const isSel = selected.some((p) => p.id === plan.id)
-            const canDelete = Boolean(onDelete) && plan.source !== 'preset'
+            const canDelete =
+              Boolean(onDelete) &&
+              plan.source !== 'preset' &&
+              (!showTaxonomy || isOwnedTeacherPlan(plan, mineDocIds, mineTitles))
             return (
               <div
                 key={plan.id}
@@ -388,7 +392,7 @@ export default function PlanSelector({
                     {canDelete && (
                       <button
                         type="button"
-                        title="删除"
+                        title="删除本人文档"
                         disabled={deleting}
                         onClick={(e) => {
                           e.stopPropagation()

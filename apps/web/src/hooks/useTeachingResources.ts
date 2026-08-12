@@ -27,6 +27,7 @@ import {
   loadActivityPlanDraft,
   saveActivityPlanDraft,
 } from '@/lib/generationDraft'
+import { assertCanDeleteTeacherPlan } from '@/lib/loadMineTeacherPlans'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
 import type { FocusDomain } from '@/pages/resources/DomainSelector'
 
@@ -314,6 +315,8 @@ export function useTeachingResources() {
         setUploadSelection((prev) => prev.filter((p) => p.id !== plan.id))
         return { platformDeleted: true as const }
       }
+      // 知识库文档：仅允许删除本人入库映射中的教案
+      await assertCanDeleteTeacherPlan(plan, 'activity')
       if (plan.source === 'mysql' || plan.id.startsWith('local_')) {
         await deleteTeacherGeneratedDocRecord(plan.id)
         setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))

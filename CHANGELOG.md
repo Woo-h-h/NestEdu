@@ -2,6 +2,12 @@
 
 按时间倒序记录 NestEdu / 启芽智教的产品与工程更新摘要。
 
+## 2026-08-12 — 教案/周计划仅允许删除「我的」
+
+- 业务：知识库管理中，教师只能删除本人入库的教案或周计划；「全部」列表里他人文档不再显示删除按钮。
+- 技术：`isOwnedTeacherPlan` / `assertCanDeleteTeacherPlan`；`PlanManageList` / `PlanSelector` 按本人映射控制删除入口；`useTeachingResources` / `useWeeklyPlanKnowledge` 删除前二次校验。
+- 验证：`pnpm --filter ./apps/web build`
+
 ## 2026-08-07 — Docker 构建改用国内 npm 镜像装 pnpm
 
 - 业务：无。

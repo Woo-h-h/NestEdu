@@ -177,3 +177,47 @@ export function emptyMineTeacherPlans(): MineTeacherPlansResult {
     extraPlans: [],
   }
 }
+
+/**
+ * 是否属于当前教师可管理的文档（「我的」）。
+ * - 会话内 AI 草稿 / 本地 mysql 映射：视为本人
+ * - 平台文档：须命中本人入库映射（knowledgeDocId 或标题）
+ */
+export function isOwnedTeacherPlan(
+  plan: TeachingPlan,
+  mineDocIds: Set<string>,
+  mineTitles: Set<string>
+): boolean {
+  if (plan.source === 'preset') return false
+  if (plan.source === 'ai') return true
+  if (plan.source === 'mysql' || plan.id.startsWith('local_')) return true
+  const id = (plan.id || '').trim()
+  const title = (plan.title || '').trim()
+  return Boolean((id && mineDocIds.has(id)) || (title && mineTitles.has(title)))
+}
+
+/** 删除前强制校验：只能删本人入库的教案/周计划 */
+export async function assertCanDeleteTeacherPlan(
+  plan: TeachingPlan,
+  docType: TeacherGeneratedDocType
+): Promise<void> {
+  if (plan.source === 'preset') {
+    throw new Error('本地预设不可删除')
+  }
+  if (plan.source === 'ai') return
+  if (plan.source === 'mysql' || plan.id.startsWith('local_')) return
+
+  if (!authBridge.getAuthInfo()?.token) {
+    throw new Error('请先登录后再删除')
+  }
+  const phone = (await getCurrentTeacherPhone()).trim()
+  if (!phone) {
+    throw new Error('未获取到手机号，无法校验删除权限')
+  }
+  const rows = await listTeacherGeneratedDocs(phone, docType)
+  const docIds = new Set(rows.map((r) => r.knowledgeDocId).filter(Boolean))
+  const titles = new Set(rows.map((r) => r.title.trim()).filter(Boolean))
+  if (!isOwnedTeacherPlan(plan, docIds, titles)) {
+    throw new Error('只能删除本人入库的文档，无权删除其他教师的教案或周计划')
+  }
+}

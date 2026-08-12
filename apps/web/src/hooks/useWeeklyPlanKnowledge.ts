@@ -20,6 +20,7 @@ import {
 } from '@/lib/knowledgeDocTitle'
 import { authBridge } from '@/lib/authBridge'
 import type { PendingUploadItem } from '@/pages/resources/UploadConfirmDialog'
+import { assertCanDeleteTeacherPlan } from '@/lib/loadMineTeacherPlans'
 
 /** 周计划知识库管理（分类 20807），镜像课程资源库「知识库管理」 */
 export function useWeeklyPlanKnowledge() {
@@ -144,6 +145,8 @@ export function useWeeklyPlanKnowledge() {
     }
     setIsDeleting(true)
     try {
+      // 知识库文档：仅允许删除本人入库映射中的周计划
+      await assertCanDeleteTeacherPlan(plan, 'weekly')
       if (plan.source === 'mysql' || plan.id.startsWith('local_')) {
         await deleteTeacherGeneratedDocRecord(plan.id)
         setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))

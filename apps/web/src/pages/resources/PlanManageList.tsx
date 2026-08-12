@@ -19,6 +19,7 @@ import { relocateMissingMineDocs } from '@/api/relocateTeacherDocs'
 import { getApiErrorMessage } from '@/lib/apiError'
 import {
   emptyMineTeacherPlans,
+  isOwnedTeacherPlan,
   loadMineTeacherPlans,
 } from '@/lib/loadMineTeacherPlans'
 import { toast } from 'sonner'
@@ -508,7 +509,11 @@ export default function PlanManageList({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((plan) => {
           const isSel = selected.some((p) => p.id === plan.id)
-          const canDelete = Boolean(onDelete) && plan.source !== 'preset'
+          // 教案/周计划知识库：仅「我的」可删；生成草稿（无 taxonomy）保持可删
+          const canDelete =
+            Boolean(onDelete) &&
+            plan.source !== 'preset' &&
+            (!showTaxonomy || isOwnedTeacherPlan(plan, mineDocIds, mineTitles))
           const canPromote =
             showTaxonomy &&
             (plan.source === 'mysql' || plan.id.startsWith('local_')) &&
@@ -590,7 +595,7 @@ export default function PlanManageList({
                   {canDelete && (
                     <button
                       type="button"
-                      title="删除"
+                      title="删除本人文档"
                       disabled={deleting}
                       onClick={(e) => {
                         e.stopPropagation()
