@@ -36,6 +36,7 @@ func registerPlatformProxy(r *gin.Engine, cfg service.PlatformClientConfig) {
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.FlushInterval = -1 // 智能体 SSE 需立即刷出，避免成果解析一直空等
 	proxy.Transport = &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ResponseHeaderTimeout: 120 * time.Second,
@@ -69,17 +70,22 @@ func registerPlatformProxy(r *gin.Engine, cfg service.PlatformClientConfig) {
 
 	// 用中间件前缀匹配，避免 Gin 通配路由在部分路径下未命中
 	r.Use(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/api/knowledge") ||
-			strings.HasPrefix(path, "/api/user") ||
-			strings.HasPrefix(path, "/api/file") ||
-			path == "/v1" ||
-			strings.HasPrefix(path, "/v1/") {
+		if isPlatformProxyPath(c.Request.URL.Path) {
 			handler(c)
 			return
 		}
 		c.Next()
 	})
+}
+
+// isPlatformProxyPath 判断是否应反代到平台（知识库 / 文件 / 用户 / 智能体对话 / 开放 API）。
+func isPlatformProxyPath(path string) bool {
+	return strings.HasPrefix(path, "/api/knowledge") ||
+		strings.HasPrefix(path, "/api/user") ||
+		strings.HasPrefix(path, "/api/file") ||
+		strings.HasPrefix(path, "/api/ai") ||
+		path == "/v1" ||
+		strings.HasPrefix(path, "/v1/")
 }
 
 func escapeJSON(s string) string {

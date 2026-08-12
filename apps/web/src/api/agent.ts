@@ -248,7 +248,15 @@ export async function generateAgentChatWithFiles(params: {
     if (response.status === 401 || response.status === 403) {
       throw new Error('请先登录后再使用智能生成')
     }
-    throw new Error(`智能体对话失败 (${response.status})`)
+    let detail = ''
+    try {
+      const raw = await response.text()
+      const parsed = JSON.parse(raw) as AgentTextGenerateEnvelope
+      detail = (parsed.errorMessage || parsed.error_message || parsed.message || '').trim()
+    } catch {
+      // ignore non-JSON error body
+    }
+    throw new Error(detail || `智能体对话失败 (${response.status})`)
   }
   if (!response.body) throw new Error('智能体未返回数据流')
 

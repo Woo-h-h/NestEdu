@@ -21,7 +21,7 @@
 
 ### 2. 平台网关与鉴权透传
 
-生产环境 Go 中间件反代 **`/api/knowledge`、`/api/file`、`/api/user`、`/v1/*`**，同域收敛跨域；开发期 Vite 代理相同前缀至 `api.zcat.cn`。`@zcat-open/auth-bridge` 支持 iframe postMessage 取 Token 与顶层 SSO ticket 换票；axios 拦截器自动注入 `Authorization`、`X-Uid-Hash` 等鉴权头，未登录显式拦截，**不静默 Mock 成功**。
+生产环境 Go 中间件反代 **`/api/knowledge`、`/api/file`、`/api/user`、`/api/ai`、`/v1/*`**，同域收敛跨域；开发期 Vite 代理相同前缀至 `api.zcat.cn`。`@zcat-open/auth-bridge` 支持 iframe postMessage 取 Token 与顶层 SSO ticket 换票；axios 拦截器自动注入 `Authorization`、`X-Uid-Hash` 等鉴权头，未登录显式拦截，**不静默 Mock 成功**。
 
 ### 3. 智能体调用与文档处理
 
@@ -277,7 +277,8 @@ pnpm run ci
 | `/api/knowledge` | 平台知识库（须写在 `/api/v1` 之前） |
 | `/api/file` | 平台文件上传 |
 | `/api/user` | 平台用户资料 |
-| `/v1` | 平台智能体 |
+| `/api/ai` | 平台智能体对话（成果解析附件识图） |
+| `/v1` | 平台智能体开放 API |
 | `/api/public/user/account/login_auto` | 换票 |
 | `/api/v1` | 本地 Go BFF |
 
@@ -286,7 +287,7 @@ pnpm run ci
 | 路径 | 行为 |
 |------|------|
 | `/api/v1/*` | BFF（成果、快照、本人入库记录等） |
-| `/api/knowledge`、`/api/file`、`/api/user`、`/v1/*` | 反代平台 |
+| `/api/knowledge`、`/api/file`、`/api/user`、`/api/ai`、`/v1/*` | 反代平台 |
 | 静态资源 | `WEB_STATIC_DIR` 托管 SPA |
 
 ---
