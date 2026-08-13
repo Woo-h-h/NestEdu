@@ -187,9 +187,10 @@ export default function ResourcesPage() {
       </div>
       {res.section === 'generate' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {/* Left: form workspace */}
-            <div className="surface-panel space-y-4 p-5">
+          <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
+            {/* Left: form workspace — 与右侧等高，表单溢出时内部滚动 */}
+            <div className="surface-panel flex min-h-[28rem] flex-col overflow-hidden p-5 lg:h-[min(40rem,calc(100dvh-13.5rem))]">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <div>
                 <h2 className="font-display text-lg font-semibold text-nest-ink">单次活动条件</h2>
                 <p className="mt-1 text-sm text-nest-muted">
@@ -295,47 +296,56 @@ export default function ResourcesPage() {
                   className="field-input resize-none"
                 />
               </div>
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={
-                  res.isGeneratingPlans ||
-                  !res.themeName.trim() ||
-                  !res.className ||
-                  res.focusDomains.length === 0
-                }
-                className="btn-primary w-full justify-center !py-3"
-              >
-                <Wand2 size={16} />
-                {res.isGeneratingPlans
-                  ? '正在生成活动方案...'
-                  : res.focusDomains.length > 0
-                    ? `生成活动方案（${res.planCount} 份）`
-                    : '生成活动方案'}
-              </button>
-              {res.generatedPlans.length > 0 && (
+              </div>
+              <div className="mt-4 shrink-0 space-y-2 border-t border-nest-leaf/10 pt-4">
                 <button
                   type="button"
-                  onClick={handlePrepareGeneratedUpload}
+                  onClick={handleGenerate}
                   disabled={
-                    res.isUploadingGenerated || res.uploadSelection.length === 0 || !isLoggedIn
+                    res.isGeneratingPlans ||
+                    !res.themeName.trim() ||
+                    !res.className ||
+                    res.focusDomains.length === 0
                   }
-                  className="btn-accent w-full justify-center"
+                  className="btn-primary w-full justify-center !py-3"
                 >
-                  <CloudUpload size={16} />
-                  {`确认上传到知识库（${res.uploadSelection.length}）`}
+                  <Wand2 size={16} />
+                  {res.isGeneratingPlans
+                    ? '正在生成活动方案...'
+                    : res.focusDomains.length > 0
+                      ? `生成活动方案（${res.planCount} 份）`
+                      : '生成活动方案'}
                 </button>
-              )}
+                {res.generatedPlans.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handlePrepareGeneratedUpload}
+                    disabled={
+                      res.isUploadingGenerated || res.uploadSelection.length === 0 || !isLoggedIn
+                    }
+                    className="btn-accent w-full justify-center"
+                  >
+                    <CloudUpload size={16} />
+                    {`确认上传到知识库（${res.uploadSelection.length}）`}
+                  </button>
+                )}
+              </div>
             </div>
-            {/* Right: preview workspace */}
-            <div className="surface-panel p-5">
-              <h2 className="mb-4 font-display text-lg font-semibold text-nest-ink">方案预览</h2>
-              <ActivityPlanPreview
-                plans={res.generatedPlans}
-                loading={res.isGeneratingPlans}
-                activePlanId={res.previewPlanId}
-                onActivePlanChange={(p) => res.setPreviewPlanId(p.id)}
-              />
+            {/* Right: preview workspace — 与左侧等高，正文在预览区内滚动 */}
+            <div className="surface-panel flex min-h-[28rem] flex-col overflow-hidden p-5 lg:h-[min(40rem,calc(100dvh-13.5rem))]">
+              <h2 className="mb-4 shrink-0 font-display text-lg font-semibold text-nest-ink">
+                方案预览
+              </h2>
+              <div className="min-h-0 flex-1 overflow-y-scroll overscroll-contain pr-1">
+                <div className="h-full min-h-full">
+                  <ActivityPlanPreview
+                    plans={res.generatedPlans}
+                    loading={res.isGeneratingPlans}
+                    activePlanId={res.previewPlanId}
+                    onActivePlanChange={(p) => res.setPreviewPlanId(p.id)}
+                  />
+                </div>
+              </div>
             </div>
           </div>
           {res.generatedPlans.length > 0 && (

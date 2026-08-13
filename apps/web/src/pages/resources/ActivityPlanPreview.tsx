@@ -35,7 +35,7 @@ export default function ActivityPlanPreview({
 
   if (loading) {
     return (
-      <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 text-nest-muted">
+      <div className="flex h-full min-h-full flex-col items-center justify-center gap-3 text-nest-muted">
         <Loader2 size={28} className="animate-spin text-nest-leaf" />
         <p className="text-sm">正在生成活动方案…</p>
       </div>
@@ -44,7 +44,7 @@ export default function ActivityPlanPreview({
 
   if (plans.length === 0) {
     return (
-      <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-nest-leaf/20 bg-nest-mist/20 px-6 text-center">
+      <div className="flex h-full min-h-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-nest-leaf/20 bg-nest-mist/20 px-6 text-center">
         <FileText size={36} className="text-nest-leaf/40" />
         <p className="font-display text-base font-medium text-nest-ink">方案预览区</p>
         <p className="max-w-xs text-sm leading-relaxed text-nest-muted">
@@ -55,7 +55,7 @@ export default function ActivityPlanPreview({
   }
 
   return (
-    <div className="flex h-full min-h-[320px] flex-col">
+    <div className="flex min-h-full flex-col">
       {plans.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2 border-b border-nest-leaf/10 pb-3">
           {plans.map((p, i) => (
@@ -76,7 +76,7 @@ export default function ActivityPlanPreview({
       )}
 
       {plan && (
-        <article className="flex-1 overflow-y-auto rounded-xl border border-nest-leaf/10 bg-white p-5 shadow-sm shadow-nest-leaf/5">
+        <article className="flex-1 rounded-xl border border-nest-leaf/10 bg-white p-5 shadow-sm shadow-nest-leaf/5">
           <header className="border-b border-nest-leaf/10 pb-4">
             <h3 className="font-display text-lg font-semibold text-nest-ink">{plan.title}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
