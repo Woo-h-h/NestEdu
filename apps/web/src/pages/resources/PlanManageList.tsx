@@ -273,7 +273,8 @@ export default function PlanManageList({
   const toggle = (plan: TeachingPlan) => {
     if (!onChange) return
     const exists = selected.some((p) => p.id === plan.id)
-    onChange(exists ? selected.filter((p) => p.id !== plan.id) : [...selected, plan])
+    const live = plans.find((p) => p.id === plan.id) ?? plan
+    onChange(exists ? selected.filter((p) => p.id !== plan.id) : [...selected, live])
   }
 
   const openView = (plan: TeachingPlan) => {

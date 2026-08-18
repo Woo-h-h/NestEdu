@@ -16,6 +16,8 @@ export interface PendingUploadItem {
   content?: string
   file?: File
   uploadMode?: 'text' | 'file'
+  /** 生成方案入库时带回最新正文（避免勾选快照仍是编辑前） */
+  sourcePlanId?: string
 }
 
 interface Props {

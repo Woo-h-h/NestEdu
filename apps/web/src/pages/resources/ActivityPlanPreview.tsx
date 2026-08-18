@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 import { FileText, Loader2, MessageSquare, Pencil, Send } from 'lucide-react'
 
@@ -12,6 +12,11 @@ interface Props {
   isAiModifying?: boolean
 }
 
+export type ActivityPlanPreviewHandle = {
+  /** 上传前把未点「保存修改」的草稿一并提交 */
+  flushPendingEdit: () => TeachingPlan | null
+}
+
 const AI_QUICK_COMMANDS = [
   '把活动过程写得更具体、可操作',
   '补充活动准备与安全注意',
@@ -21,15 +26,39 @@ const AI_QUICK_COMMANDS = [
 
 type PreviewMode = 'view' | 'edit' | 'ai'
 
-export default function ActivityPlanPreview({
-  plans,
-  loading = false,
-  activePlanId,
-  onActivePlanChange,
-  onManualSave,
-  onAiModify,
-  isAiModifying = false,
-}: Props) {
+function normalizedDraft(draft: TeachingPlan): TeachingPlan | null {
+  const next: TeachingPlan = {
+    ...draft,
+    title: draft.title.trim(),
+    domain: draft.domain.trim(),
+    gradeLevel: draft.gradeLevel.trim(),
+    objectives: draft.objectives.trim(),
+    content: draft.content.trim(),
+  }
+  if (
+    !next.title ||
+    !next.domain ||
+    !next.gradeLevel ||
+    !next.objectives ||
+    !next.content
+  ) {
+    return null
+  }
+  return next
+}
+
+export default forwardRef<ActivityPlanPreviewHandle, Props>(function ActivityPlanPreview(
+  {
+    plans,
+    loading = false,
+    activePlanId,
+    onActivePlanChange,
+    onManualSave,
+    onAiModify,
+    isAiModifying = false,
+  },
+  ref
+) {
   const [localIndex, setLocalIndex] = useState(0)
   const [mode, setMode] = useState<PreviewMode>('view')
   const [draft, setDraft] = useState<TeachingPlan | null>(null)
@@ -67,26 +96,24 @@ export default function ActivityPlanPreview({
 
   const saveEdit = () => {
     if (!draft) return
-    if (
-      !draft.title.trim() ||
-      !draft.domain.trim() ||
-      !draft.gradeLevel.trim() ||
-      !draft.objectives.trim() ||
-      !draft.content.trim()
-    ) {
-      return
-    }
-    onManualSave?.({
-      ...draft,
-      title: draft.title.trim(),
-      domain: draft.domain.trim(),
-      gradeLevel: draft.gradeLevel.trim(),
-      objectives: draft.objectives.trim(),
-      content: draft.content.trim(),
-    })
+    const saved = normalizedDraft(draft)
+    if (!saved) return
+    onManualSave?.(saved)
     setMode('view')
     setDraft(null)
   }
+
+  const flushPendingEdit = (): TeachingPlan | null => {
+    if (mode !== 'edit' || !draft) return null
+    const saved = normalizedDraft(draft)
+    if (!saved) return null
+    onManualSave?.(saved)
+    setMode('view')
+    setDraft(null)
+    return saved
+  }
+
+  useImperativeHandle(ref, () => ({ flushPendingEdit }), [mode, draft, onManualSave])
 
   const sendAi = async (text?: string) => {
     const instruction = (text || aiInstruction).trim()
@@ -327,4 +354,4 @@ export default function ActivityPlanPreview({
       )}
     </div>
   )
-}
+})

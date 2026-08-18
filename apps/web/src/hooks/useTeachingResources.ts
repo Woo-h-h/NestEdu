@@ -33,6 +33,48 @@ import type { FocusDomain } from '@/pages/resources/DomainSelector'
 
 export type ResourcesSection = 'generate' | 'manage'
 
+function planBodyChanged(a: TeachingPlan, b: TeachingPlan): boolean {
+  return (
+    a.title !== b.title ||
+    a.domain !== b.domain ||
+    a.gradeLevel !== b.gradeLevel ||
+    a.objectives !== b.objectives ||
+    a.content !== b.content
+  )
+}
+
+function mergeSelectedWithLatest(
+  selected: TeachingPlan[],
+  latest: TeachingPlan[]
+): TeachingPlan[] {
+  const byId = new Map(latest.map((plan) => [plan.id, plan]))
+  return selected.map((plan) => byId.get(plan.id) ?? plan)
+}
+
+function buildGeneratedPendingItem(
+  plan: TeachingPlan,
+  owner: { displayName: string; phone: string },
+  className: string
+): PendingUploadItem {
+  const title = buildKnowledgeDocTitle({
+    ...owner,
+    kind: 'activity',
+    planName: plan.title,
+  })
+  const body = [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title
+  const prefix = `${buildOwnerContentPrefix(owner)}${buildTaxonomyContentPrefix({
+    classLevel: plan.gradeLevel || className || '',
+    domains: splitDomainTokens(plan.domain),
+  })}`
+  return {
+    fileName: title,
+    title,
+    content: `${prefix}${body}`,
+    sourcePlanId: plan.id,
+    uploadMode: 'text',
+  }
+}
+
 export function useTeachingResources() {
   const initialDraft = loadActivityPlanDraft()
 
@@ -183,8 +225,21 @@ export function useTeachingResources() {
 
   const replaceGeneratedPlan = useCallback((updated: TeachingPlan) => {
     setGeneratedPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-    setUploadSelection((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    setUploadSelection((prev) => {
+      const exists = prev.some((p) => p.id === updated.id)
+      if (!exists) return prev
+      return prev.map((p) => (p.id === updated.id ? updated : p))
+    })
   }, [])
+
+  useEffect(() => {
+    setUploadSelection((prev) => {
+      if (prev.length === 0) return prev
+      const merged = mergeSelectedWithLatest(prev, generatedPlans)
+      const changed = merged.some((plan, index) => planBodyChanged(plan, prev[index]))
+      return changed ? merged : prev
+    })
+  }, [generatedPlans])
 
   const modifyGeneratedPlanWithAi = useCallback(
     async (planId: string, instruction: string) => {
@@ -205,33 +260,23 @@ export function useTeachingResources() {
     [generatedPlans, replaceGeneratedPlan]
   )
 
-  const prepareGeneratedUpload = useCallback(async (plans: TeachingPlan[]) => {
-    const auth = authBridge.getAuthInfo()
-    if (!auth?.token) throw new Error('请先登录平台后再上传')
-    if (plans.length === 0) throw new Error('请先勾选要上传的教案')
+  const prepareGeneratedUpload = useCallback(
+    async (selected: TeachingPlan[], latestPlans?: TeachingPlan[]) => {
+      const auth = authBridge.getAuthInfo()
+      if (!auth?.token) throw new Error('请先登录平台后再上传')
+      const source = latestPlans ?? generatedPlans
+      const plans = mergeSelectedWithLatest(selected, source)
+      if (plans.length === 0) throw new Error('请先勾选要上传的教案')
 
-    const owner = await resolveOwnerIdentityForDocTitle()
-    const items: PendingUploadItem[] = plans.map((plan) => {
-      const title = buildKnowledgeDocTitle({
-        ...owner,
-        kind: 'activity',
-        planName: plan.title,
-      })
-      const body = [plan.objectives, plan.content].filter(Boolean).join('\n\n') || plan.title
-      const prefix = `${buildOwnerContentPrefix(owner)}${buildTaxonomyContentPrefix({
-        classLevel: plan.gradeLevel || className || '',
-        domains: splitDomainTokens(plan.domain),
-      })}`
-      return {
-        fileName: title,
-        title,
-        content: `${prefix}${body}`,
-      }
-    })
-    setPendingUploads(items)
-    setConfirmMode('generated')
-    setConfirmOpen(true)
-  }, [className])
+      const owner = await resolveOwnerIdentityForDocTitle()
+      setPendingUploads(
+        plans.map((plan) => buildGeneratedPendingItem(plan, owner, className || ''))
+      )
+      setConfirmMode('generated')
+      setConfirmOpen(true)
+    },
+    [className, generatedPlans]
+  )
 
   const prepareFileUpload = useCallback(async () => {
     const auth = authBridge.getAuthInfo()
@@ -277,6 +322,7 @@ export function useTeachingResources() {
     try {
       const uploaded: TeachingPlan[] = []
       const live = await resolveLiveBusinessCategory('activity')
+      const owner = uploadingGenerated ? await resolveOwnerIdentityForDocTitle() : null
       for (const item of pendingUploads) {
         let plan
         let recordedContent = item.content || ''
@@ -291,17 +337,25 @@ export function useTeachingResources() {
           })
           recordedContent = plan.content || recordedContent
         } else {
-          if (!item.content?.trim()) {
+          let payload = item
+          if (uploadingGenerated && item.sourcePlanId && owner) {
+            const latest = generatedPlans.find((p) => p.id === item.sourcePlanId)
+            if (latest) {
+              payload = buildGeneratedPendingItem(latest, owner, className || '')
+            }
+          }
+          if (!payload.content?.trim()) {
             throw new Error(`「${item.fileName}」缺少正文，请重新生成或选择文件后再上传`)
           }
           plan = await uploadKnowledgeDocument({
-            title: item.title,
-            content: item.content,
+            title: payload.title,
+            content: payload.content,
             knowledgeId: live.knowledgeId,
             categoryId: live.categoryId,
             categoryKey: live.categoryKey,
             forceKind: 'activity',
           })
+          recordedContent = payload.content
         }
         uploaded.push(plan)
         await recordTeacherGeneratedUpload({
@@ -330,7 +384,7 @@ export function useTeachingResources() {
       if (uploadingGenerated) setIsUploadingGenerated(false)
       else setIsUploading(false)
     }
-  }, [pendingUploads, confirmMode, loadPlatformPlans])
+  }, [pendingUploads, confirmMode, loadPlatformPlans, generatedPlans, className])
 
   const deletePlan = useCallback(async (plan: TeachingPlan) => {
     if (plan.source === 'preset') {

@@ -1,12 +1,14 @@
 import { toast } from 'sonner'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTeachingResources } from '@/hooks/useTeachingResources'
 import { getApiErrorMessage } from '@/lib/apiError'
 import FileUploadCard from '@/pages/weekly-plan/components/FileUploadCard'
 import ClassSelector from '@/pages/weekly-plan/components/ClassSelector'
 import { FOCUS_DOMAINS, type FocusDomain } from '@/pages/resources/DomainSelector'
-import ActivityPlanPreview from '@/pages/resources/ActivityPlanPreview'
+import ActivityPlanPreview, {
+  type ActivityPlanPreviewHandle,
+} from '@/pages/resources/ActivityPlanPreview'
 import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
@@ -37,6 +39,7 @@ export default function ResourcesPage() {
   const showBrowserKeyHint = !isBackendApiEnabled() && !res.apiConfigured
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
   const isLoggedIn = Boolean(authInfo?.token)
+  const previewRef = useRef<ActivityPlanPreviewHandle>(null)
   const [viewPlan, setViewPlan] = useState<TeachingPlan | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -95,7 +98,11 @@ export default function ResourcesPage() {
   const handlePrepareGeneratedUpload = () => {
     void (async () => {
       try {
-        await res.prepareGeneratedUpload(res.uploadSelection)
+        const flushed = previewRef.current?.flushPendingEdit() ?? null
+        const latest = flushed
+          ? res.generatedPlans.map((plan) => (plan.id === flushed.id ? flushed : plan))
+          : res.generatedPlans
+        await res.prepareGeneratedUpload(res.uploadSelection, latest)
       } catch (err) {
         toast.error(getApiErrorMessage(err, '无法准备上传'))
       }
@@ -344,6 +351,7 @@ export default function ResourcesPage() {
               <div className="min-h-0 flex-1 overflow-y-scroll overscroll-contain pr-1">
                 <div className="h-full min-h-full">
                   <ActivityPlanPreview
+                    ref={previewRef}
                     plans={res.generatedPlans}
                     loading={res.isGeneratingPlans}
                     activePlanId={res.previewPlanId}

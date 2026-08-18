@@ -14,16 +14,6 @@ type ProfileSectionGroup = ProfileSection & {
   children: ProfileSection[]
 }
 
-const SECTION_HINTS: Record<string, string> = {
-  数字名片: '一句话概括教师、材料范围与画像主题',
-  成长结构观察: '围绕活动方案 / 周计划 / 教师成果库三维度',
-  相对充实的方向: '有数据支撑的优势结构（须带证据）',
-  建议加强的方向: '待补齐的维度或材料缺口（须带证据）',
-  代表成果建议: '可展示的代表文档与推荐理由',
-  写给自己的一段话: '鼓励性短文，可选',
-  数据说明: '范围、局限与合规声明',
-}
-
 /** 已下线的模块：旧快照若仍含这些标题则跳过不展示 */
 const HIDDEN_SECTION_KEYS = [
   '近 30 天行动建议',
@@ -92,11 +82,8 @@ function groupSections(flat: ProfileSection[]): ProfileSectionGroup[] {
   return groups
 }
 
-function hintFor(title: string): string | undefined {
-  for (const [key, hint] of Object.entries(SECTION_HINTS)) {
-    if (title.includes(key)) return hint
-  }
-  return undefined
+function displaySectionTitle(title: string): string {
+  return title.replace(/[（(]可选[）)]/g, '').replace(/\s+/g, ' ').trim()
 }
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
@@ -198,7 +185,6 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
   return (
     <div className="space-y-4">
       {sections.map((section, index) => {
-        const hint = hintFor(section.title)
         const isH3 = section.level === 3
         const hasChildren = section.children.length > 0
         const showParentBody = section.body.trim().length > 0
@@ -219,9 +205,8 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
                   isH3 ? 'text-sm text-nest-pine' : 'text-base'
                 }`}
               >
-                {section.title}
+                {displaySectionTitle(section.title)}
               </h3>
-              {hint ? <p className="mt-0.5 text-xs text-nest-muted">{hint}</p> : null}
             </header>
             {showParentBody ? <SectionBody body={section.body} /> : null}
             {hasChildren ? (
@@ -232,11 +217,8 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
                     className="rounded-xl border border-nest-leaf/10 bg-white/60 px-4 py-3 md:ml-1"
                   >
                     <h4 className="font-display text-sm font-semibold text-nest-pine">
-                      {child.title}
+                      {displaySectionTitle(child.title)}
                     </h4>
-                    {hintFor(child.title) ? (
-                      <p className="mt-0.5 text-xs text-nest-muted">{hintFor(child.title)}</p>
-                    ) : null}
                     <div className="mt-2">
                       <SectionBody body={child.body} />
                     </div>
