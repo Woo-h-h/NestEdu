@@ -42,7 +42,6 @@ const growthLoopSteps = [
   { path: '/activity', label: '设计活动', step: '1' },
   { path: '/archive', label: '沉淀成果', step: '2' },
   { path: '/profile', label: '查看画像', step: '3' },
-  { path: '/archive/upload', label: '录入补充', step: '4' },
 ] as const
 
 type CountState = number | null
@@ -228,7 +227,7 @@ export default function DashboardPage() {
 
       <section className="mb-6" aria-label="个人成长闭环">
         <h2 className="mb-3 text-sm font-semibold text-nest-muted">个人成长闭环</h2>
-        <div className="surface-panel grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
+        <div className="surface-panel grid grid-cols-3 gap-2 p-3">
           {growthLoopSteps.map((step) => (
             <button
               key={step.path}

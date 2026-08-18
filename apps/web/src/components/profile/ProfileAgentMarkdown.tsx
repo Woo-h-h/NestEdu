@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 
 /**
- * 智能画像 Markdown 格式拆解渲染：
- * 按 ## / ### 切成区块卡片，并轻量解析加粗与有序列表。
+ * 智能画像 Markdown 分区渲染：按 ## / ### 切成区块卡片，并轻量解析加粗与列表。
  */
 
 type ProfileSection = {
@@ -196,33 +195,8 @@ export default function ProfileAgentMarkdown({ text }: { text: string }) {
     )
   }
 
-  const outlineCount = flatSections.length
-
   return (
     <div className="space-y-4">
-      <details className="rounded-xl border border-nest-leaf/15 bg-white/70 px-4 py-3 text-xs text-nest-muted">
-        <summary className="cursor-pointer select-none font-medium text-nest-pine">
-          查看输出格式拆解（共 {outlineCount} 个区块）
-        </summary>
-        <ol className="mt-3 list-decimal space-y-1.5 pl-4">
-          {flatSections.map((section, index) => (
-            <li key={`${section.title}-${index}`}>
-              <span className="font-medium text-nest-ink">
-                {section.level === 3 ? '　↳ ' : ''}
-                {section.title}
-              </span>
-              {hintFor(section.title) ? (
-                <span className="text-nest-muted"> — {hintFor(section.title)}</span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-        <p className="mt-3 leading-relaxed text-nest-muted">
-          约定结构：数字名片 → 成长结构观察（充实 / 加强）→ 代表成果 →
-          写给自己的一段话（可选）→ 数据说明。判断须带证据，禁止排名与绩效分。
-        </p>
-      </details>
-
       {sections.map((section, index) => {
         const hint = hintFor(section.title)
         const isH3 = section.level === 3

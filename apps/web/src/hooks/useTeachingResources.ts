@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ClassType, TeachingPlan } from '@/types/weeklyPlan'
-import { generateTeachingPlans } from '@/api/llm'
+import { generateTeachingPlans, modifyTeachingPlan } from '@/api/llm'
 import {
   resolveLiveBusinessCategory,
   fetchKnowledgePlans,
@@ -66,6 +66,7 @@ export function useTeachingResources() {
   })
   const [notes, setNotes] = useState(() => initialDraft?.notes ?? '')
   const [isGeneratingPlans, setIsGeneratingPlans] = useState(false)
+  const [isAiModifying, setIsAiModifying] = useState(false)
   const [isLoadingPlatform, setIsLoadingPlatform] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isUploadingGenerated, setIsUploadingGenerated] = useState(false)
@@ -177,6 +178,30 @@ export function useTeachingResources() {
       }
     },
     [themeName, className, focusDomains, planCount, notes]
+  )
+
+  const replaceGeneratedPlan = useCallback((updated: TeachingPlan) => {
+    setGeneratedPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    setUploadSelection((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+  }, [])
+
+  const modifyGeneratedPlanWithAi = useCallback(
+    async (planId: string, instruction: string) => {
+      const current = generatedPlans.find((p) => p.id === planId)
+      if (!current) throw new Error('请先选择要修改的活动方案')
+      setIsAiModifying(true)
+      try {
+        const { message, updatedPlan } = await modifyTeachingPlan({
+          currentPlan: current,
+          instruction,
+        })
+        replaceGeneratedPlan(updatedPlan)
+        return message
+      } finally {
+        setIsAiModifying(false)
+      }
+    },
+    [generatedPlans, replaceGeneratedPlan]
   )
 
   const prepareGeneratedUpload = useCallback(async (plans: TeachingPlan[]) => {
@@ -367,6 +392,7 @@ export function useTeachingResources() {
     notes,
     setNotes,
     isGeneratingPlans,
+    isAiModifying,
     isLoadingPlatform,
     isUploading,
     isUploadingGenerated,
@@ -376,6 +402,8 @@ export function useTeachingResources() {
     confirmOpen,
     apiConfigured: isApiConfigured(),
     generateTeachingPlansFromTheme,
+    replaceGeneratedPlan,
+    modifyGeneratedPlanWithAi,
     prepareGeneratedUpload,
     prepareFileUpload,
     confirmPendingUpload,

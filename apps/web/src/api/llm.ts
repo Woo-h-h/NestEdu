@@ -10,10 +10,17 @@ import {
   buildGenerateUserMessage,
   buildModifySystemPrompt,
   buildModifyUserMessage,
+  buildModifyTeachingPlanSystemPrompt,
+  buildModifyTeachingPlanUserMessage,
   buildTeachingPlanSystemPrompt,
   buildTeachingPlanUserMessage,
 } from '@/lib/prompts'
-import { extractJson, isValidTeachingPlans, isValidWeeklyPlan } from '@/lib/weeklyPlanValidators'
+import {
+  extractJson,
+  isValidTeachingPlan,
+  isValidTeachingPlans,
+  isValidWeeklyPlan,
+} from '@/lib/weeklyPlanValidators'
 import { searchKnowledge } from '@/api/knowledge'
 import { generateAgentText, getTeachingAgentId, getWeeklyPlanAgentId } from '@/api/agent'
 
@@ -284,6 +291,65 @@ async function agentGenerateTeachingPlans(params: {
     return await tryOnce(
       '上次输出格式不符合要求，请严格按 JSON 的 plans 数组重新输出，不要 markdown 代码块以外的文字。'
     )
+  }
+}
+
+export async function modifyTeachingPlan(params: {
+  currentPlan: TeachingPlan
+  instruction: string
+}): Promise<{ message: string; updatedPlan: TeachingPlan }> {
+  const instruction = params.instruction.trim()
+  if (!instruction) throw new Error('请先填写修改说明')
+
+  const systemPrompt = buildModifyTeachingPlanSystemPrompt(params.currentPlan)
+  const userMessage = buildModifyTeachingPlanUserMessage(instruction)
+  const basePrompt = `${systemPrompt}\n\n${userMessage}\n\n请只输出 JSON，不要其它说明。`
+
+  const tryOnce = async (extra?: string) => {
+    const content = await generateAgentText(
+      extra ? `${basePrompt}\n\n${extra}` : basePrompt,
+      { agentId: getTeachingAgentId(), timeoutMs: 90000 }
+    )
+    const result = JSON.parse(extractJson(content)) as {
+      message?: unknown
+      updatedPlan?: unknown
+    }
+    const raw = result.updatedPlan
+    if (!raw || typeof raw !== 'object') {
+      throw new Error('活动方案修改返回格式不合法')
+    }
+    const src = raw as Record<string, unknown>
+    const updatedPlan: TeachingPlan = {
+      ...params.currentPlan,
+      title: String(src.title ?? params.currentPlan.title),
+      domain: String(src.domain ?? params.currentPlan.domain),
+      gradeLevel: String(src.gradeLevel ?? params.currentPlan.gradeLevel),
+      objectives: String(src.objectives ?? params.currentPlan.objectives),
+      content: String(src.content ?? params.currentPlan.content),
+    }
+    if (!isValidTeachingPlan(updatedPlan)) {
+      throw new Error('活动方案修改返回格式不合法')
+    }
+    const message =
+      typeof result.message === 'string' && result.message.trim()
+        ? result.message.trim()
+        : '已按你的说明更新活动方案'
+    return { message, updatedPlan }
+  }
+
+  try {
+    return await tryOnce()
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('请先登录')) throw err
+    try {
+      return await tryOnce(
+        '上次输出格式不符合要求，请严格按 JSON（message + updatedPlan）重新输出，不要 markdown 代码块以外的文字。'
+      )
+    } catch (retryErr) {
+      const detail = retryErr instanceof Error ? retryErr.message : String(retryErr)
+      console.error(`[LLM] 教案修改智能体 ${getTeachingAgentId()} 失败:`, retryErr)
+      throw new Error(`活动方案修改失败：${detail}`)
+    }
   }
 }
 

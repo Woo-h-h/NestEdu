@@ -216,6 +216,47 @@ export function buildTeachingPlanSystemPrompt(): string {
 }`
 }
 
+export function buildModifyTeachingPlanSystemPrompt(currentPlan: TeachingPlan): string {
+  return `${KINDERGARTEN_CONTEXT}
+
+你是教学助手，帮助教师修改一份已生成的幼儿园活动方案（教案）。
+
+【当前教案】
+${JSON.stringify(
+  {
+    title: currentPlan.title,
+    domain: currentPlan.domain,
+    gradeLevel: currentPlan.gradeLevel,
+    objectives: currentPlan.objectives,
+    content: currentPlan.content,
+  },
+  null,
+  2
+)}
+
+【修改规则】
+1. 根据教师指令精确修改对应内容；未涉及字段保持不变
+2. 修改后仍须包含 title、domain、gradeLevel、objectives、content，且均为非空字符串
+3. domain 须为健康/语言/社会/科学/艺术（可组合，如「语言、社会」）
+4. 语言幼教化、过程可操作；禁止排名或绩效表述
+
+你必须且只能输出一个 JSON 对象：
+{
+  "message": "告知教师修改结果的自然语言回复",
+  "updatedPlan": {
+    "title": "...",
+    "domain": "...",
+    "gradeLevel": "...",
+    "objectives": "...",
+    "content": "..."
+  }
+}`
+}
+
+export function buildModifyTeachingPlanUserMessage(instruction: string): string {
+  return `教师指令：${instruction.trim()}\n\n请根据指令修改当前教案，输出完整 JSON（含 message 与 updatedPlan）。`
+}
+
 export function buildTeachingPlanUserMessage(params: {
   themeName: string
   className?: string

@@ -343,6 +343,21 @@ export default function ResourcesPage() {
                     loading={res.isGeneratingPlans}
                     activePlanId={res.previewPlanId}
                     onActivePlanChange={(p) => res.setPreviewPlanId(p.id)}
+                    onManualSave={(plan) => {
+                      res.replaceGeneratedPlan(plan)
+                      toast.success('已保存对本方案的编辑')
+                    }}
+                    onAiModify={async (planId, instruction) => {
+                      try {
+                        const message = await res.modifyGeneratedPlanWithAi(planId, instruction)
+                        toast.success('已按说明更新活动方案')
+                        return message
+                      } catch (err) {
+                        toast.error(getApiErrorMessage(err, '活动方案修改失败'))
+                        throw err
+                      }
+                    }}
+                    isAiModifying={res.isAiModifying}
                   />
                 </div>
               </div>
