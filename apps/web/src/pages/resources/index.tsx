@@ -11,6 +11,11 @@ import PlanManageList from '@/pages/resources/PlanManageList'
 import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
 import { fetchKnowledgePlanById, getArchiveCategoryId, getArchiveCategoryKey, getDefaultKnowledgeId } from '@/api/knowledge'
+import {
+  KNOWLEDGE_UPLOAD_ACCEPT,
+  KNOWLEDGE_UPLOAD_EXTENSIONS,
+  KNOWLEDGE_UPLOAD_FORMAT_LABEL,
+} from '@/lib/archiveUploadFormats'
 import { exportTeachingPlanToDoc } from '@/lib/export-doc'
 import { Upload, BookOpen, Wand2, RefreshCw, CloudUpload } from 'lucide-react'
 import { isBackendApiEnabled } from '@/api/llm'
@@ -100,7 +105,7 @@ export default function ResourcesPage() {
     try {
       await res.prepareFileUpload()
     } catch (err) {
-      toast.error(getApiErrorMessage(err, '解析文件失败'))
+      toast.error(getApiErrorMessage(err, '无法准备上传'))
     }
   }
   const handleConfirmUpload = async () => {
@@ -385,7 +390,7 @@ export default function ResourcesPage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
             <p className="mt-1 text-sm text-nest-muted">
-              上传 Word 到「教案知识库管理」；确认后计入本人入库。「全部」看平台分类，「我的」看本人入库记录。
+              上传 Word、PDF、PPT、Excel、图片或文本到「教案知识库管理」；确认后计入本人入库。「全部」看平台分类，「我的」看本人入库记录。
             </p>
           </div>
           {!isLoggedIn && (
@@ -405,7 +410,12 @@ export default function ResourcesPage() {
               files={res.uploadFiles}
               onChange={res.setUploadFiles}
               title="上传文件到知识库"
-              hint="将 docx 文件拖拽到此处，或点击选择文件；确认后才会真正入库"
+              hint="将文件拖到此处，或点击选择；确认后才会真正入库。PDF、图片等会保留原文件并写入可检索说明"
+              accept={KNOWLEDGE_UPLOAD_ACCEPT}
+              allowedExtensions={[...KNOWLEDGE_UPLOAD_EXTENSIONS]}
+              formatLabel={KNOWLEDGE_UPLOAD_FORMAT_LABEL}
+              formatHint="支持 Word、PDF、PPT、Excel、图片与文本；单文件建议不超过 50MB"
+              invalidFormatMessage="不支持的文件格式，请选择 Word、PDF、PPT、Excel、图片或常见文本文件"
             />
             <div className="flex flex-wrap justify-end gap-3">
               <button
@@ -430,8 +440,8 @@ export default function ResourcesPage() {
               >
                 <Upload size={16} />
                 {res.isPreparingUpload
-                  ? '解析中...'
-                  : `解析并确认上传（${res.uploadFiles.length}）`}
+                  ? '准备中...'
+                  : `确认上传（${res.uploadFiles.length}）`}
               </button>
             </div>
           </div>

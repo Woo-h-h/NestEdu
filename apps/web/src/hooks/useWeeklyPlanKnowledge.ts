@@ -4,6 +4,7 @@ import {
   fetchKnowledgePlans,
   resolveLiveBusinessCategory,
   uploadKnowledgeDocument,
+  uploadKnowledgeFile,
   deleteKnowledgeDocument,
   weeklyPlanKnowledgeScope,
 } from '@/api/knowledge'
@@ -12,10 +13,9 @@ import {
   recordTeacherGeneratedUpload,
 } from '@/api/teacherGeneratedDocs'
 import { getApiErrorMessage } from '@/lib/apiError'
-import { parseDocxFiles } from '@/lib/parse-docx'
+import { prepareArchiveUploadFiles } from '@/lib/prepareArchiveUpload'
 import {
   buildKnowledgeDocTitle,
-  buildOwnerContentPrefix,
   resolveOwnerIdentityForDocTitle,
 } from '@/lib/knowledgeDocTitle'
 import { authBridge } from '@/lib/authBridge'
@@ -63,34 +63,23 @@ export function useWeeklyPlanKnowledge() {
   const prepareFileUpload = useCallback(async () => {
     const auth = authBridge.getAuthInfo()
     if (!auth?.token) throw new Error('请先登录平台后再上传')
-    if (uploadFiles.length === 0) throw new Error('请先选择要上传的 docx 文件')
-
-    const invalid = uploadFiles.find(
-      (f) => !f.name.toLowerCase().endsWith('.docx') && !f.name.toLowerCase().endsWith('.doc')
-    )
-    if (invalid) throw new Error('仅支持 .docx / .doc 文件')
+    if (uploadFiles.length === 0) throw new Error('请先选择要上传的文件')
 
     setIsPreparingUpload(true)
     try {
       const owner = await resolveOwnerIdentityForDocTitle()
-      const parsed = await parseDocxFiles(uploadFiles)
-      if (parsed.length === 0) {
-        throw new Error('未能解析出有效文本，请确认文件为有效 docx')
-      }
+      const parsed = prepareArchiveUploadFiles(uploadFiles)
       setPendingUploads(
-        parsed.map((file) => {
-          const baseName = file.name.replace(/\.(docx|doc)$/i, '')
-          const title = buildKnowledgeDocTitle({
+        parsed.map((item) => ({
+          fileName: item.fileName,
+          title: buildKnowledgeDocTitle({
             ...owner,
             kind: 'weekly',
-            planName: baseName,
-          })
-          return {
-            fileName: file.name,
-            title,
-            content: `${buildOwnerContentPrefix(owner)}${file.content}`,
-          }
-        })
+            planName: item.fileName,
+          }),
+          file: item.file,
+          uploadMode: 'file' as const,
+        }))
       )
       setConfirmOpen(true)
     } finally {
@@ -111,20 +100,37 @@ export function useWeeklyPlanKnowledge() {
       const uploaded: TeachingPlan[] = []
       const live = await resolveLiveBusinessCategory('weekly')
       for (const item of pendingUploads) {
-        const plan = await uploadKnowledgeDocument({
-          title: item.title,
-          content: item.content,
-          knowledgeId: live.knowledgeId,
-          categoryId: live.categoryId,
-          categoryKey: live.categoryKey,
-          forceKind: 'weekly',
-        })
+        let plan
+        let recordedContent = item.content || ''
+        if (item.file) {
+          plan = await uploadKnowledgeFile({
+            file: item.file,
+            title: item.title,
+            knowledgeId: live.knowledgeId,
+            categoryId: live.categoryId,
+            categoryKey: live.categoryKey,
+            forceKind: 'weekly',
+          })
+          recordedContent = plan.content || recordedContent
+        } else {
+          if (!item.content?.trim()) {
+            throw new Error(`「${item.fileName}」缺少正文，请重新选择文件后再上传`)
+          }
+          plan = await uploadKnowledgeDocument({
+            title: item.title,
+            content: item.content,
+            knowledgeId: live.knowledgeId,
+            categoryId: live.categoryId,
+            categoryKey: live.categoryKey,
+            forceKind: 'weekly',
+          })
+        }
         uploaded.push(plan)
         await recordTeacherGeneratedUpload({
           docType: 'weekly',
           plan,
           categoryId: live.categoryId,
-          content: item.content,
+          content: recordedContent,
         })
       }
       setConfirmOpen(false)

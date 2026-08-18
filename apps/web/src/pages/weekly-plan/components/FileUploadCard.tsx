@@ -1,13 +1,18 @@
 import { useCallback, useId, useState } from 'react'
 import { Upload, X, FileText } from 'lucide-react'
-import { formatFileSize } from '@/lib/archiveUploadFormats'
+import {
+  formatFileSize,
+  KNOWLEDGE_UPLOAD_ACCEPT,
+  KNOWLEDGE_UPLOAD_EXTENSIONS,
+  KNOWLEDGE_UPLOAD_FORMAT_LABEL,
+} from '@/lib/archiveUploadFormats'
 
 interface Props {
   files: File[]
   onChange: (files: File[]) => void
   title?: string
   hint?: string
-  /** input accept，默认 .docx,.doc */
+  /** input accept，默认与成果库相同的多格式清单 */
   accept?: string
   /** 允许的扩展名（小写，含点），用于拖拽校验 */
   allowedExtensions?: string[]
@@ -15,8 +20,6 @@ interface Props {
   formatHint?: string
   invalidFormatMessage?: string
 }
-
-const DEFAULT_EXTENSIONS = ['.docx', '.doc']
 
 function matchesExtension(fileName: string, extensions: string[]): boolean {
   const lower = fileName.toLowerCase()
@@ -26,13 +29,13 @@ function matchesExtension(fileName: string, extensions: string[]): boolean {
 export default function FileUploadCard({
   files,
   onChange,
-  title = '上传教案文件',
-  hint = '将 docx 文件拖拽到此处，或点击选择文件',
-  accept = '.docx,.doc',
-  allowedExtensions = DEFAULT_EXTENSIONS,
-  formatLabel = '.docx / .doc',
-  formatHint = '仅支持 Word 文档，建议单文件文本不超过 2MB',
-  invalidFormatMessage = '仅支持 .docx 和 .doc 格式',
+  title = '上传文件',
+  hint = '将文件拖到此处，或点击选择；确认后才会真正入库',
+  accept = KNOWLEDGE_UPLOAD_ACCEPT,
+  allowedExtensions = [...KNOWLEDGE_UPLOAD_EXTENSIONS],
+  formatLabel = KNOWLEDGE_UPLOAD_FORMAT_LABEL,
+  formatHint = '支持 Word、PDF、PPT、Excel、图片与文本；单文件建议不超过 50MB',
+  invalidFormatMessage = '不支持的文件格式，请选择 Word、PDF、PPT、Excel、图片或常见文本文件',
 }: Props) {
   const [dragOver, setDragOver] = useState(false)
   const inputId = useId()

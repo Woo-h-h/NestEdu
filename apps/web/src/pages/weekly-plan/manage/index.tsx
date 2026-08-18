@@ -9,6 +9,11 @@ import UploadConfirmDialog from '@/pages/resources/UploadConfirmDialog'
 import { CloudUpload, RefreshCw } from 'lucide-react'
 import { authBridge, loginWithAi101 } from '@/lib/authBridge'
 import { fetchKnowledgePlanById } from '@/api/knowledge'
+import {
+  KNOWLEDGE_UPLOAD_ACCEPT,
+  KNOWLEDGE_UPLOAD_EXTENSIONS,
+  KNOWLEDGE_UPLOAD_FORMAT_LABEL,
+} from '@/lib/archiveUploadFormats'
 import { exportToPdf } from '@/lib/export-pdf'
 import { parseWeeklyPlanFromDocument } from '@/lib/weeklyPlanText'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
@@ -43,7 +48,7 @@ export default function WeeklyPlanManageSection() {
     try {
       await kb.prepareFileUpload()
     } catch (err) {
-      toast.error(getApiErrorMessage(err, '解析文件失败'))
+      toast.error(getApiErrorMessage(err, '无法准备上传'))
     }
   }
 
@@ -103,7 +108,7 @@ export default function WeeklyPlanManageSection() {
         <div>
           <h2 className="font-display text-lg font-semibold text-nest-ink">知识库管理</h2>
           <p className="mt-1 text-sm text-nest-muted">
-            管理「周计划」知识库文档：上传、查看、导出、删除；确认后计入本人入库
+            管理「周计划」知识库文档：可上传 Word、PDF、PPT、Excel、图片或文本；确认后计入本人入库
           </p>
         </div>
 
@@ -125,7 +130,12 @@ export default function WeeklyPlanManageSection() {
             files={kb.uploadFiles}
             onChange={kb.setUploadFiles}
             title="上传文件到周计划知识库"
-            hint="将 docx 文件拖拽到此处，或点击选择文件；确认后才会真正入库"
+            hint="将文件拖到此处，或点击选择；确认后才会真正入库。PDF、图片等会保留原文件并写入可检索说明"
+            accept={KNOWLEDGE_UPLOAD_ACCEPT}
+            allowedExtensions={[...KNOWLEDGE_UPLOAD_EXTENSIONS]}
+            formatLabel={KNOWLEDGE_UPLOAD_FORMAT_LABEL}
+            formatHint="支持 Word、PDF、PPT、Excel、图片与文本；单文件建议不超过 50MB"
+            invalidFormatMessage="不支持的文件格式，请选择 Word、PDF、PPT、Excel、图片或常见文本文件"
           />
           <div className="flex flex-wrap justify-end gap-3">
             <button
@@ -149,7 +159,7 @@ export default function WeeklyPlanManageSection() {
               className="btn-accent"
             >
               <CloudUpload size={16} />
-              {kb.isPreparingUpload ? '解析中...' : '确认上传'}
+              {kb.isPreparingUpload ? '准备中...' : `确认上传（${kb.uploadFiles.length}）`}
             </button>
           </div>
         </div>
@@ -161,7 +171,7 @@ export default function WeeklyPlanManageSection() {
           sourceHint={kb.listHint}
           kbTotal={kb.kbTotal}
           taxonomy="weekly"
-          emptyHint="暂无周计划，可上传 docx 或从「周计划生成」入库"
+          emptyHint="暂无周计划，可上传文件或从「周计划生成」入库"
           onView={(plan) => {
             setViewPlan(plan)
             setDetailOpen(true)
