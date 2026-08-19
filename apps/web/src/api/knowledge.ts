@@ -17,7 +17,7 @@ import {
   extractArchiveFileText,
   isArchiveTextExtractable,
 } from '@/lib/extractArchiveFileText'
-import { sanitizeDocTitleSegment } from '@/lib/knowledgeDocTitle'
+import { sanitizeDocTitleSegment, stripKnowledgeDocDecorations } from '@/lib/knowledgeDocTitle'
 
 export type KnowledgeSource = 'platform' | 'preset' | 'empty'
 
@@ -1022,6 +1022,13 @@ function archiveDocTitlesMatch(a: string, b: string): boolean {
   return normalizeArchiveDocTitle(left) === normalizeArchiveDocTitle(right)
 }
 
+function businessDocTitlesMatch(a: string, b: string): boolean {
+  if (archiveDocTitlesMatch(a, b)) return true
+  const left = stripKnowledgeDocDecorations(a).replace(/\.[^.]+$/, '').trim().toLowerCase()
+  const right = stripKnowledgeDocDecorations(b).replace(/\.[^.]+$/, '').trim().toLowerCase()
+  return Boolean(left && right && left === right)
+}
+
 function mapTeachingPlan(plan: Partial<TeachingPlan> & Record<string, unknown>): TeachingPlan {
   return enrichPlanTaxonomy({
     id: String(plan.id || ''),
@@ -1702,9 +1709,12 @@ export async function uploadKnowledgeFile(params: {
     fileSize: file.size,
   })
 
-  const uploadedFile = await uploadPlatformBinaryFile(file, {
-    agentId: (await import('@/api/archiveParseAgent')).getArchiveParseAgentId(),
-  })
+  const uploadedFile = await uploadPlatformBinaryFile(
+    file,
+    params.forceKind === 'archive'
+      ? { agentId: (await import('@/api/archiveParseAgent')).getArchiveParseAgentId() }
+      : undefined
+  )
 
   // 成果库：先智能解析，再写入 document/text（跳过不可靠的 document/file）
   if (params.forceKind === 'archive') {
@@ -1726,6 +1736,36 @@ export async function uploadKnowledgeFile(params: {
       console.warn('[Knowledge] archive uploaded with failed parse, needs human review', parsedDoc.title)
     }
     return plan
+  }
+
+  // 教案 / 周计划：不要走 document/file（平台常落到未分类 / 手机号夹）。
+  // 与生成入库相同，强制 document/text + forceKind 纠正分类。
+  if (params.forceKind === 'activity' || params.forceKind === 'weekly') {
+    let extraText = uploadedFile.text.trim()
+    try {
+      if (!extraText && isArchiveTextExtractable(file.name)) {
+        extraText = (await extractArchiveFileText(file)).trim()
+      }
+    } catch (err) {
+      console.warn('[Knowledge] local extract for business upload failed', err)
+    }
+    let content = await scrubBusinessUploadContent(
+      buildArchiveFileDocumentContent(file, uploadedFile, title)
+    )
+    if (extraText) {
+      const snippet = extraText.slice(0, 80)
+      if (!snippet || !content.includes(snippet)) {
+        content = `${content}\n\n## 文档正文\n\n${extraText}`
+      }
+    }
+    return uploadKnowledgeDocument({
+      title,
+      content,
+      knowledgeId,
+      categoryId,
+      categoryKey,
+      forceKind: params.forceKind,
+    })
   }
 
   const content = buildArchiveFileDocumentContent(file, uploadedFile, title)
@@ -1847,7 +1887,7 @@ async function assertLandedInBusinessCategory(
     items.some(
       (item) =>
         (planId && !isSyntheticId && item.id && item.id === planId) ||
-        (item.title || '').trim() === planTitle
+        businessDocTitlesMatch(item.title || '', planTitle)
     )
 
   const themeKw = planTitle
@@ -1882,6 +1922,19 @@ async function assertLandedInBusinessCategory(
       fallbackPreset: false,
     })
     if (matchPlan(listed.plans)) return
+
+    const docId = planId && !isSyntheticId ? planId : ''
+    if (docId && attempt === 1) {
+      try {
+        await assignKnowledgeDocumentCategory({
+          documentId: docId,
+          categoryId: live.categoryId,
+          categoryKey: live.categoryKey,
+        })
+      } catch (err) {
+        console.warn('[Knowledge] assign business category after upload failed', err)
+      }
+    }
 
     if (themeKw.length >= 2) {
       const searched = await fetchKnowledgePlans({

@@ -75,7 +75,7 @@ export function useWeeklyPlanKnowledge() {
           title: buildKnowledgeDocTitle({
             ...owner,
             kind: 'weekly',
-            planName: item.fileName,
+            planName: item.fileName.replace(/\.[^.]+$/, '') || item.fileName,
           }),
           file: item.file,
           uploadMode: 'file' as const,

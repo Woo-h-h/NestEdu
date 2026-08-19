@@ -293,7 +293,7 @@ export function useTeachingResources() {
           title: buildKnowledgeDocTitle({
             ...owner,
             kind: 'activity',
-            planName: item.fileName,
+            planName: item.fileName.replace(/\.[^.]+$/, '') || item.fileName,
           }),
           file: item.file,
           uploadMode: 'file' as const,
