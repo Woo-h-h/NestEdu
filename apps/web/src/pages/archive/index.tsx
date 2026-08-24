@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { RefreshCw, CloudUpload } from 'lucide-react'
 import { useArchiveKnowledge } from '@/hooks/useArchiveKnowledge'
@@ -17,6 +17,11 @@ import {
   ARCHIVE_UPLOAD_EXTENSIONS,
   ARCHIVE_UPLOAD_FORMAT_LABEL,
 } from '@/lib/archiveUploadFormats'
+import {
+  applyArchiveAchievementsToPlans,
+  listArchiveAchievements,
+  type ArchiveAchievement,
+} from '@/api/archiveAchievements'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
 
@@ -33,6 +38,25 @@ export default function ArchivePage() {
   const [activityCount, setActivityCount] = useState<number | null>(null)
   const [weeklyCount, setWeeklyCount] = useState<number | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
+  const [achievements, setAchievements] = useState<ArchiveAchievement[]>([])
+
+  const classifiedPlans = useMemo(
+    () => applyArchiveAchievementsToPlans(kb.platformPlans, achievements),
+    [kb.platformPlans, achievements]
+  )
+
+  const reloadAchievements = useCallback(async () => {
+    if (!isLoggedIn) {
+      setAchievements([])
+      return
+    }
+    const phone = (kb.phone || (await getCurrentTeacherPhone())).trim()
+    if (!phone) {
+      setAchievements([])
+      return
+    }
+    setAchievements(await listArchiveAchievements(phone))
+  }, [isLoggedIn, kb.phone])
 
   useEffect(() => authBridge.subscribe(setAuthInfo), [])
 
@@ -83,6 +107,10 @@ export default function ArchivePage() {
     }
   }, [isLoggedIn])
 
+  useEffect(() => {
+    void reloadAchievements()
+  }, [reloadAchievements, kb.platformPlans.length])
+
   const handleLogin = async () => {
     try {
       await loginWithAi101()
@@ -94,6 +122,7 @@ export default function ArchivePage() {
   const handleRefreshKb = async () => {
     try {
       const plans = await kb.loadPlatformPlans()
+      await reloadAchievements()
       toast.success(
         plans.length > 0 ? `已加载 ${plans.length} 份教师成果` : '教师成果库暂无文档'
       )
@@ -130,6 +159,7 @@ export default function ArchivePage() {
   const handleConfirmUpload = async () => {
     try {
       const uploaded = await kb.confirmPendingUpload('platform')
+      await reloadAchievements()
       const needsReview = uploaded.some((p) => (p.objectives || '').includes('解析未完成'))
       toast.success(
         needsReview
@@ -378,7 +408,8 @@ export default function ArchivePage() {
 
         <PlanManageList
           title="教师成果文档"
-          plans={kb.platformPlans}
+          taxonomy="archive"
+          plans={classifiedPlans}
           loading={kb.isLoadingPlatform}
           showPlanTags={false}
           emptyObjectivesHint="等待打开查看解析正文；若仍无摘要说明解析未完成"

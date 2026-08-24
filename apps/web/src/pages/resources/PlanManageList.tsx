@@ -22,9 +22,16 @@ import {
   isOwnedTeacherPlan,
   loadMineTeacherPlans,
 } from '@/lib/loadMineTeacherPlans'
+import {
+  ARCHIVE_TREE_CATEGORY_FILTERS,
+  ARCHIVE_TREE_CATEGORY_LABELS,
+  normalizeArchiveTreeCategory,
+  resolveArchivePlanCategory,
+  type ArchiveTreeCategory,
+} from '@/lib/archiveTreeCategory'
 import { toast } from 'sonner'
 
-export type PlanListTaxonomy = 'activity' | 'weekly' | 'none'
+export type PlanListTaxonomy = 'activity' | 'weekly' | 'archive' | 'none'
 type OwnershipFilter = '全部' | '我的'
 
 interface Props {
@@ -53,6 +60,7 @@ interface Props {
   /**
    * activity：一级大班/中班/小班 + 二级五领域 +「我的」
    * weekly：仅一级大班/中班/小班 +「我的」
+   * archive：特色实践 / 教研科研 / 专业荣誉
    */
   taxonomy?: PlanListTaxonomy
   showPlanTags?: boolean
@@ -155,6 +163,7 @@ export default function PlanManageList({
   const [domain, setDomain] = useState<ActivityDomain | '全部'>('全部')
   const [ownership, setOwnership] = useState<OwnershipFilter>('全部')
   const [query, setQuery] = useState('')
+  const [treeCategory, setTreeCategory] = useState<ArchiveTreeCategory | '全部'>('全部')
   const [minePhone, setMinePhone] = useState('')
   const [mineDocIds, setMineDocIds] = useState<Set<string>>(() => new Set())
   const [mineTitles, setMineTitles] = useState<Set<string>>(() => new Set())
@@ -244,8 +253,11 @@ export default function PlanManageList({
         domain,
       })
     }
+    if (taxonomy === 'archive' && treeCategory !== '全部') {
+      next = next.filter((plan) => resolveArchivePlanCategory(plan) === treeCategory)
+    }
     return filterPlansByKeyword(next, query)
-  }, [ownership, mineExtraPlans, normalizedPlans, taxonomy, classLevel, domain, query])
+  }, [ownership, mineExtraPlans, normalizedPlans, taxonomy, classLevel, domain, treeCategory, query])
 
   // 保留映射集合供后续扩展；当前「我的」列表以 mineExtraPlans 为准
   void mineDocIds
@@ -484,6 +496,24 @@ export default function PlanManageList({
         </div>
       )}
 
+      {taxonomy === 'archive' && (
+        <div className="mb-4 rounded-xl border border-nest-leaf/10 bg-white/70 p-3">
+          <ChipRow
+            label="成果分类"
+            options={ARCHIVE_TREE_CATEGORY_FILTERS}
+            value={
+              treeCategory === '全部' ? '全部' : ARCHIVE_TREE_CATEGORY_LABELS[treeCategory]
+            }
+            onChange={(next) =>
+              setTreeCategory(next === '全部' ? '全部' : normalizeArchiveTreeCategory(next))
+            }
+          />
+          <p className="mt-1 text-[11px] leading-relaxed text-nest-muted">
+            按特色实践、教研科研、专业荣誉筛选。优先使用入库时保存的分类，旧文档会根据正文「成长树分类 / 成果类型」或标题推断。
+          </p>
+        </div>
+      )}
+
       {loading && (
         <div className="mb-3 flex items-center gap-2 text-sm text-nest-muted">
           <Loader2 size={14} className="animate-spin text-nest-leaf" /> 正在加载...
@@ -502,7 +532,9 @@ export default function PlanManageList({
               : '「我的」下暂无入库记录。生成后可上传到平台知识库。'
             : plans.length === 0
               ? emptyHint
-              : '当前分类下没有匹配文档'}
+              : taxonomy === 'archive' && treeCategory !== '全部'
+                ? `当前「${ARCHIVE_TREE_CATEGORY_LABELS[treeCategory]}」下没有匹配文档`
+                : '当前分类下没有匹配文档'}
           {query.trim() ? `（关键词「${query.trim()}」）` : ''}
         </p>
       )}
@@ -620,6 +652,11 @@ export default function PlanManageList({
                     }`}
                   >
                     {sourceTag[plan.source] || plan.source}
+                  </span>
+                )}
+                {taxonomy === 'archive' && (
+                  <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-800">
+                    {ARCHIVE_TREE_CATEGORY_LABELS[resolveArchivePlanCategory(plan)]}
                   </span>
                 )}
                 {showPlanTags && plan.gradeLevel && plan.gradeLevel !== '通用' && (

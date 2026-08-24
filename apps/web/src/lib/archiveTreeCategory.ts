@@ -1,3 +1,5 @@
+import type { TeachingPlan } from '@/types/weeklyPlan'
+
 export type ArchiveTreeCategory = 'practice' | 'research' | 'honor'
 
 export const ARCHIVE_TREE_CATEGORY_LABELS: Record<ArchiveTreeCategory, string> = {
@@ -31,10 +33,22 @@ export function extractArchiveTreeMetaFromMarkdown(content: string): {
   year?: number
 } {
   const text = content || ''
-  const catMatch = text.match(/成长树分类[：:]\s*([^\n]+)/)
+  const catMatch = text.match(/成长树分类[：:]\s*([^\n>]+)/)
+  const typeMatch = text.match(/成果类型[：:]\s*([^\n>]+)/)
   const yearMatch = text.match(/成果年份[：:]\s*(\d{4})/)
+  const rawCat = (catMatch?.[1] || typeMatch?.[1] || '').trim()
   return {
-    treeCategory: catMatch ? normalizeArchiveTreeCategory(catMatch[1]) : undefined,
+    treeCategory: rawCat ? normalizeArchiveTreeCategory(rawCat) : undefined,
     year: yearMatch ? normalizeArchiveYear(yearMatch[1]) : undefined,
   }
 }
+
+export function resolveArchivePlanCategory(plan: TeachingPlan): ArchiveTreeCategory {
+  if (plan.treeCategory) return plan.treeCategory
+  const blob = `${plan.title}\n${plan.objectives || ''}\n${plan.content || ''}`
+  const fromDoc = extractArchiveTreeMetaFromMarkdown(blob)
+  if (fromDoc.treeCategory) return fromDoc.treeCategory
+  return normalizeArchiveTreeCategory(blob)
+}
+
+export const ARCHIVE_TREE_CATEGORY_FILTERS = ['特色实践', '教研科研', '专业荣誉'] as const

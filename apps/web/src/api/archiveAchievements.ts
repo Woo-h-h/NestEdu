@@ -37,6 +37,23 @@ export interface ArchiveAchievement {
   updatedAt?: string
 }
 
+export function applyArchiveAchievementsToPlans(
+  plans: TeachingPlan[],
+  rows: ArchiveAchievement[]
+): TeachingPlan[] {
+  if (rows.length === 0) return plans
+  const byId = new Map(rows.map((row) => [row.knowledgeDocId, row]))
+  return plans.map((plan) => {
+    const row = byId.get(plan.id)
+    if (!row) return plan
+    return {
+      ...plan,
+      treeCategory: row.treeCategory,
+      year: row.year || plan.year,
+    }
+  })
+}
+
 export async function listArchiveAchievements(phone: string): Promise<ArchiveAchievement[]> {
   const trimmed = phone.trim()
   if (!trimmed) return []
