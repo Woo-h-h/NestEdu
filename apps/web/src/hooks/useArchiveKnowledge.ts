@@ -187,6 +187,8 @@ export function useArchiveKnowledge() {
     setIsDeleting(true)
     try {
       await deleteKnowledgeDocument(plan.id)
+      const { deleteArchiveAchievement } = await import('@/api/archiveAchievements')
+      await deleteArchiveAchievement(plan.id)
       setPlatformPlans((prev) => prev.filter((p) => p.id !== plan.id))
     } finally {
       setIsDeleting(false)

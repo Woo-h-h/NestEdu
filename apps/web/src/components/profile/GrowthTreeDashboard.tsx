@@ -88,6 +88,15 @@ export default function GrowthTreeDashboard({
       setPlanOpen(true)
       return
     }
+    if (item.origin.type === 'archive') {
+      if (item.origin.plan) {
+        setPlan(item.origin.plan)
+        setPlanOpen(true)
+        return
+      }
+      setGenericOpen(true)
+      return
+    }
     if (item.origin.type === 'growth') {
       setGrowth(item.origin.record)
       setGrowthOpen(true)

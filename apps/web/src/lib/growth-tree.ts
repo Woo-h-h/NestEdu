@@ -1,4 +1,10 @@
+import type { ArchiveAchievement } from '@/api/archiveAchievements'
 import type { TeacherGeneratedDoc } from '@/api/teacherGeneratedDocs'
+import {
+  ARCHIVE_TREE_CATEGORY_LABELS,
+  extractArchiveTreeMetaFromMarkdown,
+  normalizeArchiveTreeCategory,
+} from '@/lib/archiveTreeCategory'
 import type { GrowthRecord } from '@/types/growth'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
@@ -27,6 +33,7 @@ export interface GrowthTreeArtifact {
     | { type: 'generated'; doc: TeacherGeneratedDoc }
     | { type: 'knowledge'; plan: TeachingPlan }
     | { type: 'growth'; record: GrowthRecord }
+    | { type: 'archive'; achievement: ArchiveAchievement; plan?: TeachingPlan }
 }
 
 export interface GrowthTreeBranchMeta {
@@ -186,10 +193,16 @@ export function artifactFromGeneratedDoc(doc: TeacherGeneratedDoc): GrowthTreeAr
 
 export function artifactFromKnowledgePlan(plan: TeachingPlan): GrowthTreeArtifact {
   const blob = `${plan.title}\n${plan.objectives || ''}\n${plan.content || ''}`
-  const branch = classifyArchiveText(plan.title, blob)
-  const year = parseArtifactYear(plan.title, plan.objectives || '', plan.content || '')
-  const kind =
-    branch === 'research' ? '教研科研' : branch === 'honor' ? '专业荣誉' : '特色实践'
+  const fromDoc = extractArchiveTreeMetaFromMarkdown(plan.content || '')
+  const branch =
+    plan.treeCategory ||
+    fromDoc.treeCategory ||
+    classifyArchiveText(plan.title, blob)
+  const year =
+    plan.year && plan.year > 0
+      ? plan.year
+      : fromDoc.year || parseArtifactYear(plan.title, plan.objectives || '', plan.content || '')
+  const kind = ARCHIVE_TREE_CATEGORY_LABELS[branch]
   return {
     id: `kb:${plan.id}`,
     year,
@@ -204,6 +217,31 @@ export function artifactFromKnowledgePlan(plan: TeachingPlan): GrowthTreeArtifac
     preview: clip(plan.objectives || plan.content || '') || '打开详情可查看解析正文。',
     fileHint: plan.title,
     origin: { type: 'knowledge', plan },
+  }
+}
+
+export function artifactFromArchiveAchievement(
+  row: ArchiveAchievement,
+  plan?: TeachingPlan
+): GrowthTreeArtifact {
+  const branch = normalizeArchiveTreeCategory(row.treeCategory)
+  const year =
+    row.year > 0 ? row.year : yearFromIso(row.createdAt) || parseArtifactYear(row.title)
+  const dates = formatArtifactDate(row.createdAt || '')
+  return {
+    id: `aa:${row.knowledgeDocId}`,
+    year,
+    branch,
+    kind: row.materialType || ARCHIVE_TREE_CATEGORY_LABELS[branch],
+    title: row.title,
+    dateLabel: row.year > 0 ? `${row.year} 年` : dates.dateLabel,
+    shortDate: row.year > 0 ? String(row.year) : dates.shortDate,
+    level: ARCHIVE_TREE_CATEGORY_LABELS[branch],
+    source: row.needsHumanReview ? '教师成果库（分类待核对）' : '教师成果库 · 已分类入库',
+    desc: GROWTH_TREE_BRANCHES[branch].summary,
+    preview: clip(row.summary || plan?.objectives || plan?.content || '') || '打开详情可查看解析正文。',
+    fileHint: row.title,
+    origin: { type: 'archive', achievement: row, plan },
   }
 }
 
@@ -230,11 +268,17 @@ export function artifactFromGrowthRecord(record: GrowthRecord): GrowthTreeArtifa
 export function buildGrowthTreeArtifacts(input: {
   generatedDocs: TeacherGeneratedDoc[]
   archivePlans: TeachingPlan[]
+  archiveAchievements?: ArchiveAchievement[]
   localRecords: GrowthRecord[]
 }): GrowthTreeArtifact[] {
+  const achievements = input.archiveAchievements || []
+  const planById = new Map(input.archivePlans.map((plan) => [plan.id, plan]))
+  const classifiedIds = new Set(achievements.map((row) => row.knowledgeDocId))
+  const leftoverPlans = input.archivePlans.filter((plan) => !classifiedIds.has(plan.id))
   return [
     ...input.generatedDocs.map(artifactFromGeneratedDoc),
-    ...input.archivePlans.map(artifactFromKnowledgePlan),
+    ...achievements.map((row) => artifactFromArchiveAchievement(row, planById.get(row.knowledgeDocId))),
+    ...leftoverPlans.map(artifactFromKnowledgePlan),
     ...input.localRecords
       .filter((item) => !item.id.startsWith('kb_'))
       .map(artifactFromGrowthRecord),

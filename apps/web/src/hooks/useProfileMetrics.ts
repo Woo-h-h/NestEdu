@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listGrowthRecords } from '@/api/growth'
+import { listArchiveAchievements, type ArchiveAchievement } from '@/api/archiveAchievements'
 import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
 import {
   clearTeacherPhoneCache,
@@ -88,6 +89,7 @@ function resolvePlatformDisplayName(user: {
 export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM_STATS) {
   const [records, setRecords] = useState<GrowthRecord[]>([])
   const [archivePlans, setArchivePlans] = useState<TeachingPlan[]>([])
+  const [archiveAchievements, setArchiveAchievements] = useState<ArchiveAchievement[]>([])
   const [generatedDocs, setGeneratedDocs] = useState<TeacherGeneratedDoc[]>([])
   const [systemStats, setSystemStats] = useState<SystemStats>(initialSystemStats)
   const [displayName, setDisplayName] = useState('')
@@ -152,17 +154,20 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
           if (nextDisplayName) setDisplayName(nextDisplayName)
 
           if (nextPhone) {
-            const [archive, docs] = await Promise.all([
+            const [archive, docs, achievements] = await Promise.all([
               fetchArchivePlansForOwnerFolder(nextPhone, { limit: 50 }),
               listTeacherGeneratedDocs(nextPhone),
+              listArchiveAchievements(nextPhone),
             ])
             kbRecords = archive.plans.map(planToGrowthRecord)
             archiveCount = archive.plans.length
             setArchivePlans(archive.plans)
             setGeneratedDocs(docs)
+            setArchiveAchievements(achievements)
           } else {
             setArchivePlans([])
             setGeneratedDocs([])
+            setArchiveAchievements([])
           }
         } catch (err) {
           if (!nextPhone) {
@@ -176,6 +181,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
         setDisplayName('')
         setArchivePlans([])
         setGeneratedDocs([])
+        setArchiveAchievements([])
       }
 
       const [localRecords, nextStats] = await Promise.all([localPromise, statsPromise])
@@ -212,6 +218,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       setDisplayName('')
       setArchivePlans([])
       setGeneratedDocs([])
+      setArchiveAchievements([])
       void load()
     })
   }, [load])
@@ -260,6 +267,7 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
   return {
     records,
     archivePlans,
+    archiveAchievements,
     generatedDocs,
     loading,
     error,

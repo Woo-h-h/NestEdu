@@ -46,6 +46,7 @@ export default function ProfilePage() {
     archivePlans,
     generatedDocs,
     records,
+    archiveAchievements,
     load,
   } = useProfileMetrics()
 
@@ -137,9 +138,10 @@ export default function ProfilePage() {
       buildGrowthTreeArtifacts({
         generatedDocs,
         archivePlans,
+        archiveAchievements,
         localRecords: records,
       }),
-    [generatedDocs, archivePlans, records]
+    [generatedDocs, archivePlans, archiveAchievements, records]
   )
   const treeYears = useMemo(() => collectYears(artifacts), [artifacts])
   const treeTags = useMemo(() => deriveGrowthTags(artifacts), [artifacts])

@@ -322,6 +322,24 @@ Query 筛选（均可选）：
 
 - `DELETE /api/v1/teacher-generated-docs/:knowledgeDocId`
 
+## 成果库分类映射 Archive Achievements API
+
+教师成果库文档在平台知识库之外，额外写入本地表 `archive_achievements`，供专业成长树按三类挂果。`treeCategory`：`practice`（特色实践）| `research`（教研科研）| `honor`（专业荣誉）。`year` 为四位年份，未知为 `0`。
+
+### 18b) 列表
+
+- `GET /api/v1/archive-achievements?phone=13800138000`
+
+### 18c) 保存（按 knowledgeDocId upsert）
+
+- `POST /api/v1/archive-achievements`
+
+请求体：`phone`, `knowledgeDocId`, `title`, `treeCategory`, `year`，可选 `materialType` / `summary` / `needsHumanReview` / `knowledgeId` / `categoryId`。
+
+### 18d) 删除
+
+- `DELETE /api/v1/archive-achievements/:knowledgeDocId`
+
 ## 画像行动计划 Profile Actions API
 
 按登录用户 `X-Uid-Hash` 持久化行动建议勾选/进度；`VITE_USE_BACKEND_API=true` 时优先走 BFF，并将旧 `localStorage`（`nestedu_profile_actions_v1`）在 BFF 为空时一次性迁上去。

@@ -173,6 +173,7 @@ flowchart TB
 | 表 / 域 | 用途 |
 |---------|------|
 | `teacher_generated_docs` | 本人活动方案 / 周计划入库计数与映射 |
+| `archive_achievements` | 教师成果库文档的成长树分类（特色实践/教研科研/专业荣誉）与年份 |
 | `growth_records` | 教师录入类成果（可选） |
 | `profile_snapshots` | 智能画像文案快照（按手机号） |
 

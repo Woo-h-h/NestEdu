@@ -8,6 +8,12 @@ import {
   ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT,
   buildArchiveParseUserMessage,
 } from '@/lib/prompts'
+import {
+  ARCHIVE_TREE_CATEGORY_LABELS,
+  normalizeArchiveTreeCategory,
+  normalizeArchiveYear,
+  type ArchiveTreeCategory,
+} from '@/lib/archiveTreeCategory'
 
 /** 成果解析智能体：https://www.zcat.cn/teach/agent/chat/14509 */
 export const ARCHIVE_PARSE_AGENT_ID_DEFAULT = 14509
@@ -27,8 +33,11 @@ export interface ArchiveParseResult {
   summary: string
   body: string
   materialType: string
+  treeCategory: ArchiveTreeCategory
+  year: number
   keyPoints: string[]
   status: ArchiveParseStatus
+  needsHumanReview: boolean
   /** 写入知识库的完整 markdown */
   documentContent: string
 }
@@ -38,6 +47,8 @@ interface ArchiveParseJson {
   summary?: string
   body?: string
   materialType?: string
+  treeCategory?: string
+  year?: unknown
   keyPoints?: unknown
   needsHumanReview?: boolean
 }
@@ -94,6 +105,8 @@ function buildSuccessDocument(params: {
   summary: string
   body: string
   materialType: string
+  treeCategory: ArchiveTreeCategory
+  year: number
   keyPoints: string[]
   fileName: string
   fileUrl?: string
@@ -101,10 +114,13 @@ function buildSuccessDocument(params: {
   isImage: boolean
   needsHumanReview: boolean
 }): string {
+  const yearLabel = params.year > 0 ? String(params.year) : '待核对'
   const lines = [
     `# ${params.title}`,
     '',
-    `> 成果类型：${params.materialType || '未分类'}`,
+    `> 成长树分类：${ARCHIVE_TREE_CATEGORY_LABELS[params.treeCategory]}`,
+    `> 成果年份：${yearLabel}`,
+    `> 成果细类：${params.materialType || '未细分'}`,
     params.needsHumanReview
       ? '> 解析状态：需人工核对（智能体置信不足或材料不完整）'
       : '> 解析状态：智能解析完成，请人工核对后使用',
@@ -146,9 +162,16 @@ function mapParseJson(
   const title = (parsed.title || params.title || params.fileName).trim()
   const summary = (parsed.summary || '').trim()
   const body = (parsed.body || '').trim()
-  const materialType = (parsed.materialType || '').trim() || '其他'
+  const treeCategory = normalizeArchiveTreeCategory(
+    parsed.treeCategory || parsed.materialType || ''
+  )
+  const materialType = (parsed.materialType || '').trim() || ARCHIVE_TREE_CATEGORY_LABELS[treeCategory]
+  const parsedYear = normalizeArchiveYear(parsed.year, 0)
+  const yearMissing = parsedYear <= 0
+  const year = parsedYear
   const keyPoints = asStringList(parsed.keyPoints)
-  const needsHumanReview = Boolean(parsed.needsHumanReview) || (!summary && !body)
+  const needsHumanReview =
+    Boolean(parsed.needsHumanReview) || (!summary && !body) || yearMissing
 
   if (!summary && !body) {
     throw new Error('智能体未返回有效成果摘要或正文')
@@ -160,13 +183,18 @@ function mapParseJson(
     summary: summary || truncate(body, 120),
     body: body || summary,
     materialType,
+    treeCategory,
+    year,
     keyPoints,
     status,
+    needsHumanReview,
     documentContent: buildSuccessDocument({
       title,
       summary: summary || truncate(body, 120),
       body: body || summary,
       materialType,
+      treeCategory,
+      year: year,
       keyPoints,
       fileName: params.fileName,
       fileUrl: params.fileUrl,
@@ -269,7 +297,7 @@ export async function parseArchiveAchievement(params: {
     }
     try {
       return await tryOnce(
-        '上次输出不符合要求。请严格输出 JSON 对象，字段含 title、summary、body、materialType、keyPoints、needsHumanReview；禁止只复述“这是截图/图片文件”。'
+        '上次输出不符合要求。请严格输出 JSON 对象，字段含 title、summary、body、treeCategory、materialType、year、keyPoints、needsHumanReview；treeCategory 只能是特色实践、教研科研或专业荣誉。'
       )
     } catch (secondErr) {
       const hint =
@@ -294,9 +322,12 @@ export async function parseArchiveAchievement(params: {
         title,
         summary: `解析未完成：${hint.slice(0, 80)}。请打开原文件人工核对。`,
         body: fallbackBody,
-        materialType: '其他',
+        materialType: '其他实践',
+        treeCategory: normalizeArchiveTreeCategory(params.fileName),
+        year: 0,
         keyPoints: [],
         status: 'failed',
+        needsHumanReview: true,
         documentContent: fallbackBody,
       }
     }

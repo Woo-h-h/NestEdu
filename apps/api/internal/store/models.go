@@ -10,6 +10,7 @@ func DomainModels() []any {
 		&model.GrowthRecord{},
 		&model.ProfileSnapshot{},
 		&model.TeacherGeneratedDoc{},
+		&model.ArchiveAchievement{},
 		&model.ProfileActionBundle{},
 	}
 }

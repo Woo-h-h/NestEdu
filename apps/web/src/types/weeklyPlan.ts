@@ -7,6 +7,8 @@ export interface TeachingPlan {
   content: string
   source?: 'platform' | 'preset' | 'ai' | 'mysql'
   knowledgeId?: string
+  treeCategory?: 'practice' | 'research' | 'honor'
+  year?: number
 }
 
 export type PlanSourceMode = 'theme-ai' | 'platform' | 'upload-platform'

@@ -41,6 +41,10 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	teacherGeneratedDocService := service.NewTeacherGeneratedDocService(teacherGeneratedDocStore)
 	teacherGeneratedDocHandler := newTeacherGeneratedDocHandler(teacherGeneratedDocService)
 
+	archiveAchievementStore := store.NewArchiveAchievementStore(cfg.DB)
+	archiveAchievementService := service.NewArchiveAchievementService(archiveAchievementStore)
+	archiveAchievementHandler := newArchiveAchievementHandler(archiveAchievementService)
+
 	profileActionStore := store.NewProfileActionStore(cfg.DB)
 	profileActionService := service.NewProfileActionService(profileActionStore)
 	profileActionHandler := newProfileActionHandler(profileActionService)
@@ -69,6 +73,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 	growthHandler.registerRoutes(secured)
 	profileSnapshotHandler.registerRoutes(secured)
 	teacherGeneratedDocHandler.registerRoutes(secured)
+	archiveAchievementHandler.registerRoutes(secured)
 	profileActionHandler.registerRoutes(secured)
 	aiHandler.registerRoutes(secured)
 	knowledgeHandler.registerRoutes(secured)

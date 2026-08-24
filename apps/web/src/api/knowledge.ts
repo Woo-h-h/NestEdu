@@ -1612,6 +1612,10 @@ async function buildArchiveParsedDocumentContent(
   parseStatus: 'ok' | 'partial' | 'failed'
   /** 入库标题：解析成功时用智能体 title，失败时保留原文件名 */
   title: string
+  treeCategory: 'practice' | 'research' | 'honor'
+  year: number
+  materialType: string
+  needsHumanReview: boolean
 }> {
   let extractedText = ''
   try {
@@ -1642,6 +1646,10 @@ async function buildArchiveParsedDocumentContent(
       summary: parsed.summary,
       parseStatus: parsed.status,
       title: storageTitle,
+      treeCategory: parsed.treeCategory,
+      year: parsed.year,
+      materialType: parsed.materialType,
+      needsHumanReview: parsed.needsHumanReview || parsed.status !== 'ok',
     }
   } catch (err) {
     // 登录类错误向上抛；其它解析失败回退元数据文档，禁止假装已解析成功
@@ -1652,6 +1660,10 @@ async function buildArchiveParsedDocumentContent(
       summary: `解析未完成：${err instanceof Error ? err.message.slice(0, 80) : '请人工核对原文件'}`,
       parseStatus: 'failed',
       title,
+      treeCategory: 'practice',
+      year: 0,
+      materialType: '其他实践',
+      needsHumanReview: true,
     }
   }
 }
@@ -1732,9 +1744,21 @@ export async function uploadKnowledgeFile(params: {
       plan.objectives = parsedDoc.summary
     }
     plan.title = parsedDoc.title
+    plan.treeCategory = parsedDoc.treeCategory
+    plan.year = parsedDoc.year
     if (parsedDoc.parseStatus === 'failed') {
       console.warn('[Knowledge] archive uploaded with failed parse, needs human review', parsedDoc.title)
     }
+    const { recordArchiveAchievementUpload } = await import('@/api/archiveAchievements')
+    await recordArchiveAchievementUpload({
+      plan,
+      treeCategory: parsedDoc.treeCategory,
+      year: parsedDoc.year,
+      materialType: parsedDoc.materialType,
+      summary: parsedDoc.summary,
+      needsHumanReview: parsedDoc.needsHumanReview,
+      categoryId,
+    })
     return plan
   }
 
