@@ -9,7 +9,11 @@ import {
   resolvePhoneFromAuthInfo,
   resolvePhoneFromUserSelf,
 } from '@/api/platformUser'
-import { fetchTeacherGeneratedDocStats } from '@/api/teacherGeneratedDocs'
+import {
+  fetchTeacherGeneratedDocStats,
+  listTeacherGeneratedDocs,
+  type TeacherGeneratedDoc,
+} from '@/api/teacherGeneratedDocs'
 import { authBridge } from '@/lib/authBridge'
 import { getAuthIdentityKey } from '@/lib/authIdentity'
 import { getApiErrorMessage } from '@/lib/apiError'
@@ -83,6 +87,8 @@ function resolvePlatformDisplayName(user: {
 
 export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM_STATS) {
   const [records, setRecords] = useState<GrowthRecord[]>([])
+  const [archivePlans, setArchivePlans] = useState<TeachingPlan[]>([])
+  const [generatedDocs, setGeneratedDocs] = useState<TeacherGeneratedDoc[]>([])
   const [systemStats, setSystemStats] = useState<SystemStats>(initialSystemStats)
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
@@ -146,9 +152,17 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
           if (nextDisplayName) setDisplayName(nextDisplayName)
 
           if (nextPhone) {
-            const archive = await fetchArchivePlansForOwnerFolder(nextPhone, { limit: 50 })
+            const [archive, docs] = await Promise.all([
+              fetchArchivePlansForOwnerFolder(nextPhone, { limit: 50 }),
+              listTeacherGeneratedDocs(nextPhone),
+            ])
             kbRecords = archive.plans.map(planToGrowthRecord)
             archiveCount = archive.plans.length
+            setArchivePlans(archive.plans)
+            setGeneratedDocs(docs)
+          } else {
+            setArchivePlans([])
+            setGeneratedDocs([])
           }
         } catch (err) {
           if (!nextPhone) {
@@ -160,6 +174,8 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       } else {
         setPhone('')
         setDisplayName('')
+        setArchivePlans([])
+        setGeneratedDocs([])
       }
 
       const [localRecords, nextStats] = await Promise.all([localPromise, statsPromise])
@@ -194,6 +210,8 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
       lastIdentity = identity
       setPhone('')
       setDisplayName('')
+      setArchivePlans([])
+      setGeneratedDocs([])
       void load()
     })
   }, [load])
@@ -241,6 +259,8 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
 
   return {
     records,
+    archivePlans,
+    generatedDocs,
     loading,
     error,
     phone,

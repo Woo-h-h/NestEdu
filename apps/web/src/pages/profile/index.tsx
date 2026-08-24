@@ -6,17 +6,19 @@ import { authBridge } from '@/lib/authBridge'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { getAuthIdentityKey } from '@/lib/authIdentity'
 import type { AuthInfo } from '@zcat-open/auth-bridge'
-import ProfileHeroCard, { resolveProfileDisplayName } from '@/components/profile/ProfileHeroCard'
+import { resolveProfileDisplayName } from '@/components/profile/ProfileHeroCard'
 import ProfileAgentMarkdown from '@/components/profile/ProfileAgentMarkdown'
-import DimensionCards from '@/components/profile/DimensionCards'
-import RadarChart from '@/components/profile/RadarChart'
-import DonutChart from '@/components/profile/DonutChart'
-import StrengthGapPanel from '@/components/profile/StrengthGapPanel'
+import GrowthTreeDashboard from '@/components/profile/GrowthTreeDashboard'
 import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
 import { getProfileSnapshotByPhone, saveProfileSnapshot } from '@/api/profileSnapshot'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
 import { getProfileAgentId } from '@/api/agent'
+import {
+  buildGrowthTreeArtifacts,
+  collectYears,
+  deriveGrowthTags,
+} from '@/lib/growth-tree'
 
 export default function ProfilePage() {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(() => authBridge.getAuthInfo())
@@ -41,12 +43,9 @@ export default function ProfilePage() {
     isEmpty,
     phone,
     displayName: platformDisplayName,
-    teacherRecordCount,
-    dimensions,
-    categoryCounts,
-    radar,
-    analysis,
-    representatives,
+    archivePlans,
+    generatedDocs,
+    records,
     load,
   } = useProfileMetrics()
 
@@ -133,6 +132,18 @@ export default function ProfilePage() {
     return resolveProfileDisplayName(authInfo)
   }, [platformDisplayName, authInfo])
 
+  const artifacts = useMemo(
+    () =>
+      buildGrowthTreeArtifacts({
+        generatedDocs,
+        archivePlans,
+        localRecords: records,
+      }),
+    [generatedDocs, archivePlans, records]
+  )
+  const treeYears = useMemo(() => collectYears(artifacts), [artifacts])
+  const treeTags = useMemo(() => deriveGrowthTags(artifacts), [artifacts])
+
   const handleGenerateAgentProfile = async () => {
     setAgentError('')
     setAgentLoading(true)
@@ -179,20 +190,33 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="page-enter mx-auto max-w-6xl">
-      <ProfileHeroCard
+    <div className="page-enter mx-auto max-w-[1500px]">
+      <GrowthTreeDashboard
         displayName={displayName}
-        teacherRecordCount={teacherRecordCount}
-        categoryCounts={categoryCounts}
+        years={treeYears}
+        tags={treeTags}
+        artifacts={artifacts}
+        loading={loading}
       />
 
       {phone ? (
         <p className="mt-3 text-xs text-nest-muted">
-          画像三维度：活动方案 / 周计划（本人入库）· 教师成果库（个人文件夹）。
+          叶片来自本人入库的活动方案与周计划；果实来自教师成果库个人文件夹与本地录入。
         </p>
       ) : null}
 
       <ComplianceBanner className="mt-5" />
+
+      {error ? (
+        <div className="surface-panel mt-5 p-8 text-center">
+          <p className="text-sm text-red-600">成长数据加载失败：{error}</p>
+          <button type="button" onClick={() => void load()} className="btn-secondary mt-4">
+            重试
+          </button>
+        </div>
+      ) : null}
+
+      {!loading && !error && isEmpty ? <EmptyState className="mt-5" phone={phone} /> : null}
 
       <section className="surface-panel mt-5 space-y-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -264,75 +288,6 @@ export default function ProfilePage() {
           )
         )}
       </section>
-
-      {loading ? (
-        <div className="surface-panel mt-6 flex items-center justify-center gap-2 p-12 text-nest-muted">
-          <Loader2 size={18} className="animate-spin" />
-          加载成长数据…
-        </div>
-      ) : error ? (
-        <div className="surface-panel mt-6 p-8 text-center">
-          <p className="text-sm text-red-600">成长数据加载失败：{error}</p>
-          <button type="button" onClick={() => void load()} className="btn-secondary mt-4">
-            重试
-          </button>
-        </div>
-      ) : isEmpty ? (
-        <EmptyState className="mt-6" phone={phone} />
-      ) : (
-        <div className="mt-8 space-y-8">
-          <section>
-            <SectionHead
-              title="成长结构维度"
-              desc="与成果库首页前三栏对齐：活动方案、周计划、教师成果库；结构观察，非能力或绩效评分。"
-            />
-            <DimensionCards dimensions={dimensions} />
-          </section>
-
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <ChartPanel title="结构雷达" desc="三维度结构丰富度（0–100，非能力分）">
-              <RadarChart labels={radar.labels} values={radar.values} />
-            </ChartPanel>
-            <ChartPanel title="成果结构分布" desc="活动方案 / 周计划 / 教师成果库数量占比">
-              <DonutChart items={categoryCounts} />
-            </ChartPanel>
-          </section>
-
-          <section>
-            <SectionHead
-              title="优势与待发展"
-              desc="基于三维度计数的可解释规则分析，仅供个人发展参考。"
-            />
-            <StrengthGapPanel strengths={analysis.strengths} gaps={analysis.gaps} />
-          </section>
-
-          {representatives.length > 0 && (
-            <section className="surface-panel p-5">
-              <SectionHead title="代表成果" desc="来自教师成果库文档或本地录入的展示条目" />
-              <ul className="mt-3 divide-y divide-nest-leaf/10">
-                {representatives.map((r) => (
-                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                    <div>
-                      <span className="font-medium text-nest-ink">{r.name}</span>
-                      <span className="ml-2 text-nest-muted">
-                        {r.id.startsWith('kb_') ? '教师成果库' : r.category} · {r.year}
-                      </span>
-                    </div>
-                    {r.representative && (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
-                        代表成果
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/archive" className="btn-secondary mt-4 inline-flex text-xs">
-                在成果库查看更多
-              </Link>
-            </section>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -344,8 +299,8 @@ function ComplianceBanner({ className }: { className?: string }) {
     >
       <ShieldCheck size={18} className="mt-0.5 shrink-0 text-nest-leaf" />
       <p className="leading-relaxed">
-        教师画像用于<strong className="font-medium">个人专业发展观察</strong>，不构成排名、绩效评分或与他人对比依据。
-        雷达与匹配度均为<strong className="font-medium">成长结构</strong>描述。
+        教师画像用于<strong className="font-medium">个人专业发展观察</strong>
+        ，不构成排名、绩效评分或与他人对比依据。成长树只描述成果数量与类型。
       </p>
     </div>
   )
@@ -372,32 +327,6 @@ function EmptyState({ className, phone }: { className?: string; phone?: string }
           查看成果库
         </Link>
       </div>
-    </div>
-  )
-}
-
-function SectionHead({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="mb-4">
-      <h2 className="font-display text-lg font-semibold text-nest-ink">{title}</h2>
-      <p className="mt-1 text-sm text-nest-muted">{desc}</p>
-    </div>
-  )
-}
-
-function ChartPanel({
-  title,
-  desc,
-  children,
-}: {
-  title: string
-  desc: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="surface-panel flex flex-col p-5">
-      <SectionHead title={title} desc={desc} />
-      <div className="flex flex-1 items-center justify-center">{children}</div>
     </div>
   )
 }

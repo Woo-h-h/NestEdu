@@ -165,6 +165,140 @@ body,
   animation: nest-soft-pulse 5s ease-in-out infinite;
 }
 
+.growth-tree-stage {
+  background: linear-gradient(180deg, #dff2e8 0%, #f7fbf3 69%, #edf3d8 100%);
+  box-shadow: inset 0 0 40px rgba(27, 77, 62, 0.08);
+}
+
+.growth-tree-cloud {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.36);
+  filter: blur(2px);
+}
+
+.growth-tree-svg .growth-tree-body {
+  filter: drop-shadow(0 12px 10px rgba(53, 79, 36, 0.2));
+  transform-origin: center bottom;
+  animation: growth-tree-trunk 0.8s both;
+}
+
+.growth-tree-svg .growth-tree-branches {
+  transform-origin: center bottom;
+  animation: growth-tree-branches 0.7s 0.12s both;
+}
+
+.growth-tree-svg .growth-tree-canopy {
+  transform-origin: center;
+  animation: growth-tree-bloom 0.7s 0.25s both;
+}
+
+.growth-tree-output {
+  cursor: pointer;
+  outline: none;
+  transition: filter 0.18s;
+}
+
+.growth-tree-output:hover,
+.growth-tree-output:focus {
+  filter: brightness(1.13) drop-shadow(0 0 7px #dceee7);
+}
+
+.growth-tree-leaf {
+  opacity: 0;
+  animation: growth-tree-leaf 0.28s forwards;
+}
+
+.growth-tree-fruit {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: growth-tree-fruit 0.4s cubic-bezier(0.2, 0.8, 0.3, 1.3) both;
+}
+
+.growth-tree-spark {
+  animation: growth-tree-spark 1.3s infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes growth-tree-trunk {
+  from {
+    transform: scaleY(0.18);
+    opacity: 0.2;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes growth-tree-branches {
+  from {
+    transform: scale(0.42);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes growth-tree-bloom {
+  from {
+    transform: scale(0.25);
+    opacity: 0;
+  }
+  75% {
+    transform: scale(1.03);
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes growth-tree-leaf {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes growth-tree-fruit {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.14);
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes growth-tree-spark {
+  50% {
+    transform: rotate(17deg) scale(1.3);
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .growth-tree-svg .growth-tree-body,
+  .growth-tree-svg .growth-tree-branches,
+  .growth-tree-svg .growth-tree-canopy,
+  .growth-tree-leaf,
+  .growth-tree-fruit,
+  .growth-tree-spark {
+    animation: none !important;
+    opacity: 1;
+  }
+}
+
 @media print {
   body.printing * {
     visibility: hidden;

@@ -54,7 +54,7 @@ const menuItems: MenuItem[] = [
     path: '/profile',
     title: '教师画像',
     shortLabel: '画像',
-    subtitle: '画像分析与发展建议',
+    subtitle: '专业成长树与发展建议',
     icon: Radar,
   },
 ]
