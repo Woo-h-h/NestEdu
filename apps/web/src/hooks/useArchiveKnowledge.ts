@@ -11,6 +11,7 @@ import {
   type KnowledgeCategory,
 } from '@/api/knowledge'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
+import { filterTeacherArchiveDocs } from '@/lib/archiveTreeCategory'
 import { prepareArchiveUploadFiles } from '@/lib/prepareArchiveUpload'
 import { ownerFolderNameMatches } from '@/lib/archiveTeacherScope'
 import { authBridge } from '@/lib/authBridge'
@@ -81,13 +82,11 @@ export function useArchiveKnowledge() {
           currentPhone,
           {
             keyword: keyword?.trim() || undefined,
-            limit: 50,
+            limit: 200,
           }
         )
         // 成果库不展示误入的活动方案/周计划（那些应在教案库/周计划库）
-        const archiveOnly = next.filter(
-          (plan) => !/_活动方案_/.test(plan.title || '') && !/_周计划_/.test(plan.title || '')
-        )
+        const archiveOnly = filterTeacherArchiveDocs(next)
         setPlatformPlans(archiveOnly)
         setTeacherFolders(folders)
         if (source === 'platform') {

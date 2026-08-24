@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listGrowthRecords } from '@/api/growth'
-import { listArchiveAchievements, type ArchiveAchievement } from '@/api/archiveAchievements'
+import { applyArchiveAchievementsToPlans, listArchiveAchievements, type ArchiveAchievement } from '@/api/archiveAchievements'
 import { fetchArchivePlansForOwnerFolder } from '@/api/knowledge'
+import { filterTeacherArchiveDocs } from '@/lib/archiveTreeCategory'
 import {
   clearTeacherPhoneCache,
   fetchPlatformUserSelf,
@@ -154,16 +155,30 @@ export function useProfileMetrics(initialSystemStats: SystemStats = EMPTY_SYSTEM
           if (nextDisplayName) setDisplayName(nextDisplayName)
 
           if (nextPhone) {
-            const [archive, docs, achievements] = await Promise.all([
-              fetchArchivePlansForOwnerFolder(nextPhone, { limit: 50 }),
+            // 成果文件夹按登录手机号匹配，与成果库页同一套号码，避免 /user/self 不一致导致 0 份果实
+            const archivePhone =
+              (await getCurrentTeacherPhone({ force: true })).trim() || nextPhone
+            const [archiveResult, docsResult, achievementsResult] = await Promise.allSettled([
+              fetchArchivePlansForOwnerFolder(archivePhone, { limit: 200 }),
               listTeacherGeneratedDocs(nextPhone),
-              listArchiveAchievements(nextPhone),
+              listArchiveAchievements(archivePhone),
             ])
-            kbRecords = archive.plans.map(planToGrowthRecord)
-            archiveCount = archive.plans.length
-            setArchivePlans(archive.plans)
+            const archive =
+              archiveResult.status === 'fulfilled'
+                ? archiveResult.value
+                : { plans: [] as TeachingPlan[] }
+            const docs = docsResult.status === 'fulfilled' ? docsResult.value : []
+            const achievements =
+              achievementsResult.status === 'fulfilled' ? achievementsResult.value : []
+            const archiveOnly = filterTeacherArchiveDocs(archive.plans || [])
+            kbRecords = archiveOnly.map(planToGrowthRecord)
+            archiveCount = archiveOnly.length
+            setArchivePlans(applyArchiveAchievementsToPlans(archiveOnly, achievements))
             setGeneratedDocs(docs)
             setArchiveAchievements(achievements)
+            if (archiveResult.status === 'rejected') {
+              console.warn('[Profile] 加载成果库文档失败', archiveResult.reason)
+            }
           } else {
             setArchivePlans([])
             setGeneratedDocs([])

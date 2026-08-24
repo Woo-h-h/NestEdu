@@ -13,10 +13,17 @@ import PlanDetailDialog from '@/pages/resources/PlanDetailDialog'
 import {
   GROWTH_TREE_BRANCHES,
   GROWTH_TREE_BRANCH_KEYS,
+  artifactFromKnowledgePlan,
+  artifactsForStructureView,
   groupKindRows,
   type GrowthTreeArtifact,
   type GrowthTreeBranch,
 } from '@/lib/growth-tree'
+import {
+  ARCHIVE_TREE_CATEGORY_LABELS,
+  countArchivePlansByTreeCategory,
+  type ArchiveTreeCategory,
+} from '@/lib/archiveTreeCategory'
 import type { GrowthRecord } from '@/types/growth'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
@@ -25,6 +32,7 @@ interface GrowthTreeDashboardProps {
   years: number[]
   tags: string[]
   artifacts: GrowthTreeArtifact[]
+  archivePlans?: TeachingPlan[]
   loading: boolean
 }
 
@@ -33,6 +41,7 @@ export default function GrowthTreeDashboard({
   years,
   tags,
   artifacts,
+  archivePlans = [],
   loading,
 }: GrowthTreeDashboardProps) {
   const currentCalendarYear = new Date().getFullYear()
@@ -63,10 +72,23 @@ export default function GrowthTreeDashboard({
     []
   )
 
-  const yearItems = useMemo(
-    () => artifacts.filter((item) => item.year === year),
-    [artifacts, year]
+  const archiveCounts = useMemo(
+    () => countArchivePlansByTreeCategory(archivePlans),
+    [archivePlans]
   )
+  const archiveFruitArtifacts = useMemo(
+    () => archivePlans.map(artifactFromKnowledgePlan),
+    [archivePlans]
+  )
+  const yearItems = useMemo(() => {
+    const mixed = artifactsForStructureView(artifacts, year)
+    const daily = mixed.filter((item) => item.branch === 'daily')
+    const fruits =
+      archivePlans.length > 0
+        ? archiveFruitArtifacts
+        : mixed.filter((item) => item.branch !== 'daily')
+    return [...daily, ...fruits]
+  }, [artifacts, year, archivePlans.length, archiveFruitArtifacts])
   const branchItems = useMemo(
     () => yearItems.filter((item) => item.branch === branch),
     [yearItems, branch]
@@ -214,7 +236,7 @@ export default function GrowthTreeDashboard({
             <div>
               <b className="text-sm text-nest-ink">{year} 年度成长树</b>
               <small className="mt-1 block text-[11px] text-nest-muted">
-                点击叶片或果实查看对应产出
+                点击叶片或果实查看对应产出；果实与成果库分类对应
                 {loading ? ' · 加载中…' : ''}
               </small>
             </div>
@@ -313,19 +335,29 @@ export default function GrowthTreeDashboard({
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
             <p className="text-[10px] tracking-[0.18em] text-amber-800/70">GROWTH STRUCTURE</p>
-            <h2 className="font-display text-lg text-nest-ink">本年度成长结构</h2>
+            <h2 className="font-display text-lg text-nest-ink">成长结构</h2>
           </div>
-          <p className="text-xs text-nest-muted">一个叶子或果实，对应一份真实产出</p>
+          <p className="text-xs text-nest-muted">日常叶片按所选年份；成果库果实与成果库分类份数一致</p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {GROWTH_TREE_BRANCH_KEYS.map((key) => {
             const m = GROWTH_TREE_BRANCHES[key]
             const items = yearItems.filter((x) => x.branch === key)
+            const count =
+              key === 'daily'
+                ? items.length
+                : archivePlans.length > 0
+                  ? archiveCounts[key as ArchiveTreeCategory]
+                  : items.length
             const detail =
-              groupKindRows(items)
-                .filter((r) => r.count > 0)
-                .map((r) => `${r.kind} ${r.count}`)
-                .join(' · ') || '正在自然积累'
+              key === 'daily'
+                ? groupKindRows(items)
+                    .filter((r) => r.count > 0)
+                    .map((r) => `${r.kind} ${r.count}`)
+                    .join(' · ') || '正在自然积累'
+                : count > 0
+                  ? `${ARCHIVE_TREE_CATEGORY_LABELS[key as ArchiveTreeCategory]} ${count}`
+                  : '正在自然积累'
             return (
               <button
                 key={key}
@@ -345,7 +377,7 @@ export default function GrowthTreeDashboard({
                   <em className="block truncate text-[10px] not-italic text-nest-muted">{detail}</em>
                 </span>
                 <strong className="text-lg" style={{ color: m.color }}>
-                  {items.length}
+                  {count}
                   <small className="block text-[10px] font-normal text-nest-muted">份产出</small>
                 </strong>
               </button>

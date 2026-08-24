@@ -4,6 +4,7 @@ import {
   ARCHIVE_TREE_CATEGORY_LABELS,
   extractArchiveTreeMetaFromMarkdown,
   normalizeArchiveTreeCategory,
+  resolveArchivePlanCategory,
 } from '@/lib/archiveTreeCategory'
 import type { GrowthRecord } from '@/types/growth'
 import type { TeachingPlan } from '@/types/weeklyPlan'
@@ -152,10 +153,7 @@ export function formatArtifactDate(isoOrDate: string): { dateLabel: string; shor
 }
 
 export function classifyArchiveText(title: string, extra = ''): Exclude<GrowthTreeBranch, 'daily'> {
-  const t = `${title}\n${extra}`
-  if (/论文|课题|公开课|个案|教研|科研|案例研究|观察记录/.test(t)) return 'research'
-  if (/奖|荣誉|表彰|研修|培训|证书|观摩|技能比赛|骨干/.test(t)) return 'honor'
-  return 'practice'
+  return normalizeArchiveTreeCategory(`${title}\n${extra}`)
 }
 
 export function classifyGrowthRecord(record: GrowthRecord): Exclude<GrowthTreeBranch, 'daily'> {
@@ -192,12 +190,10 @@ export function artifactFromGeneratedDoc(doc: TeacherGeneratedDoc): GrowthTreeAr
 }
 
 export function artifactFromKnowledgePlan(plan: TeachingPlan): GrowthTreeArtifact {
-  const blob = `${plan.title}\n${plan.objectives || ''}\n${plan.content || ''}`
-  const fromDoc = extractArchiveTreeMetaFromMarkdown(plan.content || '')
-  const branch =
-    plan.treeCategory ||
-    fromDoc.treeCategory ||
-    classifyArchiveText(plan.title, blob)
+  const fromDoc = extractArchiveTreeMetaFromMarkdown(
+    `${plan.objectives || ''}\n${plan.content || ''}`
+  )
+  const branch = resolveArchivePlanCategory(plan)
   const year =
     plan.year && plan.year > 0
       ? plan.year
@@ -353,4 +349,12 @@ export function visibleTreeItems(
 ): GrowthTreeArtifact[] {
   const max = branch === 'daily' ? GROWTH_TREE_MAX_LEAVES : GROWTH_TREE_MAX_FRUIT
   return items.slice(0, max)
+}
+
+/** 日常叶片按入库年份；成果库果实与成果库分类一致，不因获奖年份从当前视图消失。 */
+export function artifactsForStructureView(
+  artifacts: GrowthTreeArtifact[],
+  year: number
+): GrowthTreeArtifact[] {
+  return artifacts.filter((item) => item.branch !== 'daily' || item.year === year)
 }

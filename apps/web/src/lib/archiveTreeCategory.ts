@@ -12,11 +12,12 @@ export function normalizeArchiveTreeCategory(raw: string): ArchiveTreeCategory {
   const t = (raw || '').trim()
   if (!t) return 'practice'
   if (t === 'practice' || t === 'research' || t === 'honor') return t
-  if (/教研|科研|论文|课题|公开课|个案|课例|案例研究/.test(t)) return 'research'
-  if (/荣誉|获奖|表彰|奖状|证书|研修|培训|观摩|骨干/.test(t)) return 'honor'
-  if (/实践|主题|环境|家园|观察记录|教学过程/.test(t)) return 'practice'
-  if (t.includes('专业研究成果')) return 'research'
   if (t.includes('获奖与荣誉') || t.includes('学习与研修')) return 'honor'
+  if (t.includes('专业研究成果')) return 'research'
+  // 奖状/证书优先于「论文」字样，避免「论文活动证书」被算成教研而成果库显示专业荣誉
+  if (/荣誉|获奖|表彰|奖状|证书|研修|培训|观摩|骨干/.test(t)) return 'honor'
+  if (/教研|科研|论文|课题|公开课|个案|课例|案例研究/.test(t)) return 'research'
+  if (/实践|主题|环境|家园|观察记录|教学过程/.test(t)) return 'practice'
   return 'practice'
 }
 
@@ -49,6 +50,27 @@ export function resolveArchivePlanCategory(plan: TeachingPlan): ArchiveTreeCateg
   const fromDoc = extractArchiveTreeMetaFromMarkdown(blob)
   if (fromDoc.treeCategory) return fromDoc.treeCategory
   return normalizeArchiveTreeCategory(blob)
+}
+
+/** 与成果库列表一致：不把误入个人文件夹的活动方案/周计划算成果果实。 */
+export function filterTeacherArchiveDocs(plans: TeachingPlan[]): TeachingPlan[] {
+  return plans.filter(
+    (plan) => !/_活动方案_/.test(plan.title || '') && !/_周计划_/.test(plan.title || '')
+  )
+}
+
+export function countArchivePlansByTreeCategory(
+  plans: TeachingPlan[]
+): Record<ArchiveTreeCategory, number> {
+  const counts: Record<ArchiveTreeCategory, number> = {
+    practice: 0,
+    research: 0,
+    honor: 0,
+  }
+  for (const plan of plans) {
+    counts[resolveArchivePlanCategory(plan)] += 1
+  }
+  return counts
 }
 
 export const ARCHIVE_TREE_CATEGORY_FILTERS = ['特色实践', '教研科研', '专业荣誉'] as const

@@ -198,6 +198,7 @@ export default function ProfilePage() {
         years={treeYears}
         tags={treeTags}
         artifacts={artifacts}
+        archivePlans={archivePlans}
         loading={loading}
       />
 
