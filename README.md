@@ -17,7 +17,7 @@
 
 ### 1. Go BFF 分层架构
 
-基于 Gin 按 **`http / service / store / model`** 四层拆分：对外提供周计划 CRUD、教师成果录入（`growth_records`）、本人入库计数（`teacher_generated_docs`）、画像快照（`profile_snapshots`）及知识库封装等 **`/api/v1`** 接口。`KnowledgeService` 在上传时强制纠正业务分类（教案库 / 周计划库），避免文档误入教师成果库或手机号文件夹。GORM + **MySQL** 持久化业务数据（本地 Docker / 生产 RDS），HTTP 协议层与业务编排解耦。
+基于 Gin 按 **`http / service / store / model`** 四层拆分：对外提供周计划 CRUD、教师成果录入（`growth_records`）、本人入库映射与年份（`teacher_generated_docs`）、成果库分类映射（`archive_achievements`）、画像快照（`profile_snapshots`）及知识库封装等 **`/api/v1`** 接口。`KnowledgeService` 在上传时强制纠正业务分类（教案库 / 周计划库），避免文档误入教师成果库或手机号文件夹。GORM + **MySQL** 持久化业务数据（本地 Docker / 生产 RDS），HTTP 协议层与业务编排解耦。表结构变更需 `DB_AUTO_MIGRATE=true` 后重启后端。
 
 ### 2. 平台网关与鉴权透传
 
@@ -25,7 +25,7 @@
 
 ### 3. 智能体调用与文档处理
 
-对接平台 **`POST /v1/text/generate`**，活动方案 / 周计划 / 教师画像分 Agent 调用（`14317` / `14332` / `14372`）；前端拼装提示词、解析结构化输出，画像侧注入本人活动/周计划摘要。知识库 **`10368`** 三分类隔离（教案 `20806` / 周计划 `20807` / 教师成果库 `20895`）；成果库按**登录手机号**匹配个人文件夹。文档侧支持 mammoth 解析 Word、**先 `/api/file/upload` 再登记知识库**的多格式上传（教案库 / 周计划库 / 教师成果库同一格式清单），以及 docx/PDF 自主导出。
+对接平台 **`POST /v1/text/generate`**，活动方案 / 周计划 / 教师画像 / 成果解析分 Agent 调用（`14317` / `14332` / `14372` / `14509`）；前端拼装提示词、解析结构化输出。知识库 **`10368`** 三分类隔离（教案 `20806` / 周计划 `20807` / 教师成果库 `20895`）；成果库按**登录手机号**匹配个人文件夹，文档按特色实践 / 教研科研 / 专业荣誉归类。文档侧支持 mammoth 解析 Word、**先 `/api/file/upload` 再登记知识库**的多格式上传，以及 docx/PDF 自主导出。
 
 ### 4. 工程化交付
 
@@ -41,16 +41,16 @@
 登录 AI101
   → 活动方案：主题 + 领域 → 智能体生成 → 入库教案库（+ MySQL 本人计数）
   → 周计划：勾选方案 → 智能体出表 → 编辑 / 导出 → 入库周计划库
-  → 成果库：平台「教师成果库」个人文件夹（手机号同名）+ 多格式上传
-  → 教师画像：聚合本人成果与生成计数 → 智能解读（可落库快照）
+  → 成果库：平台「教师成果库」个人文件夹（手机号同名）+ 三类筛选 + 多格式上传
+  → 教师画像：专业成长树（叶片=日常教学，果实=实践/教研/荣誉，按年查看）→ 智能解读（可落库快照）
 ```
 
 硬约束：
 
-- **正式教案 / 周计划**以 AI101 知识库为准；本地 MySQL 存本人入库计数、成果录入、画像快照等。
+- **正式教案 / 周计划**以 AI101 知识库为准；本地 MySQL 存本人入库计数与年份、成果分类映射、成果录入、画像快照等。
 - 活动方案 / 周计划入库目标为业务分类（教案库 / 周计划库），**禁止误入教师成果库手机号文件夹**。
 - 成果库按**登录手机号**匹配同名个人文件夹，仅可见 / 可上传到本人目录。
-- 画像用于个人发展观察，**不做教师排名或绩效评分**。
+- 画像用于个人发展观察，**不做教师排名或绩效评分**；成长树按所选年份统计，「本年度产出 = 日常叶片 + 成果果实」。
 - 智能体 / 上传失败显式报错，**不静默 Mock 成功**；自动化须有超时或明确失败条件。
 
 ---
@@ -64,14 +64,25 @@
 | 首页 | `/` | 欢迎、快捷入口、三项真实统计（活动方案 / 周计划 / 教师成果库）、成长闭环入口 |
 | 活动方案 | `/activity` | 左右工作台生成与预览；知识库管理（本人入库 / 平台分类）；导出 |
 | 周计划 | `/weekly-plan` | 五列周看板；生成、单元格编辑、AI 改稿；入库与 Word/PDF 导出 |
-| 成果库 | `/archive` | 平台教师成果库（手机号文件夹）列表 / 预览 / 删除；多格式上传；三项汇总统计 |
-| 教师画像 | `/profile` | 成长结构聚合 + 智能画像解读；快照落库后登录可回显 |
+| 成果库 | `/archive` | 平台教师成果库（手机号文件夹）列表；特色实践 / 教研科研 / 专业荣誉筛选；多格式上传与解析；三项汇总统计 |
+| 教师画像 | `/profile` | 专业成长树（按年切换）；日常教学叶片来自 `teacher_generated_docs.year`；果实来自成果库三类；智能画像解读与快照 |
 
 兼容重定向：`/resources` → `/activity`；旧周计划子路径 → `/weekly-plan`。
 
+### 教师画像（专业成长树）
+
+| 元素 | 数据来源 | 年份 |
+|------|----------|------|
+| 绿色叶片 · 日常教学 | 本人入库的活动方案 / 周计划 | `teacher_generated_docs.year`（未传则从标题提取或用当年；旧行回退 `created_at`） |
+| 苔绿果实 · 特色实践 | 教师成果库个人文件夹文档 | 优先标题中的四位年，其次解析元数据 / 落库 `archive_achievements.year` |
+| 松针果实 · 教研科研 | 同上 | 同上 |
+| 橄榄金果实 · 专业荣誉 | 同上 | 同上 |
+
+顶部切换年份后，左侧统计、树上可点击的叶子/果实、下方四张成长结构卡**只统计该年**（本年度产出 = 日常叶片 + 成果果实）。树冠底色不计入叶片份数。成果库列表本身仍展示个人文件夹全部文档，可用三类芯片筛选。
+
 ### 知识库上传（教案 / 周计划 / 成果库）
 
-支持 Word、PDF、PPT、Excel、图片与常见文本（单文件建议 ≤ 50MB）。流程为：先 `POST /api/file/upload`，再登记对应分类（教案库 / 周计划库 / 教师成果库个人文件夹）；登记失败则回退 `document/text`，写入可检索说明与原文件链接。智能生成的活动方案 / 周计划仍以文本文档入库。
+支持 Word、PDF、PPT、Excel、图片与常见文本（单文件建议 ≤ 50MB）。流程为：先 `POST /api/file/upload`，再登记对应分类。成果库上传会先走解析智能体归纳正文与成长树分类，再入库个人文件夹。智能生成的活动方案 / 周计划仍以文本文档入库。
 
 ### 周计划文档模型（「快乐一周」）
 
@@ -159,8 +170,9 @@ flowchart TB
 | 活动方案生成 | `14317` | `VITE_TEACHING_AGENT_ID` |
 | 周计划生成 / 改稿 | `14332` | `VITE_WEEKLY_PLAN_AGENT_ID` |
 | 教师画像解读 | `14372` | `VITE_PROFILE_AGENT_ID` |
+| 成果解析 | `14509` | `VITE_ARCHIVE_PARSE_AGENT_ID` |
 
-调用：`POST /v1/text/generate`（用户 Token + `agent_id`）。画像提示词由前端注入**本人**成果与活动/周计划摘要，勿挂整库自动检索。
+调用：`POST /v1/text/generate`（用户 Token + `agent_id`）。画像提示词由前端注入**本人**成果与活动/周计划摘要，勿挂整库自动检索。成果解析系统提示词见 `apps/web/src/lib/prompts.ts` 中 `ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT`，变更后须同步到平台智能体 14509。
 
 入库标题约定：`姓名_活动方案_主题.md` / `姓名_周计划_主题.md`（不含手机号，避免平台智能分类进成果库）。
 
@@ -172,8 +184,8 @@ flowchart TB
 
 | 表 / 域 | 用途 |
 |---------|------|
-| `teacher_generated_docs` | 本人活动方案 / 周计划入库计数与映射（含日常教学 `year`） |
-| `archive_achievements` | 教师成果库文档的成长树分类（特色实践/教研科研/专业荣誉）与年份 |
+| `teacher_generated_docs` | 本人活动方案 / 周计划入库映射；`year` 供画像日常叶片按年统计 |
+| `archive_achievements` | 成果库文档成长树分类（`practice` / `research` / `honor`）与年份 |
 | `growth_records` | 教师录入类成果（可选） |
 | `profile_snapshots` | 智能画像文案快照（按手机号） |
 
@@ -202,7 +214,7 @@ flowchart TB
 │   │       ├── hooks/       # useTeachingResources / useArchiveKnowledge …
 │   │       ├── pages/       # dashboard / activity(resources) / weekly-plan / archive / profile
 │   │       ├── components/  # layout / profile / ui
-│   │       ├── lib/         # auth / prompts / export / metrics
+│   │       ├── lib/         # auth / prompts / export / metrics / growth-tree
 │   │       └── routes/
 │   └── api/                 # Go BFF
 │       └── internal/        # http / service / store / model / config
@@ -245,6 +257,7 @@ VITE_ARCHIVE_KNOWLEDGE_CATEGORY_KEY=custom_1785116184487
 VITE_TEACHING_AGENT_ID=14317
 VITE_WEEKLY_PLAN_AGENT_ID=14332
 VITE_PROFILE_AGENT_ID=14372
+VITE_ARCHIVE_PARSE_AGENT_ID=14509
 VITE_PLATFORM_API_BASE_URL=https://api.zcat.cn
 ```
 
@@ -300,7 +313,7 @@ docker build -f docker/Dockerfile -t nestedu:local .
 docker run --rm -p 8088:8088 \
   -e DB_DRIVER=mysql \
   -e DB_DSN='root:123456@tcp(host.docker.internal:3306)/mvp_db?charset=utf8mb4&parseTime=True&loc=Local' \
-  -e DB_AUTO_MIGRATE=true \
+-e DB_AUTO_MIGRATE=true \
   nestedu:local
 ```
 
@@ -314,13 +327,14 @@ docker run --rm -p 8088:8088 \
 
 | 变量 | 含义 |
 |------|------|
-| `VITE_USE_BACKEND_API` | 是否走 Go BFF（计数 / 快照 / growth） |
+| `VITE_USE_BACKEND_API` | 是否走 Go BFF（计数 / 年份 / 成果分类 / 快照 / growth） |
 | `VITE_*_KNOWLEDGE_*` | 知识库与三类分类 ID/key |
-| `VITE_*_AGENT_ID` | 教案 / 周计划 / 画像智能体 |
+| `VITE_*_AGENT_ID` | 教案 / 周计划 / 画像 / 成果解析智能体 |
 | `VITE_AI101_*` | 登录、父窗白名单、换票 |
 | `VITE_PLATFORM_API_BASE_URL` | 平台 API |
 | `PLATFORM_*` / `KNOWLEDGE_*_PATH` | Go 反代配置 |
 | `DB_DRIVER` / `DB_DSN` | 后端数据库 |
+| `DB_AUTO_MIGRATE` | 为 true 时启动自动加列（如 `teacher_generated_docs.year`） |
 
 ---
 
@@ -332,7 +346,8 @@ docker run --rm -p 8088:8088 \
 | 改 `.env` 不生效 | 重启 `pnpm dev`；Docker 需重新 build |
 | 活动方案进了成果库 | 从活动方案页重新入库；可用「纠正到教案库」；勿点平台「建议智能分类」 |
 | 成果库上传「参数错误」 | 须部署含 `/api/file` 反代与两步上传的版本；本地改代理后重启 Vite |
-| 画像「成长结构」为空 | 确认本人有活动方案/周计划数据后重新生成画像；旧快照需重新生成 |
+| 画像「成长结构」为空或年份对不上 | 确认本人有入库教案/周计划与成果库文档；切换顶部年份后，结构卡只统计该年；新 `year` 列需 `DB_AUTO_MIGRATE=true` 重启 API |
+| 成果解析仍像旧分类 | 把 `ARCHIVE_PARSE_AGENT_PLATFORM_PROMPT` 同步到平台智能体 14509 |
 | 账号串号 | 刷新页面；鉴权以当前会话 Token / 手机号为准，勿依赖过期 localStorage |
 
 ---
