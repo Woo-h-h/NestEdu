@@ -108,16 +108,18 @@ func (s *ProfileSnapshotService) Save(ctx context.Context, ownerID string, paylo
 	}
 
 	row := model.ProfileSnapshot{
-		ID:               id,
-		Phone:            normalized,
-		OwnerID:          owner,
-		DisplayName:      strings.TrimSpace(payload.DisplayName),
-		AgentID:          payload.AgentID,
-		Markdown:         markdown,
-		ArchiveDocCount:  payload.ArchiveDocCount,
-		LocalRecordCount: payload.LocalRecordCount,
-		FolderIDsJSON:    string(folderJSON),
-		GeneratedAt:      generatedAt,
+		ID:                id,
+		Phone:             normalized,
+		OwnerID:           owner,
+		DisplayName:       strings.TrimSpace(payload.DisplayName),
+		AgentID:           payload.AgentID,
+		Markdown:          markdown,
+		ArchiveDocCount:   payload.ArchiveDocCount,
+		ActivityPlanCount: payload.ActivityPlanCount,
+		WeeklyPlanCount:   payload.WeeklyPlanCount,
+		LocalRecordCount:  payload.LocalRecordCount,
+		FolderIDsJSON:     string(folderJSON),
+		GeneratedAt:       generatedAt,
 	}
 
 	saved, err := s.repo.ReplaceByPhoneForOwner(ctx, row)
@@ -164,16 +166,18 @@ func toProfilePayload(row model.ProfileSnapshot) (model.ProfileSnapshotPayload, 
 		}
 	}
 	return model.ProfileSnapshotPayload{
-		ID:               row.ID,
-		Phone:            row.Phone,
-		DisplayName:      row.DisplayName,
-		AgentID:          row.AgentID,
-		Markdown:         row.Markdown,
-		ArchiveDocCount:  row.ArchiveDocCount,
-		LocalRecordCount: row.LocalRecordCount,
-		FolderIDs:        folderIDs,
-		GeneratedAt:      row.GeneratedAt.UTC().Format(time.RFC3339),
-		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339),
+		ID:                row.ID,
+		Phone:             row.Phone,
+		DisplayName:       row.DisplayName,
+		AgentID:           row.AgentID,
+		Markdown:          row.Markdown,
+		ArchiveDocCount:   row.ArchiveDocCount,
+		ActivityPlanCount: row.ActivityPlanCount,
+		WeeklyPlanCount:   row.WeeklyPlanCount,
+		LocalRecordCount:  row.LocalRecordCount,
+		FolderIDs:         folderIDs,
+		GeneratedAt:       row.GeneratedAt.UTC().Format(time.RFC3339),
+		CreatedAt:         row.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:         row.UpdatedAt.UTC().Format(time.RFC3339),
 	}, nil
 }

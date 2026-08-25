@@ -11,6 +11,7 @@ import {
   teacherDocToPlan,
   type TeacherGeneratedDocType,
 } from '@/api/teacherGeneratedDocs'
+import { filterTeacherArchiveDocs } from '@/lib/archiveTreeCategory'
 import { authBridge } from '@/lib/authBridge'
 import { buildProfileAgentUserMessage } from '@/lib/profileAgentPrompt'
 import type { GrowthRecord } from '@/types/growth'
@@ -104,7 +105,7 @@ export async function generateProfileAgentAnalysis(options?: {
   }
 
   const folderIds = archive.folders.map((f) => f.id)
-  const archivePlans: TeachingPlan[] = archive.plans
+  const archivePlans: TeachingPlan[] = filterTeacherArchiveDocs(archive.plans)
 
   let localRecords: GrowthRecord[] = []
   try {

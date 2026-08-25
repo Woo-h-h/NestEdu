@@ -103,8 +103,8 @@ export default function ProfilePage() {
         setAgentMarkdown(snap.markdown)
         setAgentMeta({
           archiveDocCount: snap.archiveDocCount,
-          activityPlanCount: 0,
-          weeklyPlanCount: 0,
+          activityPlanCount: snap.activityPlanCount ?? 0,
+          weeklyPlanCount: snap.weeklyPlanCount ?? 0,
           localRecordCount: snap.localRecordCount,
           agentId: snap.agentId || getProfileAgentId(),
         })
@@ -149,6 +149,17 @@ export default function ProfilePage() {
   )
   const treeYears = useMemo(() => collectYears(artifacts), [artifacts])
 
+  // 份数与成长树同源：入库文档 + 成果库个人夹（已剔除误入的方案/周计划）+ 本地录入
+  const materialStats = useMemo(
+    () => ({
+      activityPlanCount: generatedDocs.filter((doc) => doc.docType === 'activity').length,
+      weeklyPlanCount: generatedDocs.filter((doc) => doc.docType === 'weekly').length,
+      archiveDocCount: archivePlans.length,
+      localRecordCount: records.filter((item) => !item.id.startsWith('kb_')).length,
+    }),
+    [generatedDocs, archivePlans, records]
+  )
+
   const handleGenerateAgentProfile = async () => {
     setAgentError('')
     setAgentLoading(true)
@@ -169,6 +180,8 @@ export default function ProfilePage() {
           agentId: result.agentId,
           markdown: result.markdown,
           archiveDocCount: result.archiveDocCount,
+          activityPlanCount: result.activityPlanCount,
+          weeklyPlanCount: result.weeklyPlanCount,
           localRecordCount: result.localRecordCount,
           folderIds: result.folderIds,
         })
@@ -256,11 +269,12 @@ export default function ProfilePage() {
           </p>
         )}
 
-        {agentMeta && (
+        {(agentMeta || agentMarkdown) && (
           <p className="text-xs text-nest-muted">
-            本次依据：活动方案 {agentMeta.activityPlanCount} 份、周计划 {agentMeta.weeklyPlanCount}{' '}
-            份（含正文摘要）+ 成果库文档 {agentMeta.archiveDocCount} 份 · 本地录入{' '}
-            {agentMeta.localRecordCount} 条。重新生成会覆盖旧版画像。
+            当前材料：活动方案 {materialStats.activityPlanCount} 份、周计划{' '}
+            {materialStats.weeklyPlanCount} 份（本人入库）+ 成果库文档{' '}
+            {materialStats.archiveDocCount} 份 · 本地录入 {materialStats.localRecordCount}{' '}
+            条。解读正文来自最近一次生成，份数与上方成长数据一致；重新生成会按最新材料覆盖。
             {snapshotSavedAt ? ` 最近保存：${new Date(snapshotSavedAt).toLocaleString()}` : ''}
           </p>
         )}

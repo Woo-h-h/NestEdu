@@ -39,13 +39,15 @@ func TestProfileSnapshotReplaceByPhone(t *testing.T) {
 	}
 
 	second, err := svc.Save(context.Background(), "owner_a", model.ProfileSnapshotPayload{
-		Phone:            phone,
-		DisplayName:      "张老师",
-		AgentID:          14372,
-		Markdown:         "## 新画像\n第二版",
-		ArchiveDocCount:  3,
-		LocalRecordCount: 2,
-		FolderIDs:        []string{"f1", "f2"},
+		Phone:             phone,
+		DisplayName:       "张老师",
+		AgentID:           14372,
+		Markdown:          "## 新画像\n第二版",
+		ArchiveDocCount:   3,
+		ActivityPlanCount: 12,
+		WeeklyPlanCount:   1,
+		LocalRecordCount:  2,
+		FolderIDs:         []string{"f1", "f2"},
 	})
 	if err != nil {
 		t.Fatalf("save second: %v", err)
@@ -60,6 +62,9 @@ func TestProfileSnapshotReplaceByPhone(t *testing.T) {
 	}
 	if got.Markdown != second.Markdown {
 		t.Fatalf("get mismatch: %+v", got)
+	}
+	if got.ActivityPlanCount != 12 || got.WeeklyPlanCount != 1 {
+		t.Fatalf("expected persisted plan counts, got activity=%d weekly=%d", got.ActivityPlanCount, got.WeeklyPlanCount)
 	}
 
 	if _, err := svc.GetByPhone(context.Background(), "owner_b", phone); err == nil {

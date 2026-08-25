@@ -258,7 +258,7 @@ Query 筛选（均可选）：
 
 - `phone`（必填，11 位大陆手机号）
 - `markdown`（必填，智能体生成文案）
-- `displayName`, `agentId`, `archiveDocCount`, `localRecordCount`, `folderIds`, `generatedAt`（可选）
+- `displayName`, `agentId`, `archiveDocCount`, `activityPlanCount`, `weeklyPlanCount`, `localRecordCount`, `folderIds`, `generatedAt`（可选）
 
 响应 `result`: 最新 `ProfileSnapshotPayload`。
 

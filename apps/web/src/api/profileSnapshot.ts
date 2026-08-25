@@ -11,6 +11,8 @@ export interface ProfileSnapshot {
   agentId: number
   markdown: string
   archiveDocCount: number
+  activityPlanCount?: number
+  weeklyPlanCount?: number
   localRecordCount: number
   folderIds: string[]
   generatedAt: string
@@ -24,6 +26,8 @@ export interface ProfileSnapshotInput {
   agentId?: number
   markdown: string
   archiveDocCount?: number
+  activityPlanCount?: number
+  weeklyPlanCount?: number
   localRecordCount?: number
   folderIds?: string[]
   generatedAt?: string
@@ -91,6 +95,8 @@ export async function saveProfileSnapshot(input: ProfileSnapshotInput): Promise<
       agentId: input.agentId ?? 0,
       markdown: input.markdown,
       archiveDocCount: input.archiveDocCount ?? 0,
+      activityPlanCount: input.activityPlanCount ?? 0,
+      weeklyPlanCount: input.weeklyPlanCount ?? 0,
       localRecordCount: input.localRecordCount ?? 0,
       folderIds: input.folderIds ?? [],
       generatedAt: input.generatedAt ?? new Date().toISOString(),
