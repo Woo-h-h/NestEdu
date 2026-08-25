@@ -1,5 +1,7 @@
 import { request } from '@/api/client'
 import { getApiErrorMessage } from '@/lib/apiError'
+import { isMissingUidHashError } from '@/lib/uidHashCache'
+import { ensureUidHashForBff } from '@/api/platformUser'
 import axios from 'axios'
 
 export interface ProfileSnapshot {
@@ -45,24 +47,44 @@ function unwrapResult<T>(data: ApiEnvelope<T> | T): T {
   return data as T
 }
 
+async function withUidHash<T>(run: () => Promise<T>, fallbackMessage: string): Promise<T> {
+  await ensureUidHashForBff()
+  try {
+    return await run()
+  } catch (err) {
+    if (!isMissingUidHashError(err) && !isMissingUidHashError(getApiErrorMessage(err, ''))) {
+      throw new Error(getApiErrorMessage(err, fallbackMessage))
+    }
+    await ensureUidHashForBff(true)
+    try {
+      return await run()
+    } catch (retryErr) {
+      throw new Error(getApiErrorMessage(retryErr, fallbackMessage))
+    }
+  }
+}
+
 /** 按手机号读取已保存画像；没有记录时返回 null（不抛错）。 */
 export async function getProfileSnapshotByPhone(phone: string): Promise<ProfileSnapshot | null> {
   const trimmed = phone.trim()
   if (!trimmed) return null
   try {
-    const data = await request.get<ApiEnvelope<ProfileSnapshot>>('/api/v1/profile-snapshots', {
-      params: { phone: trimmed },
-    })
-    return unwrapResult(data)
+    return await withUidHash(async () => {
+      const data = await request.get<ApiEnvelope<ProfileSnapshot>>('/api/v1/profile-snapshots', {
+        params: { phone: trimmed },
+      })
+      return unwrapResult(data)
+    }, '加载已保存画像失败')
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 404) return null
-    throw new Error(getApiErrorMessage(err, '加载已保存画像失败'))
+    if (err instanceof Error && /404|not found/i.test(err.message)) return null
+    throw err instanceof Error ? err : new Error(getApiErrorMessage(err, '加载已保存画像失败'))
   }
 }
 
 /** 保存画像；同一手机号会覆盖旧记录。 */
 export async function saveProfileSnapshot(input: ProfileSnapshotInput): Promise<ProfileSnapshot> {
-  try {
+  return withUidHash(async () => {
     const data = await request.post<ApiEnvelope<ProfileSnapshot>>('/api/v1/profile-snapshots', {
       phone: input.phone.trim(),
       displayName: input.displayName ?? '',
@@ -74,7 +96,5 @@ export async function saveProfileSnapshot(input: ProfileSnapshotInput): Promise<
       generatedAt: input.generatedAt ?? new Date().toISOString(),
     })
     return unwrapResult(data)
-  } catch (err) {
-    throw new Error(getApiErrorMessage(err, '保存画像失败，请稍后重试'))
-  }
+  }, '保存画像失败，请稍后重试')
 }

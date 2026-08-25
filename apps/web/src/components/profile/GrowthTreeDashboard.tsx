@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Maximize2 } from 'lucide-react'
 import { teacherDocToPlan } from '@/api/teacherGeneratedDocs'
 import ArchiveDetailDrawer from '@/components/archive/ArchiveDetailDrawer'
 import GrowthTreeSvg, { GrowthTreeLabels } from '@/components/profile/GrowthTreeSvg'
@@ -49,6 +50,10 @@ export default function GrowthTreeDashboard({
   const [growth, setGrowth] = useState<GrowthRecord | null>(null)
   const [growthOpen, setGrowthOpen] = useState(false)
   const [genericOpen, setGenericOpen] = useState(false)
+  const [expanded, setExpanded] = useState<{
+    year: number
+    branch: Exclude<GrowthTreeBranch, 'daily'>
+  } | null>(null)
   const playTimers = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
@@ -83,6 +88,10 @@ export default function GrowthTreeDashboard({
     return [...daily, ...fruits]
   }, [artifacts, year, archivePlans.length, archiveFruitArtifacts])
   const yearTags = useMemo(() => deriveGrowthTags(yearItems), [yearItems])
+  const expandedList = useMemo(() => {
+    if (!expanded) return []
+    return artifacts.filter((a) => a.year === expanded.year && a.branch === expanded.branch)
+  }, [artifacts, expanded])
   const branchItems = useMemo(
     () => yearItems.filter((item) => item.branch === branch),
     [yearItems, branch]
@@ -377,7 +386,7 @@ export default function GrowthTreeDashboard({
             <p className="text-xs tracking-[0.18em] text-amber-800/70">GROWTH TIMELINE</p>
             <h2 className="font-display text-2xl text-nest-ink">成长轨迹</h2>
             <p className="mt-1 text-sm text-nest-muted">
-              按年度沉淀特色实践、教研科研与专业荣誉。日常叶片不列入轨迹表，以免淹没果实类成果。
+              按年度沉淀特色实践、教研科研与专业荣誉。点击分类卡片可展开全部条目；点单条可查看详情。日常叶片不列入轨迹表。
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-sm text-nest-muted">
@@ -413,22 +422,31 @@ export default function GrowthTreeDashboard({
                     return (
                       <section
                         key={key}
-                        className="overflow-hidden rounded-xl border border-nest-leaf/15 bg-white"
+                        className="overflow-hidden rounded-xl border border-nest-leaf/15 bg-white transition hover:border-nest-leaf/40 hover:shadow-sm"
                         style={{ borderTop: `3px solid ${m.color}` }}
                       >
-                        <div
-                          className="flex items-center justify-between px-3 py-2.5"
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between px-3 py-2.5 text-left"
                           style={{ background: m.soft }}
+                          onClick={() => setExpanded({ year: y, branch: key })}
                         >
                           <b className="text-sm" style={{ color: m.color }}>
                             {m.short}
                           </b>
-                          <span className="text-sm text-nest-muted">{list.length} 项</span>
-                        </div>
+                          <span className="inline-flex items-center gap-1.5 text-sm text-nest-muted">
+                            {list.length} 项
+                            <Maximize2 size={14} />
+                          </span>
+                        </button>
                         {list.length === 0 ? (
-                          <p className="px-3 py-5 text-center text-sm text-nest-muted">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-5 text-center text-sm text-nest-muted"
+                            onClick={() => setExpanded({ year: y, branch: key })}
+                          >
                             该年度正在自然积累
-                          </p>
+                          </button>
                         ) : (
                           <div className="px-2 pb-2">
                             {list.slice(0, 8).map((item) => (
@@ -442,6 +460,15 @@ export default function GrowthTreeDashboard({
                                 <small className="text-xs text-nest-muted">{item.shortDate}</small>
                               </button>
                             ))}
+                            {list.length > 8 ? (
+                              <button
+                                type="button"
+                                className="w-full py-2 text-center text-xs text-nest-pine"
+                                onClick={() => setExpanded({ year: y, branch: key })}
+                              >
+                                还有 {list.length - 8} 项，点击展开
+                              </button>
+                            ) : null}
                           </div>
                         )}
                       </section>
@@ -458,6 +485,57 @@ export default function GrowthTreeDashboard({
         幼师专业成长树 · 个人成长可视化档案 · 无积分 / 无等级 / 无排名
       </p>
 
+      <Dialog open={Boolean(expanded)} onOpenChange={(open) => !open && setExpanded(null)}>
+        <DialogContent className="max-h-[min(80vh,720px)] overflow-y-auto sm:max-w-2xl">
+          {expanded ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {expanded.year} 年 · {GROWTH_TREE_BRANCHES[expanded.branch].short}
+                </DialogTitle>
+              </DialogHeader>
+              {expandedList.length === 0 ? (
+                <p className="py-8 text-center text-sm text-nest-muted">
+                  {expanded.year} 年该分类正在自然积累
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {expandedList.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-nest-leaf/15 bg-white px-4 py-3 text-left transition hover:border-nest-leaf/40 hover:bg-nest-mist/40"
+                        onClick={() => {
+                          setExpanded(null)
+                          openArtifact(item)
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <b className="text-base leading-snug text-nest-ink">{item.title}</b>
+                          <small className="shrink-0 text-sm text-nest-muted">{item.shortDate}</small>
+                        </div>
+                        {item.kind ? (
+                          <p
+                            className="mt-1 text-sm"
+                            style={{ color: GROWTH_TREE_BRANCHES[expanded.branch].color }}
+                          >
+                            {item.kind}
+                          </p>
+                        ) : null}
+                        {item.preview ? (
+                          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-nest-muted">
+                            {item.preview}
+                          </p>
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <PlanDetailDialog plan={plan} open={planOpen} onOpenChange={setPlanOpen} />
       <ArchiveDetailDrawer record={growth} open={growthOpen} onOpenChange={setGrowthOpen} />
       <Dialog open={genericOpen} onOpenChange={setGenericOpen}>

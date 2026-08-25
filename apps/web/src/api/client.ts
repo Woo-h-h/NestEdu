@@ -1,4 +1,4 @@
-import { getCachedUidHash } from "@/lib/uidHashCache";
+import { hydrateUidHashFromAuth } from "@/lib/uidHashCache";
 import { authBridge } from "@/lib/authBridge";
 import { buildAuthHeaders } from "@zcat-open/auth-bridge";
 import axios, { AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
@@ -18,29 +18,8 @@ export interface ApiClient extends Omit<AxiosInstance, "get" | "post" | "put" | 
 }
 
 function resolveUidHashForHeaders(authInfo: ReturnType<typeof authBridge.getAuthInfo>): string {
-  if (!authInfo) return getCachedUidHash();
-
-  const direct =
-    (authInfo as { uidHash?: unknown }).uidHash ??
-    (authInfo as { uid_hash?: unknown }).uid_hash;
-  if (direct !== undefined && direct !== null && String(direct).trim()) {
-    return String(direct).trim();
-  }
-
-  const user =
-    authInfo.user && typeof authInfo.user === "object"
-      ? (authInfo.user as Record<string, unknown>)
-      : null;
-  if (user) {
-    for (const key of ["uid_hash", "uidHash", "uid"]) {
-      const value = user[key];
-      if (value !== undefined && value !== null && String(value).trim()) {
-        return String(value).trim();
-      }
-    }
-  }
-
-  return getCachedUidHash();
+  if (!authInfo?.token) return ''
+  return hydrateUidHashFromAuth(authInfo, authInfo.token)
 }
 
 /** 平台 API（知识库 / 智能体对话）请求头，供 fetch 流式调用复用 */

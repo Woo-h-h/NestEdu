@@ -13,6 +13,7 @@ import { useProfileMetrics } from '@/hooks/useProfileMetrics'
 import { generateProfileAgentAnalysis } from '@/api/profileAgent'
 import { getProfileSnapshotByPhone, saveProfileSnapshot } from '@/api/profileSnapshot'
 import { getCurrentTeacherPhone } from '@/api/platformUser'
+import { isMissingUidHashError } from '@/lib/uidHashCache'
 import { getProfileAgentId } from '@/api/agent'
 import {
   buildGrowthTreeArtifacts,
@@ -115,6 +116,10 @@ export default function ProfilePage() {
       } catch (err) {
         if (cancelled) return
         const msg = getApiErrorMessage(err, '加载已保存画像失败')
+        if (isMissingUidHashError(msg) || isMissingUidHashError(err)) {
+          console.warn('[profile] snapshot load skipped (uid hash not ready)', msg)
+          return
+        }
         setSnapshotError(msg)
         console.warn('[profile] load snapshot failed', err)
       } finally {
@@ -262,7 +267,8 @@ export default function ProfilePage() {
 
         {snapshotError && (
           <p className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-900">
-            画像保存异常：{snapshotError}。请稍后重试，或确认已登录且网络正常。
+            {snapshotError.includes('加载') ? '画像加载提示' : '画像保存提示'}：{snapshotError}
+            。若已能看到正文，可忽略本提示；否则请稍后点「生成智能画像」或刷新页面。
           </p>
         )}
 

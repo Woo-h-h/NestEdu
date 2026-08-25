@@ -1,7 +1,7 @@
 import { request } from '@/api/client'
 import { authBridge } from '@/lib/authBridge'
 import { clearLegacyAuthStorage } from '@/lib/authIdentity'
-import { clearCachedUidHash, setCachedUidHash } from '@/lib/uidHashCache'
+import { clearCachedUidHash, getCachedUidHash, hydrateUidHashFromAuth, setCachedUidHash } from '@/lib/uidHashCache'
 
 export interface PlatformUserSelf {
   raw: Record<string, unknown>
@@ -117,7 +117,7 @@ export async function fetchPlatformUserSelf(): Promise<PlatformUserSelf | null> 
     uidHash: pickString(nested, ['uid_hash', 'uidHash', 'uid', 'id']),
     role: pickString(nested, ['role']),
   }
-  if (user.uidHash) setCachedUidHash(user.uidHash)
+  if (user.uidHash) setCachedUidHash(user.uidHash, auth.token)
   return user
 }
 
@@ -138,20 +138,35 @@ function currentAuthToken(): string {
   return (authBridge.getAuthInfo()?.token || '').trim()
 }
 
-/** 清除用户资料缓存（登出或切换账号时调用） */
+/** 清除用户资料缓存（登出或切换账号时调用）。uid_hash 单独处理，避免并发 BFF 请求被清空头。 */
 export function clearTeacherPhoneCache() {
   cachedSelf = null
   inflightSelf = null
-  clearCachedUidHash()
 }
 
 /** 最近一次 /user/self 拿到的 uid_hash（可能为空） */
 export { getCachedUidHash } from '@/lib/uidHashCache'
 
+/** 确保即将发起的 BFF 请求带上 X-Uid-Hash（iframe 登录态有时不含该字段）。 */
+export async function ensureUidHashForBff(force = false): Promise<string> {
+  const auth = authBridge.getAuthInfo()
+  if (!auth?.token) {
+    clearCachedUidHash()
+    return ''
+  }
+  const ready = hydrateUidHashFromAuth(auth, auth.token)
+  if (ready && !force) return ready
+  const user = await getCachedPlatformUserSelf(force)
+  const hash = (user?.uidHash || getCachedUidHash(auth.token)).trim()
+  if (hash) setCachedUidHash(hash, auth.token)
+  return hash
+}
+
 async function getCachedPlatformUserSelf(force = false): Promise<PlatformUserSelf | null> {
   const token = currentAuthToken()
   if (!token) {
     clearTeacherPhoneCache()
+    clearCachedUidHash()
     return null
   }
 
@@ -178,7 +193,7 @@ async function getCachedPlatformUserSelf(force = false): Promise<PlatformUserSel
       const user = await fetchPlatformUserSelf()
       if (currentAuthToken() !== tokenAtStart) return null
       cachedSelf = { value: user, at: Date.now(), token: tokenAtStart }
-      if (user?.uidHash) setCachedUidHash(user.uidHash)
+      if (user?.uidHash) setCachedUidHash(user.uidHash, tokenAtStart)
       return user
     } finally {
       inflightSelf = null
