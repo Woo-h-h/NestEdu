@@ -136,9 +136,9 @@ export default function GrowthTreeDashboard({
       setPlayKey((k) => k + 1)
       i += 1
       if (i < years.length) {
-        playTimers.current.push(window.setTimeout(run, 1100))
+        playTimers.current.push(window.setTimeout(run, 2400))
       } else {
-        playTimers.current.push(window.setTimeout(() => setPlaying(false), 600))
+        playTimers.current.push(window.setTimeout(() => setPlaying(false), 1200))
       }
     }
     run()
