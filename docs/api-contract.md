@@ -286,10 +286,11 @@ Query 筛选（均可选）：
 
 - `POST /api/v1/teacher-generated-docs`
 
-请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId` / `storage` / `content`。
+请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId` / `storage` / `content` / `year`。
 
 - `storage`：`platform`（默认，已上传 AI101 知识库）| `mysql`（仅 NestEdu MySQL，本人在「我的」可见）
 - `storage=mysql` 时 `content` 必填（全文）；`platform` 时可空
+- `year`：日常教学归属年份（1990–下一年）。未传时从标题/正文提取，再否则为当年。旧行 `year=0` 时列表按 `created_at` 回退。
 
 ### 18) 删除
 
@@ -313,10 +314,11 @@ Query 筛选（均可选）：
 
 - `POST /api/v1/teacher-generated-docs`
 
-请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId` / `storage` / `content`。
+请求体：`phone`, `docType`（`activity`|`weekly`）, `knowledgeDocId`, `title`，可选 `knowledgeId` / `categoryId` / `storage` / `content` / `year`。
 
 - `storage`：`platform`（默认，已上传 AI101 知识库）| `mysql`（仅 NestEdu MySQL，本人在「我的」可见）
 - `storage=mysql` 时 `content` 必填（全文）；`platform` 时可空
+- `year`：日常教学归属年份（1990–下一年）。未传时从标题/正文提取，再否则为当年。旧行 `year=0` 时列表按 `created_at` 回退。
 
 ### 18) 删除
 

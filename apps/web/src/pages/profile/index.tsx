@@ -17,7 +17,6 @@ import { getProfileAgentId } from '@/api/agent'
 import {
   buildGrowthTreeArtifacts,
   collectYears,
-  deriveGrowthTags,
 } from '@/lib/growth-tree'
 
 export default function ProfilePage() {
@@ -144,7 +143,6 @@ export default function ProfilePage() {
     [generatedDocs, archivePlans, archiveAchievements, records]
   )
   const treeYears = useMemo(() => collectYears(artifacts), [artifacts])
-  const treeTags = useMemo(() => deriveGrowthTags(artifacts), [artifacts])
 
   const handleGenerateAgentProfile = async () => {
     setAgentError('')
@@ -196,7 +194,6 @@ export default function ProfilePage() {
       <GrowthTreeDashboard
         displayName={displayName}
         years={treeYears}
-        tags={treeTags}
         artifacts={artifacts}
         archivePlans={archivePlans}
         loading={loading}

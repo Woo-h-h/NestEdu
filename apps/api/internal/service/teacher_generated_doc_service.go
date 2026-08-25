@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +22,7 @@ var (
 	ErrGeneratedDocNotFound        = errors.New("teacher generated doc not found")
 	ErrGeneratedDocStorageInvalid  = errors.New("storage must be mysql or platform")
 	ErrGeneratedDocContentRequired = errors.New("content is required when storage is mysql")
+	ErrGeneratedDocYearInvalid     = errors.New("year must be 0 or between 1990 and next calendar year")
 	ErrGeneratedDocForbidden       = errors.New("teacher generated doc belongs to another user")
 )
 
@@ -77,6 +80,11 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 		content = ""
 	}
 
+	year, err := resolveGeneratedDocYear(payload.Year, title, content)
+	if err != nil {
+		return model.TeacherGeneratedDocPayload{}, err
+	}
+
 	id := strings.TrimSpace(payload.ID)
 	if id == "" {
 		id = fmt.Sprintf("tgd_%s_%s", phone, knowledgeDocID)
@@ -99,6 +107,7 @@ func (s *TeacherGeneratedDocService) Save(ctx context.Context, ownerID string, p
 		CategoryID:     strings.TrimSpace(payload.CategoryID),
 		Storage:        storage,
 		Content:        content,
+		Year:           year,
 	})
 	if err != nil {
 		return model.TeacherGeneratedDocPayload{}, err
@@ -184,6 +193,50 @@ func (s *TeacherGeneratedDocService) DeleteByKnowledgeDocID(ctx context.Context,
 	return nil
 }
 
+func generatedDocYearOrFallback(row model.TeacherGeneratedDoc) int {
+	if row.Year >= 1990 {
+		return row.Year
+	}
+	if !row.CreatedAt.IsZero() {
+		return row.CreatedAt.Year()
+	}
+	return time.Now().Year()
+}
+
+var generatedDocYearPattern = regexp.MustCompile(`(20\d{2}|19\d{2})`)
+
+func extractYearFromText(parts ...string) int {
+	max := time.Now().Year() + 1
+	for _, part := range parts {
+		match := generatedDocYearPattern.FindString(part)
+		if match == "" {
+			continue
+		}
+		year, err := strconv.Atoi(match)
+		if err != nil {
+			continue
+		}
+		if year >= 1990 && year <= max {
+			return year
+		}
+	}
+	return 0
+}
+
+func resolveGeneratedDocYear(payloadYear int, title, content string) (int, error) {
+	if payloadYear != 0 {
+		year, err := NormalizeAchievementYear(payloadYear)
+		if err != nil {
+			return 0, ErrGeneratedDocYearInvalid
+		}
+		return year, nil
+	}
+	if year := extractYearFromText(title, content); year != 0 {
+		return year, nil
+	}
+	return time.Now().Year(), nil
+}
+
 func toGeneratedDocPayload(row model.TeacherGeneratedDoc, includeContent bool) model.TeacherGeneratedDocPayload {
 	storage := strings.TrimSpace(row.Storage)
 	if storage == "" {
@@ -203,6 +256,7 @@ func toGeneratedDocPayload(row model.TeacherGeneratedDoc, includeContent bool) m
 		CategoryID:     row.CategoryID,
 		Storage:        storage,
 		Content:        content,
+		Year:           generatedDocYearOrFallback(row),
 		CreatedAt:      row.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:      row.UpdatedAt.UTC().Format(time.RFC3339),
 	}

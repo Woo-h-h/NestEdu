@@ -15,22 +15,17 @@ import {
   GROWTH_TREE_BRANCH_KEYS,
   artifactFromKnowledgePlan,
   artifactsForStructureView,
+  deriveGrowthTags,
   groupKindRows,
   type GrowthTreeArtifact,
   type GrowthTreeBranch,
 } from '@/lib/growth-tree'
-import {
-  ARCHIVE_TREE_CATEGORY_LABELS,
-  countArchivePlansByTreeCategory,
-  type ArchiveTreeCategory,
-} from '@/lib/archiveTreeCategory'
 import type { GrowthRecord } from '@/types/growth'
 import type { TeachingPlan } from '@/types/weeklyPlan'
 
 interface GrowthTreeDashboardProps {
   displayName: string
   years: number[]
-  tags: string[]
   artifacts: GrowthTreeArtifact[]
   archivePlans?: TeachingPlan[]
   loading: boolean
@@ -39,7 +34,6 @@ interface GrowthTreeDashboardProps {
 export default function GrowthTreeDashboard({
   displayName,
   years,
-  tags,
   artifacts,
   archivePlans = [],
   loading,
@@ -72,23 +66,23 @@ export default function GrowthTreeDashboard({
     []
   )
 
-  const archiveCounts = useMemo(
-    () => countArchivePlansByTreeCategory(archivePlans),
-    [archivePlans]
-  )
   const archiveFruitArtifacts = useMemo(
     () => archivePlans.map(artifactFromKnowledgePlan),
     [archivePlans]
   )
   const yearItems = useMemo(() => {
-    const mixed = artifactsForStructureView(artifacts, year)
-    const daily = mixed.filter((item) => item.branch === 'daily')
-    const fruits =
+    const daily = artifactsForStructureView(
+      artifacts.filter((item) => item.branch === 'daily'),
+      year
+    )
+    const fruitSource =
       archivePlans.length > 0
         ? archiveFruitArtifacts
-        : mixed.filter((item) => item.branch !== 'daily')
+        : artifacts.filter((item) => item.branch !== 'daily')
+    const fruits = fruitSource.filter((item) => item.year === year)
     return [...daily, ...fruits]
   }, [artifacts, year, archivePlans.length, archiveFruitArtifacts])
+  const yearTags = useMemo(() => deriveGrowthTags(yearItems), [yearItems])
   const branchItems = useMemo(
     () => yearItems.filter((item) => item.branch === branch),
     [yearItems, branch]
@@ -214,7 +208,7 @@ export default function GrowthTreeDashboard({
           </div>
           <p className="mt-4 text-[10px] text-nest-muted">由真实成果提炼的观察标签</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {tags.map((tag) => (
+            {yearTags.map((tag) => (
               <span
                 key={tag}
                 className="rounded-full bg-nest-mist px-2 py-1 text-[10px] text-nest-pine"
@@ -236,7 +230,7 @@ export default function GrowthTreeDashboard({
             <div>
               <b className="text-sm text-nest-ink">{year} 年度成长树</b>
               <small className="mt-1 block text-[11px] text-nest-muted">
-                点击叶片或果实查看对应产出；果实与成果库分类对应
+                可点击的叶子和果实才计入份数；树冠底色不计入
                 {loading ? ' · 加载中…' : ''}
               </small>
             </div>
@@ -332,53 +326,44 @@ export default function GrowthTreeDashboard({
       </section>
 
       <section className="rounded-2xl border border-nest-leaf/15 bg-white/50 p-5">
-        <div className="mb-3 flex items-end justify-between gap-3">
+        <div className="mb-4 flex items-end justify-between gap-3">
           <div>
-            <p className="text-[10px] tracking-[0.18em] text-amber-800/70">GROWTH STRUCTURE</p>
-            <h2 className="font-display text-lg text-nest-ink">成长结构</h2>
+            <p className="text-xs tracking-[0.18em] text-amber-800/70">GROWTH STRUCTURE</p>
+            <h2 className="font-display text-2xl text-nest-ink">{year} 年成长结构</h2>
           </div>
-          <p className="text-xs text-nest-muted">日常叶片按所选年份；成果库果实与成果库分类份数一致</p>
+          <p className="text-sm text-nest-muted">只统计 {year} 年，不是全部年份合计</p>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {GROWTH_TREE_BRANCH_KEYS.map((key) => {
             const m = GROWTH_TREE_BRANCHES[key]
             const items = yearItems.filter((x) => x.branch === key)
-            const count =
-              key === 'daily'
-                ? items.length
-                : archivePlans.length > 0
-                  ? archiveCounts[key as ArchiveTreeCategory]
-                  : items.length
+            const count = items.length
             const detail =
-              key === 'daily'
-                ? groupKindRows(items)
-                    .filter((r) => r.count > 0)
-                    .map((r) => `${r.kind} ${r.count}`)
-                    .join(' · ') || '正在自然积累'
-                : count > 0
-                  ? `${ARCHIVE_TREE_CATEGORY_LABELS[key as ArchiveTreeCategory]} ${count}`
-                  : '正在自然积累'
+              groupKindRows(items)
+                .filter((r) => r.count > 0)
+                .map((r) => `${r.kind} ${r.count}`)
+                .join(' · ') || '正在自然积累'
             return (
               <button
                 key={key}
                 type="button"
-                className={`grid grid-cols-[38px_1fr_auto] items-center gap-2 rounded-2xl border bg-white/90 p-3 text-left ${branch === key ? 'border-nest-leaf shadow-sm' : 'border-nest-leaf/15'}`}
+                className={`grid grid-cols-[44px_1fr_auto] items-center gap-3 rounded-2xl border bg-white/90 p-4 text-left ${branch === key ? 'border-nest-leaf shadow-sm' : 'border-nest-leaf/15'}`}
                 onClick={() => setBranch(key)}
               >
                 <i
-                  className="grid h-9 w-9 place-items-center rounded-xl text-sm font-bold not-italic"
+                  className="grid h-11 w-11 place-items-center rounded-xl text-base font-bold not-italic"
                   style={{ background: m.soft, color: m.color }}
                 >
                   {m.symbol}
                 </i>
                 <span className="min-w-0">
-                  <small className="text-[10px] text-nest-muted">{m.eyebrow}</small>
-                  <b className="block text-xs text-nest-ink">{m.short}</b>
-                  <em className="block truncate text-[10px] not-italic text-nest-muted">{detail}</em>
+                  <small className="text-xs text-nest-muted">{m.eyebrow}</small>
+                  <b className="block text-base text-nest-ink">{m.short}</b>
+                  <em className="block truncate text-sm not-italic text-nest-muted">{detail}</em>
                 </span>
-                <strong className="text-lg" style={{ color: m.color }}>
+                <strong className="text-3xl leading-none" style={{ color: m.color }}>
                   {count}
-                  <small className="block text-[10px] font-normal text-nest-muted">份产出</small>
+                  <small className="mt-1 block text-xs font-normal text-nest-muted">份产出</small>
                 </strong>
               </button>
             )

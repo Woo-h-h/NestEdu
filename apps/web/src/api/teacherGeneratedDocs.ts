@@ -25,6 +25,7 @@ export interface TeacherGeneratedDocInput {
   categoryId?: string
   storage?: TeacherGeneratedDocStorage
   content?: string
+  year?: number
 }
 
 interface ApiEnvelope<T> {
@@ -54,12 +55,37 @@ export interface TeacherGeneratedDoc {
   categoryId?: string
   storage?: TeacherGeneratedDocStorage
   content?: string
+  year?: number
   createdAt?: string
   updatedAt?: string
 }
 
 export function isMysqlOnlyDocId(id: string): boolean {
   return id.trim().startsWith('local_')
+}
+
+export function resolveDailyDocYear(input: {
+  year?: number
+  title?: string
+  content?: string
+  createdAt?: string
+}): number {
+  const current = new Date().getFullYear()
+  const max = current + 1
+  if (typeof input.year === 'number' && input.year >= 1990 && input.year <= max) {
+    return Math.trunc(input.year)
+  }
+  const blob = `${input.title || ''}\n${input.content || ''}`
+  const match = blob.match(/(20\d{2}|19\d{2})/)
+  if (match) {
+    const parsed = Number(match[1])
+    if (parsed >= 1990 && parsed <= max) return parsed
+  }
+  if (input.createdAt) {
+    const d = new Date(input.createdAt)
+    if (!Number.isNaN(d.getTime())) return d.getFullYear()
+  }
+  return current
 }
 
 export function teacherDocToPlan(row: TeacherGeneratedDoc): TeachingPlan {
@@ -73,6 +99,7 @@ export function teacherDocToPlan(row: TeacherGeneratedDoc): TeachingPlan {
     content: row.content || '',
     source: storage === 'mysql' ? 'mysql' : 'platform',
     knowledgeId: row.knowledgeId,
+    year: resolveDailyDocYear(row),
   }
 }
 
@@ -133,6 +160,7 @@ export async function saveTeacherGeneratedDoc(
         categoryId: input.categoryId ?? '',
         storage: input.storage || 'platform',
         content: input.content ?? '',
+        year: resolveDailyDocYear(input),
       }
     )
     return unwrapResult(data)
@@ -167,6 +195,7 @@ export async function saveMysqlOnlyGeneratedDoc(params: {
     title,
     storage: 'mysql',
     content,
+    year: resolveDailyDocYear({ title, content }),
   })
   return teacherDocToPlan(saved)
 }
@@ -194,6 +223,11 @@ export async function recordTeacherGeneratedUpload(params: {
       categoryId: params.categoryId,
       storage: 'platform',
       content: (params.content || params.plan.content || '').trim(),
+      year: resolveDailyDocYear({
+        year: params.plan.year,
+        title: params.plan.title,
+        content: params.content || params.plan.content,
+      }),
     })
   } catch (err) {
     console.warn('[teacher-generated-docs] record skipped', err)

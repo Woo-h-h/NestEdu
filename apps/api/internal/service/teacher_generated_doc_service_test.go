@@ -139,3 +139,53 @@ func TestTeacherGeneratedDocScopedByOwner(t *testing.T) {
 		t.Fatalf("other owner should see 0, got %+v", stats)
 	}
 }
+
+func TestTeacherGeneratedDocPersistsYear(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.TeacherGeneratedDoc{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	svc := NewTeacherGeneratedDocService(store.NewTeacherGeneratedDocStore(db))
+	phone := "13800138000"
+
+	saved, err := svc.Save(context.Background(), "owner", model.TeacherGeneratedDocPayload{
+		Phone:          phone,
+		DocType:        "activity",
+		KnowledgeDocID: "doc_year_1",
+		Title:          "春季主题活动",
+		Year:           2024,
+	})
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if saved.Year != 2024 {
+		t.Fatalf("expected year 2024, got %d", saved.Year)
+	}
+
+	fromTitle, err := svc.Save(context.Background(), "owner", model.TeacherGeneratedDocPayload{
+		Phone:          phone,
+		DocType:        "weekly",
+		KnowledgeDocID: "doc_year_2",
+		Title:          "2023年第二周计划",
+	})
+	if err != nil {
+		t.Fatalf("save from title: %v", err)
+	}
+	if fromTitle.Year != 2023 {
+		t.Fatalf("expected year 2023 from title, got %d", fromTitle.Year)
+	}
+
+	_, err = svc.Save(context.Background(), "owner", model.TeacherGeneratedDocPayload{
+		Phone:          phone,
+		DocType:        "activity",
+		KnowledgeDocID: "doc_year_bad",
+		Title:          "无效年份",
+		Year:           1800,
+	})
+	if err == nil {
+		t.Fatal("expected invalid year error")
+	}
+}

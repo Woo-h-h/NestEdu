@@ -1,5 +1,5 @@
 import type { ArchiveAchievement } from '@/api/archiveAchievements'
-import type { TeacherGeneratedDoc } from '@/api/teacherGeneratedDocs'
+import { resolveDailyDocYear, type TeacherGeneratedDoc } from '@/api/teacherGeneratedDocs'
 import {
   ARCHIVE_TREE_CATEGORY_LABELS,
   extractArchiveTreeMetaFromMarkdown,
@@ -114,7 +114,7 @@ export const GROWTH_TREE_MAX_FRUIT = 24
 
 const CURRENT_YEAR = new Date().getFullYear()
 
-export function parseArtifactYear(...parts: string[]): number {
+export function extractArtifactYear(...parts: string[]): number | undefined {
   for (const part of parts) {
     const match = part.match(/(20\d{2}|19\d{2})/)
     if (match) {
@@ -122,7 +122,11 @@ export function parseArtifactYear(...parts: string[]): number {
       if (year >= 1990 && year <= CURRENT_YEAR + 1) return year
     }
   }
-  return CURRENT_YEAR
+  return undefined
+}
+
+export function parseArtifactYear(...parts: string[]): number {
+  return extractArtifactYear(...parts) ?? CURRENT_YEAR
 }
 
 export function yearFromIso(iso?: string): number {
@@ -169,7 +173,7 @@ function clip(text: string, max = 180): string {
 }
 
 export function artifactFromGeneratedDoc(doc: TeacherGeneratedDoc): GrowthTreeArtifact {
-  const year = yearFromIso(doc.createdAt)
+  const year = resolveDailyDocYear(doc)
   const kind = doc.docType === 'weekly' ? '周计划' : '活动方案'
   const dates = formatArtifactDate(doc.createdAt || '')
   return {
@@ -195,9 +199,11 @@ export function artifactFromKnowledgePlan(plan: TeachingPlan): GrowthTreeArtifac
   )
   const branch = resolveArchivePlanCategory(plan)
   const year =
-    plan.year && plan.year > 0
-      ? plan.year
-      : fromDoc.year || parseArtifactYear(plan.title, plan.objectives || '', plan.content || '')
+    extractArtifactYear(plan.title) ||
+    fromDoc.year ||
+    (plan.year && plan.year > 0 ? plan.year : undefined) ||
+    extractArtifactYear(plan.objectives || '', plan.content || '') ||
+    CURRENT_YEAR
   const kind = ARCHIVE_TREE_CATEGORY_LABELS[branch]
   return {
     id: `kb:${plan.id}`,
@@ -222,7 +228,9 @@ export function artifactFromArchiveAchievement(
 ): GrowthTreeArtifact {
   const branch = normalizeArchiveTreeCategory(row.treeCategory)
   const year =
-    row.year > 0 ? row.year : yearFromIso(row.createdAt) || parseArtifactYear(row.title)
+    extractArtifactYear(row.title, plan?.title || '') ||
+    (row.year > 0 ? row.year : undefined) ||
+    yearFromIso(row.createdAt)
   const dates = formatArtifactDate(row.createdAt || '')
   return {
     id: `aa:${row.knowledgeDocId}`,
@@ -351,10 +359,10 @@ export function visibleTreeItems(
   return items.slice(0, max)
 }
 
-/** 日常叶片按入库年份；成果库果实与成果库分类一致，不因获奖年份从当前视图消失。 */
+/** 所选年份的叶片与果实，供画像统计与树视图使用。 */
 export function artifactsForStructureView(
   artifacts: GrowthTreeArtifact[],
   year: number
 ): GrowthTreeArtifact[] {
-  return artifacts.filter((item) => item.branch !== 'daily' || item.year === year)
+  return artifacts.filter((item) => item.year === year)
 }

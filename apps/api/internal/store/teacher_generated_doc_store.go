@@ -23,7 +23,7 @@ func (s *TeacherGeneratedDocStore) Upsert(ctx context.Context, row model.Teacher
 		Columns: []clause.Column{{Name: "knowledge_doc_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"phone", "owner_id", "doc_type", "title", "knowledge_id", "category_id",
-			"storage", "content", "updated_at",
+			"storage", "content", "year", "updated_at",
 		}),
 	}).Create(&row).Error
 	if err != nil {

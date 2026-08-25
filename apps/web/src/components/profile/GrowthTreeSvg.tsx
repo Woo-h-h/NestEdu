@@ -127,7 +127,7 @@ export default function GrowthTreeSvg({
         <path d="M311 277c29-53 70-96 146-130" strokeWidth="31" />
       </g>
 
-      <g className="growth-tree-canopy">
+      <g className="growth-tree-canopy" opacity={shownDaily.length > 0 ? 1 : 0.38}>
         <g fill="url(#gtC2)">
           <circle cx="77" cy="350" r="49" />
           <circle cx="117" cy="328" r="61" />

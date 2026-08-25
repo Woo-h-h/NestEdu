@@ -93,6 +93,7 @@ func (h *teacherGeneratedDocHandler) writeErr(c *gin.Context, err error) {
 		errors.Is(err, service.ErrGeneratedDocIDRequired),
 		errors.Is(err, service.ErrGeneratedDocStorageInvalid),
 		errors.Is(err, service.ErrGeneratedDocContentRequired),
+		errors.Is(err, service.ErrGeneratedDocYearInvalid),
 		errors.Is(err, service.ErrOwnerRequired):
 		jsonErr(c, http.StatusBadRequest, err)
 	default:
