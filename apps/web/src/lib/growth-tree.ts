@@ -50,7 +50,7 @@ export interface GrowthTreeBranchMeta {
   shape: string
 }
 
-/** 松针绿体系：叶片仍为叶绿，果实改为苔绿 / 松绿 / 橄榄金。 */
+/** 叶片仍为叶绿；三类果实用绿 / 橙 / 红区分，不做排名或绩效分。 */
 export const GROWTH_TREE_BRANCHES: Record<GrowthTreeBranch, GrowthTreeBranchMeta> = {
   daily: {
     key: 'daily',
@@ -68,37 +68,37 @@ export const GROWTH_TREE_BRANCHES: Record<GrowthTreeBranch, GrowthTreeBranchMeta
     key: 'practice',
     name: '特色实践枝',
     short: '特色实践',
-    eyebrow: '苔绿果实',
+    eyebrow: '绿色果实',
     symbol: '实',
-    color: '#4a9b7f',
-    soft: '#e8f2ee',
-    summary: '主题实践、环境与家园类成果，凝结为树上的苔绿色实践果实。',
+    color: '#2f9e5a',
+    soft: '#e6f6ec',
+    summary: '主题实践、环境与家园类成果，凝结为树上的绿色实践果实。',
     note: '实践果实来自教师成果库文档（按标题归类），不是虚构数据。',
-    shape: '1 颗苔绿果实',
+    shape: '1 颗绿色果实',
   },
   research: {
     key: 'research',
     name: '教研科研枝',
     short: '教研科研',
-    eyebrow: '松针果实',
+    eyebrow: '橙色果实',
     symbol: '研',
-    color: '#1b4d3e',
-    soft: '#dceee7',
-    summary: '公开课、论文、课题与个案等，凝结为松针绿色教研果实。',
+    color: '#e07a2f',
+    soft: '#fff1e4',
+    summary: '公开课、论文、课题与个案等，凝结为橙色教研果实。',
     note: '教研枝记录专业反思与研究沉淀，不做排名或绩效分。',
-    shape: '1 颗松针绿果实',
+    shape: '1 颗橙色果实',
   },
   honor: {
     key: 'honor',
     name: '专业荣誉枝',
     short: '专业荣誉',
-    eyebrow: '橄榄金果实',
+    eyebrow: '红色果实',
     symbol: '光',
-    color: '#6b8f3a',
-    soft: '#eef5dc',
-    summary: '研修、获奖与荣誉表彰，凝结为树冠顶部的橄榄金色果实。',
-    note: '金色仅作类型区分，不用于积分、等级或教师之间比较。',
-    shape: '1 颗橄榄金果实',
+    color: '#d64545',
+    soft: '#fdecea',
+    summary: '研修、获奖与荣誉表彰，凝结为树冠顶部的红色荣誉果实。',
+    note: '颜色仅作类型区分，不用于积分、等级或教师之间比较。',
+    shape: '1 颗红色果实',
   },
 }
 

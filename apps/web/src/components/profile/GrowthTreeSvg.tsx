@@ -68,20 +68,20 @@ export default function GrowthTreeSvg({
           <stop stopColor="#8ce061" />
           <stop offset="1" stopColor="#38a447" />
         </linearGradient>
-        <radialGradient id="gtMossFruit" cx="0.34" cy="0.24">
-          <stop stopColor="#d4f0d8" />
-          <stop offset="0.55" stopColor="#4a9b7f" />
-          <stop offset="1" stopColor="#1b4d3e" />
+        <radialGradient id="gtGreenFruit" cx="0.34" cy="0.24">
+          <stop stopColor="#d4f5dc" />
+          <stop offset="0.55" stopColor="#2f9e5a" />
+          <stop offset="1" stopColor="#1a6b3a" />
         </radialGradient>
-        <radialGradient id="gtPineFruit" cx="0.34" cy="0.24">
-          <stop stopColor="#c5e4d8" />
-          <stop offset="0.55" stopColor="#2f6f5e" />
-          <stop offset="1" stopColor="#14382e" />
+        <radialGradient id="gtOrangeFruit" cx="0.34" cy="0.24">
+          <stop stopColor="#ffe3c4" />
+          <stop offset="0.55" stopColor="#e07a2f" />
+          <stop offset="1" stopColor="#b45309" />
         </radialGradient>
-        <radialGradient id="gtOliveFruit" cx="0.34" cy="0.24">
-          <stop stopColor="#f3f6c8" />
-          <stop offset="0.55" stopColor="#8aaa48" />
-          <stop offset="1" stopColor="#4f6a22" />
+        <radialGradient id="gtRedFruit" cx="0.34" cy="0.24">
+          <stop stopColor="#ffd4d4" />
+          <stop offset="0.55" stopColor="#d64545" />
+          <stop offset="1" stopColor="#9f1239" />
         </radialGradient>
       </defs>
 
@@ -212,8 +212,9 @@ export default function GrowthTreeSvg({
           const region = FRUIT_REGIONS[branch]
           const slots = growthTreePositions(items.length, ...region)
           const grad =
-            branch === 'practice' ? 'gtMossFruit' : branch === 'research' ? 'gtPineFruit' : 'gtOliveFruit'
-          const stroke = branch === 'honor' ? '#6b8f3a' : 'rgba(46,66,47,.4)'
+            branch === 'practice' ? 'gtGreenFruit' : branch === 'research' ? 'gtOrangeFruit' : 'gtRedFruit'
+          const stroke =
+            branch === 'practice' ? '#1a6b3a' : branch === 'research' ? '#b45309' : '#9f1239'
           return items.map((item, i) => {
             const p = slots[i]
             return (
@@ -265,7 +266,7 @@ export default function GrowthTreeSvg({
                     <path
                       className="growth-tree-spark"
                       d="M23-15l2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"
-                      fill="#eef5b0"
+                      fill="#fecaca"
                     />
                   ) : null}
                 </g>
