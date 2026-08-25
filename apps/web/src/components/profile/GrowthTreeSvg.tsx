@@ -315,8 +315,8 @@ export function GrowthTreeLabels({
             style={{ borderLeft: `3px solid ${meta.color}` }}
             onClick={() => onSelect(key)}
           >
-            <small className="block text-[10px] text-nest-muted">{meta.eyebrow}</small>
-            <b className="mt-0.5 block text-[11px] text-nest-ink">{meta.short}</b>
+            <small className="block text-xs text-nest-muted">{meta.eyebrow}</small>
+            <b className="mt-0.5 block text-sm text-nest-ink">{meta.short}</b>
           </button>
         )
       })}

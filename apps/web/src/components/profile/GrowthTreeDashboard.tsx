@@ -269,42 +269,42 @@ export default function GrowthTreeDashboard({
         <aside className="surface-panel p-5">
           <div className="flex items-center gap-2.5 border-b border-nest-leaf/10 pb-4">
             <span
-              className="grid h-11 w-11 place-items-center rounded-xl text-sm font-bold"
+              className="grid h-12 w-12 place-items-center rounded-xl text-base font-bold"
               style={{ background: meta.soft, color: meta.color }}
             >
               {meta.symbol}
             </span>
             <div className="flex-1">
-              <small className="text-[10px]" style={{ color: meta.color }}>
+              <small className="text-xs" style={{ color: meta.color }}>
                 {meta.eyebrow}
               </small>
-              <h2 className="text-[15px] font-semibold text-nest-ink">{meta.name}</h2>
+              <h2 className="text-lg font-semibold text-nest-ink">{meta.name}</h2>
             </div>
             <span
-              className="rounded-full px-2 py-1 text-[10px]"
+              className="rounded-full px-2.5 py-1 text-sm"
               style={{ background: meta.soft, color: meta.color }}
             >
               {branchItems.length} 份
             </span>
           </div>
-          <p className="my-4 text-xs leading-relaxed text-nest-muted">{meta.summary}</p>
+          <p className="my-4 text-sm leading-relaxed text-nest-muted">{meta.summary}</p>
           <div className="border-t border-nest-leaf/10">
             {kindRows.length === 0 ? (
-              <p className="py-6 text-center text-xs text-nest-muted">该枝条本年度正在自然积累</p>
+              <p className="py-6 text-center text-sm text-nest-muted">该枝条本年度正在自然积累</p>
             ) : (
               kindRows.map((row) => (
                 <div
                   key={row.kind}
-                  className="grid grid-cols-[22px_1fr_auto] items-center gap-2 border-b border-nest-leaf/8 py-3"
+                  className="grid grid-cols-[28px_1fr_auto] items-center gap-2 border-b border-nest-leaf/8 py-3"
                 >
                   <i
-                    className="grid h-6 w-6 place-items-center rounded-lg text-[10px] not-italic"
+                    className="grid h-7 w-7 place-items-center rounded-lg text-xs not-italic"
                     style={{ background: meta.soft, color: meta.color }}
                   >
                     {meta.symbol}
                   </i>
-                  <b className="text-xs text-nest-ink">{row.kind}</b>
-                  <span className="text-[11px]" style={{ color: meta.color }}>
+                  <b className="text-sm text-nest-ink">{row.kind}</b>
+                  <span className="text-sm" style={{ color: meta.color }}>
                     {row.count} {row.unit}
                   </span>
                 </div>
@@ -312,14 +312,14 @@ export default function GrowthTreeDashboard({
             )}
           </div>
           <div
-            className="mt-4 rounded-xl p-3 text-[11px] leading-relaxed text-nest-muted"
+            className="mt-4 rounded-xl p-3.5 text-sm leading-relaxed text-nest-muted"
             style={{ background: meta.soft }}
           >
             <b style={{ color: meta.color }}>{meta.short}</b>
             <br />
             {meta.note}
           </div>
-          <p className="mt-3 text-center text-[10px] text-nest-muted">
+          <p className="mt-3 text-center text-xs text-nest-muted">
             点击树上的单个叶片或果实查看具体信息
           </p>
         </aside>
@@ -374,17 +374,17 @@ export default function GrowthTreeDashboard({
       <section id="growth-timeline" className="surface-panel scroll-mt-24 p-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-nest-leaf/10 pb-4">
           <div>
-            <p className="text-[10px] tracking-[0.18em] text-amber-800/70">GROWTH TIMELINE</p>
-            <h2 className="font-display text-xl text-nest-ink">成长轨迹</h2>
-            <p className="mt-1 text-xs text-nest-muted">
+            <p className="text-xs tracking-[0.18em] text-amber-800/70">GROWTH TIMELINE</p>
+            <h2 className="font-display text-2xl text-nest-ink">成长轨迹</h2>
+            <p className="mt-1 text-sm text-nest-muted">
               按年度沉淀特色实践、教研科研与专业荣誉。日常叶片不列入轨迹表，以免淹没果实类成果。
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 text-[11px] text-nest-muted">
+          <div className="flex flex-wrap gap-3 text-sm text-nest-muted">
             {(['practice', 'research', 'honor'] as const).map((key) => (
-              <label key={key} className="flex items-center gap-1">
+              <label key={key} className="flex items-center gap-1.5">
                 <i
-                  className="inline-block h-2 w-2 rounded-full"
+                  className="inline-block h-2.5 w-2.5 rounded-full"
                   style={{ background: GROWTH_TREE_BRANCHES[key].color }}
                 />
                 {GROWTH_TREE_BRANCHES[key].short}
@@ -400,11 +400,11 @@ export default function GrowthTreeDashboard({
             return (
               <article
                 key={y}
-                className="grid grid-cols-[72px_1fr] gap-4 py-5 md:grid-cols-[95px_1fr]"
+                className="grid grid-cols-[88px_1fr] gap-4 py-5 md:grid-cols-[110px_1fr]"
               >
                 <div>
-                  <b className="font-display block text-lg text-nest-pine">{y}</b>
-                  <small className="text-[10px] text-nest-muted">{fruitCount} 项轨迹成果</small>
+                  <b className="font-display block text-2xl text-nest-pine">{y}</b>
+                  <small className="text-sm text-nest-muted">{fruitCount} 项轨迹成果</small>
                 </div>
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                   {(['practice', 'research', 'honor'] as const).map((key) => {
@@ -417,16 +417,16 @@ export default function GrowthTreeDashboard({
                         style={{ borderTop: `3px solid ${m.color}` }}
                       >
                         <div
-                          className="flex items-center justify-between px-3 py-2"
+                          className="flex items-center justify-between px-3 py-2.5"
                           style={{ background: m.soft }}
                         >
-                          <b className="text-xs" style={{ color: m.color }}>
+                          <b className="text-sm" style={{ color: m.color }}>
                             {m.short}
                           </b>
-                          <span className="text-[10px] text-nest-muted">{list.length} 项</span>
+                          <span className="text-sm text-nest-muted">{list.length} 项</span>
                         </div>
                         {list.length === 0 ? (
-                          <p className="px-3 py-5 text-center text-[11px] text-nest-muted">
+                          <p className="px-3 py-5 text-center text-sm text-nest-muted">
                             该年度正在自然积累
                           </p>
                         ) : (
@@ -435,11 +435,11 @@ export default function GrowthTreeDashboard({
                               <button
                                 key={item.id}
                                 type="button"
-                                className="grid w-full grid-cols-[1fr_auto] gap-2 border-b border-dashed border-nest-leaf/10 px-1 py-2 text-left last:border-0"
+                                className="grid w-full grid-cols-[1fr_auto] gap-2 border-b border-dashed border-nest-leaf/10 px-1 py-2.5 text-left last:border-0"
                                 onClick={() => openArtifact(item)}
                               >
-                                <b className="truncate text-[11px] text-nest-ink">{item.title}</b>
-                                <small className="text-[10px] text-nest-muted">{item.shortDate}</small>
+                                <b className="truncate text-sm text-nest-ink">{item.title}</b>
+                                <small className="text-xs text-nest-muted">{item.shortDate}</small>
                               </button>
                             ))}
                           </div>
