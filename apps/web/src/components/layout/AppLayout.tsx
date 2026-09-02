@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   BookOpen,
   Home,
@@ -9,6 +9,7 @@ import {
   FolderKanban,
   Radar,
   Sparkles,
+  CircleHelp,
 } from 'lucide-react'
 import UserBadge from '@/components/layout/UserBadge'
 import { formatAppVersionLabel } from '@/lib/appVersion'
@@ -59,12 +60,21 @@ const menuItems: MenuItem[] = [
   },
 ]
 
+const helpMenu: MenuItem = {
+  path: '/help',
+  title: '使用说明',
+  shortLabel: '说明',
+  subtitle: '给老师看的操作步骤与常见问题',
+  icon: CircleHelp,
+}
+
 function isMenuActive(pathname: string, path: string): boolean {
   if (path === '/') return pathname === '/'
   return pathname === path || pathname.startsWith(`${path}/`)
 }
 
 function resolveActiveMenu(pathname: string): MenuItem {
+  if (pathname === '/help' || pathname.startsWith('/help/')) return helpMenu
   if (pathname === '/') return menuItems[0]
   const match = menuItems.find(
     (m) => m.path !== '/' && (pathname === m.path || pathname.startsWith(`${m.path}/`))
@@ -188,6 +198,23 @@ export default function AppLayout() {
           onNavigate={navigate}
         />
 
+        <div className="relative z-10 mx-3 mb-2">
+          <button
+            type="button"
+            onClick={() => navigate('/help')}
+            title="使用说明"
+            aria-current={location.pathname === '/help' ? 'page' : undefined}
+            className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition-all ${
+              location.pathname === '/help'
+                ? 'bg-white font-bold text-[#1e5142] shadow-sm'
+                : 'text-white/80 hover:bg-white/10 hover:text-white'
+            } ${collapsed ? 'justify-center px-2' : ''}`}
+          >
+            <CircleHelp size={20} className="shrink-0" />
+            {!collapsed && <span>使用说明</span>}
+          </button>
+        </div>
+
         {!collapsed && (
           <div className="relative z-10 mx-3 mb-3 rounded-[14px] border border-white/15 bg-white/10 p-3.5 text-[12px] leading-relaxed text-white/70">
             <strong className="mb-1 block text-[13px] text-white">保教资源与专业成长一体化</strong>
@@ -220,7 +247,16 @@ export default function AppLayout() {
             <div className="truncate text-lg font-bold text-[#243b34]">{activeMenu.title}</div>
             <div className="truncate text-xs text-[#6d7d76]">{activeMenu.subtitle}</div>
           </div>
-          <UserBadge />
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              to="/help"
+              className="inline-flex items-center gap-1.5 rounded-full border border-nest-leaf/20 bg-white px-3 py-1.5 text-xs font-medium text-nest-pine transition hover:bg-nest-mist/80"
+            >
+              <CircleHelp size={14} />
+              <span className="hidden sm:inline">使用说明</span>
+            </Link>
+            <UserBadge />
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto p-4 pb-20 md:p-8 md:pb-8">

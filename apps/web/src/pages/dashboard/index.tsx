@@ -179,14 +179,23 @@ export default function DashboardPage() {
         <p className="relative mt-3 max-w-xl text-sm leading-relaxed text-emerald-50/85 md:text-base">
           从一周安排到单次活动实施，再到资源沉淀和教师画像，在这里形成完整闭环。
         </p>
-        <button
-          type="button"
-          onClick={() => navigate('/activity')}
-          className="relative z-10 mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#1e5142] shadow-md transition hover:-translate-y-0.5"
-        >
-          <Sparkles size={16} />
-          生成活动方案
-        </button>
+        <div className="relative z-10 mt-6 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/activity')}
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#1e5142] shadow-md transition hover:-translate-y-0.5"
+          >
+            <Sparkles size={16} />
+            生成活动方案
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/help')}
+            className="inline-flex items-center gap-2 rounded-xl bg-white/12 px-4 py-2.5 text-sm font-medium text-white ring-1 ring-white/25 transition hover:bg-white/20"
+          >
+            第一次用？看使用说明
+          </button>
+        </div>
       </section>
 
       <section className="mb-6" aria-label="成果统计">

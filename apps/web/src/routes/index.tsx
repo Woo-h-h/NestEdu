@@ -10,6 +10,7 @@ const WeeklyPlanPage = lazy(() => import('@/pages/weekly-plan/index'))
 const ArchivePage = lazy(() => import('@/pages/archive/index'))
 const ArchiveUploadPage = lazy(() => import('@/pages/archive/upload'))
 const ProfilePage = lazy(() => import('@/pages/profile/index'))
+const HelpPage = lazy(() => import('@/pages/help/index'))
 const NotFoundPage = lazy(() => import('@/packages/components/NotFound/index'))
 
 const routes = [
@@ -56,6 +57,10 @@ const routes = [
       {
         path: 'profile',
         element: <PageLazy component={ProfilePage} />,
+      },
+      {
+        path: 'help',
+        element: <PageLazy component={HelpPage} />,
       },
     ],
   },

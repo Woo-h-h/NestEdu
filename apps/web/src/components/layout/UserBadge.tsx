@@ -54,7 +54,7 @@ export default function UserBadge() {
         type="button"
         onClick={() => void handleLogin()}
         disabled={loggingIn}
-        className="btn-primary ml-auto !px-3 !py-1.5 text-xs"
+        className="btn-primary !px-3 !py-1.5 text-xs"
       >
         <LogIn size={13} />
         {loggingIn ? '跳转登录中…' : '登录平台'}
@@ -70,7 +70,7 @@ export default function UserBadge() {
 
   return (
     <span
-      className="ml-auto inline-flex max-w-[260px] items-center gap-1.5 truncate rounded-full border border-nest-leaf/15 bg-nest-mist/80 px-3 py-1 text-xs text-nest-pine"
+      className="inline-flex max-w-[260px] items-center gap-1.5 truncate rounded-full border border-nest-leaf/15 bg-nest-mist/80 px-3 py-1 text-xs text-nest-pine"
       title={phoneHint ? `当前手机号 ${phoneHint}` : undefined}
     >
       <UserRound size={13} className="shrink-0 opacity-70" />
